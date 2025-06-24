@@ -11,6 +11,7 @@ import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import clsx from 'clsx';
+import { gunzipSync, strFromU8 } from "fflate";
 
 // Initialize Supabase Client
 const supabase = createClient(
@@ -425,36 +426,56 @@ export default function Dashboard() {
   }, [isAuthenticated, router, hasSearched, authError, handleSearch]);
 
   useEffect(() => {
-    const loadServiceCategories = async () => {
+    async function loadUltraFilterOptions() {
       try {
         setIsLoadingFilters(true);
         setLocalError(null);
-        
-        // Use the new API endpoint for the larger filter_options.json file
-        const response = await fetch('/api/filter-options');
-        if (!response.ok) {
-          throw new Error(`Failed to fetch filter options: ${response.status} ${response.statusText}`);
+        const res = await fetch("/filter_options.json.gz");
+        if (!res.ok) throw new Error(`Failed to fetch filter options: ${res.status} ${res.statusText}`);
+        const gzipped = new Uint8Array(await res.arrayBuffer());
+        const decompressed = gunzipSync(gzipped);
+        const jsonStr = strFromU8(decompressed);
+        const data = JSON.parse(jsonStr);
+        // Debug: log the raw data structure and its keys
+        console.log("DEBUG: raw filter data", data);
+        console.log("DEBUG: raw filter data keys", Object.keys(data));
+        // Handle new columnar format with mappings
+        if (data.m && data.v && data.c) {
+          const { m: mappings, v: values, c: columns } = data;
+          const numRows: number = values[0].length;
+          const combinations: any[] = [];
+          for (let i = 0; i < numRows; i++) {
+            const combo: Record<string, string> = {};
+            columns.forEach((col: string, colIndex: number) => {
+              const intValue = values[colIndex][i];
+              combo[col] = intValue === -1 ? '' : mappings[col][intValue];
+            });
+            combinations.push(combo);
+          }
+          // Extract unique values for each filter
+          const filters: Record<string, string[]> = {};
+          columns.forEach((col: string) => {
+            const uniqueValues = [...new Set(combinations.map((c: any) => c[col]).filter((v: string) => v))];
+            filters[col as string] = uniqueValues.sort();
+          });
+          setFilterOptionsData({ filters, combinations });
+          // Debug logs
+          console.log("DEBUG: filterOptionsData", { filters, combinations });
+          console.log("DEBUG: filters.service_category", filters["service_category"]);
+          Object.keys(filters).forEach(key => {
+            console.log(`DEBUG: filters[${key}]`, filters[key]);
+          });
+        } else {
+          setFilterOptionsData(data);
         }
-        
-        const data: FilterOptionsData = await response.json();
-        
-        if (!data.filters || !data.combinations || !Array.isArray(data.combinations)) {
-          throw new Error('Invalid filter options data structure');
-        }
-        
-        const serviceCategories = data.filters.service_category?.sort() || [];
-        setFilterOptionsData(data);
-        
-        console.log(`✅ Loaded ${serviceCategories.length} service categories from source_data.cursorignore/filter_options.json`);
       } catch (err) {
-        console.error('Error loading service categories:', err);
-        setLocalError(`Could not load service categories: ${err instanceof Error ? err.message : 'Unknown error'}. Please try refreshing the page.`);
+        console.error('Error loading ultra filter options:', err);
+        setLocalError(`Could not load filter options: ${err instanceof Error ? err.message : 'Unknown error'}. Please try refreshing the page.`);
       } finally {
         setIsLoadingFilters(false);
       }
-    };
-
-    loadServiceCategories();
+    }
+    loadUltraFilterOptions();
   }, []);
 
   useEffect(() => {
@@ -751,9 +772,8 @@ export default function Dashboard() {
 
   // Helper
   function getAvailableOptionsForFilter(filterKey: keyof Selections) {
-    if (!filterOptionsData) return [];
-    
-    // Special handling for fee_schedule_date to aggregate dates from arrays
+    if (!filterOptionsData || !filterOptionsData.combinations) return [];
+    // Special handling for fee_schedule_date to aggregate dates from the 'rate_effective_date' column
     if (filterKey === 'fee_schedule_date') {
       const dateSet = new Set<string>();
       filterOptionsData.combinations.forEach(combo => {
@@ -763,31 +783,32 @@ export default function Dashboard() {
           if (!value) return true;
           return combo[key] === value;
         });
-        
         if (matches) {
-          if (Array.isArray(combo.rate_effective_date)) {
-            combo.rate_effective_date.forEach((date: string) => {
-              if (date) dateSet.add(date);
-            });
-          } else if (combo.rate_effective_date) {
-            dateSet.add(combo.rate_effective_date);
-          }
+          // 'rate_effective_date' can be a string or array of strings
+          const dates = Array.isArray(combo.rate_effective_date)
+            ? combo.rate_effective_date
+            : combo.rate_effective_date
+              ? [combo.rate_effective_date]
+              : [];
+          dates.forEach((date: string) => {
+            if (date) dateSet.add(date);
+          });
         }
       });
       return Array.from(dateSet).sort();
     }
-    
     // For all other filters, ensure that if a fee_schedule_date is selected, we only consider combos where the date is present in the array (or matches the string)
     return Array.from(new Set(
       filterOptionsData.combinations
         .filter(combo => {
           // If a fee_schedule_date is selected, only consider combos where the date is present
           if (selections.fee_schedule_date) {
-            if (Array.isArray(combo.rate_effective_date)) {
-              if (!combo.rate_effective_date.includes(selections.fee_schedule_date)) return false;
-            } else if (combo.rate_effective_date !== selections.fee_schedule_date) {
-              return false;
-            }
+            const dates = Array.isArray(combo.rate_effective_date)
+              ? combo.rate_effective_date
+              : combo.rate_effective_date
+                ? [combo.rate_effective_date]
+                : [];
+            if (!dates.includes(selections.fee_schedule_date)) return false;
           }
           // Now check all other selections except the current filterKey
           return Object.entries(selections).every(([key, value]) => {
@@ -829,7 +850,7 @@ export default function Dashboard() {
 
   // Find the current combination based on all selected filters
   const currentCombo = useMemo(() => {
-    if (!filterOptionsData) return null;
+    if (!filterOptionsData || !filterOptionsData.combinations) return null;
     return filterOptionsData.combinations.find(
       c =>
         c.service_category === selections.service_category &&
@@ -853,11 +874,13 @@ export default function Dashboard() {
     console.log("DEBUG availableDates", availableDates, "Selections:", selections);
     console.log(
       "DEBUG matches",
-      filterOptionsData?.combinations.filter(
-        c =>
-          c.service_category === selections.service_category &&
-          c.state_name === selections.state_name
-      )
+      filterOptionsData && filterOptionsData.combinations
+        ? filterOptionsData.combinations.filter(
+            c =>
+              c.service_category === selections.service_category &&
+              c.state_name === selections.state_name
+          )
+        : []
     );
   }
 
