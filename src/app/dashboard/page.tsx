@@ -5,7 +5,6 @@ import AppLayout from "@/app/components/applayout";
 import { FaExclamationCircle, FaFilter } from 'react-icons/fa';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { useData, ServiceData } from "@/context/DataContext";
 import Select from 'react-select';
 import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
 import { useRouter } from "next/navigation";
@@ -71,6 +70,28 @@ interface RefreshDataResponse {
     providerTypes: string[];
     modifiers: string[];
   };
+}
+
+interface ServiceData {
+  state_name: string;
+  service_category: string;
+  service_code: string;
+  service_description?: string;
+  modifier_1?: string;
+  modifier_1_details?: string;
+  modifier_2?: string;
+  modifier_2_details?: string;
+  modifier_3?: string;
+  modifier_3_details?: string;
+  modifier_4?: string;
+  modifier_4_details?: string;
+  rate: string;
+  rate_effective_date: string;
+  program: string;
+  location_region: string;
+  rate_per_hour?: string;
+  duration_unit?: string;
+  [key: string]: string | undefined;
 }
 
 // Add these mappings near the top, after imports and before the Dashboard component
@@ -157,8 +178,12 @@ const customFilterOption = (option: any, inputValue: string) => {
 export default function Dashboard() {
   const { isAuthenticated, isLoading, user } = useKindeBrowserClient();
   const router = useRouter();
-  const { data, loading, error, refreshData } = useData();
-  
+
+  // Add local state for data, loading, and error
+  const [data, setData] = useState<ServiceData[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   // All useState hooks
   const [isSubscriptionCheckComplete, setIsSubscriptionCheckComplete] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
@@ -187,6 +212,36 @@ export default function Dashboard() {
   const [pendingFilters, setPendingFilters] = useState<Set<keyof Selections>>(new Set());
   
   const itemsPerPage = 50; // Adjust this number based on your needs
+
+  const refreshData = async (filters: Record<string, string> = {}): Promise<RefreshDataResponse | null> => {
+    console.log('[DEBUG] refreshData called with filters:', filters);
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams();
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value) params.append(key, value);
+      });
+      const url = `/api/state-payment-comparison?${params.toString()}`;
+      console.log('[DEBUG] Fetching:', url);
+      const response = await fetch(url);
+      const result = await response.json();
+      console.log('[DEBUG] API response:', result);
+      if (result && Array.isArray(result.data)) {
+        setData(result.data);
+        return result;
+      } else {
+        setError('Invalid data format received');
+        return null;
+      }
+    } catch (err) {
+      setError('Failed to fetch data. Please try again.');
+      console.error('[DEBUG] Error in refreshData:', err);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // All useCallback hooks
   const loadFilterOptions = useCallback(async () => {
@@ -345,6 +400,7 @@ export default function Dashboard() {
   }, [filterOptionsData]);
 
   const handleSearch = useCallback(async () => {
+    console.log('[DEBUG] handleSearch triggered');
     setIsSearching(true);
     setHasSearched(true);
     setPendingFilters(new Set());
@@ -362,6 +418,7 @@ export default function Dashboard() {
       if (sortConfig.length > 0) {
         filters.sort = sortConfig.map(s => `${s.key}:${s.direction}`).join(',');
       }
+      console.log('[DEBUG] handleSearch filters:', filters);
       const result = await refreshData(filters) as RefreshDataResponse | null;
       if (result?.data) {
         setTotalCount(result.totalCount);
