@@ -1147,19 +1147,6 @@ export default function Dashboard() {
   return (
     <AppLayout activeTab="dashboard">
       <div className="p-4 sm:p-8 bg-gradient-to-br from-gray-50 to-blue-50 min-h-screen">
-        {/* Toggle for Load More vs Pagination */}
-        <div className="flex justify-end mb-2">
-          <button
-            onClick={() => {
-              setCurrentPage(1);
-              setData([]);
-              setHasSearched(false);
-            }}
-            className="px-4 py-2 bg-gray-200 rounded text-sm hover:bg-gray-300"
-          >
-            Switch to Pagination Mode
-          </button>
-        </div>
         {/* Error Messages */}
         <ErrorMessage error={localError} />
         {authError && (
@@ -1649,7 +1636,7 @@ export default function Dashboard() {
           </div>
             {/* Always show both controls after a search */}
             <div className="flex flex-col items-center mt-4">
-              <PaginationControls />
+            <PaginationControls />
             </div>
           </>
         )}
