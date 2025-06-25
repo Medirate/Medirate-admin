@@ -4,11 +4,6 @@ import { FilterSet, ServiceData } from './types';
 interface DataTableProps {
   filterSets: FilterSet[];
   latestRates: ServiceData[];
-  selectedProgram: string;
-  selectedLocationRegion: string;
-  selectedModifier: string;
-  selectedServiceDescription: string;
-  selectedProviderType: string;
   selectedTableRows: { [state: string]: string[] };
   isAllStatesSelected: boolean;
   onRowSelection: (state: string, item: ServiceData) => void;
@@ -21,11 +16,6 @@ const ITEMS_PER_PAGE = 25;
 export const DataTable = ({
   filterSets,
   latestRates,
-  selectedProgram,
-  selectedLocationRegion,
-  selectedModifier,
-  selectedServiceDescription,
-  selectedProviderType,
   selectedTableRows,
   isAllStatesSelected,
   onRowSelection,
@@ -35,25 +25,38 @@ export const DataTable = ({
   // Track current page for each filter set
   const [currentPages, setCurrentPages] = useState<{ [filterIndex: number]: number }>({});
 
+  // Debug logging
+  console.log('DataTable props:', {
+    filterSets,
+    latestRatesLength: latestRates?.length,
+    isAllStatesSelected
+  });
+
   const handlePageChange = (filterIndex: number, page: number) => {
     setCurrentPages(prev => ({ ...prev, [filterIndex]: page }));
   };
 
   const tableContent = useMemo(() => {
-    if (isAllStatesSelected) return null;
+    console.log('DataTable tableContent calculation:', {
+      isAllStatesSelected,
+      filterSetsLength: filterSets?.length,
+      latestRatesLength: latestRates?.length
+    });
     
     return filterSets.map((filterSet, filterIndex) => {
+      console.log(`DataTable: Processing filterSet ${filterIndex}:`, filterSet);
+      
       const grouped: { [key: string]: ServiceData[] } = {};
       latestRates.forEach(item => {
         if (
           item.service_category === filterSet.serviceCategory &&
           filterSet.states.includes(item.state_name?.trim().toUpperCase()) &&
           item.service_code === filterSet.serviceCode &&
-          (!selectedProgram || item.program === selectedProgram) &&
-          (!selectedLocationRegion || item.location_region === selectedLocationRegion) &&
-          (!selectedModifier || [item.modifier_1, item.modifier_2, item.modifier_3, item.modifier_4].includes(selectedModifier)) &&
-          (!selectedServiceDescription || item.service_description === selectedServiceDescription) &&
-          (!selectedProviderType || item.provider_type === selectedProviderType)
+          (!filterSet.program || item.program === filterSet.program) &&
+          (!filterSet.locationRegion || item.location_region === filterSet.locationRegion) &&
+          (!filterSet.modifier || [item.modifier_1, item.modifier_2, item.modifier_3, item.modifier_4].includes(filterSet.modifier)) &&
+          (!filterSet.serviceDescription || item.service_description === filterSet.serviceDescription) &&
+          (!filterSet.providerType || item.provider_type === filterSet.providerType)
         ) {
           const key = JSON.stringify({
             state_name: item.state_name,
@@ -77,6 +80,9 @@ export const DataTable = ({
           grouped[key].push(item);
         }
       });
+      
+      console.log(`DataTable: FilterSet ${filterIndex} grouped data:`, Object.keys(grouped).length);
+      
       // Only keep the latest entry for each group
       const filteredDataForSet = Object.values(grouped).map(entries => {
         return entries.reduce((latest, current) => {
@@ -85,6 +91,8 @@ export const DataTable = ({
           return currentDate > latestDate ? current : latest;
         });
       });
+
+      console.log(`DataTable: FilterSet ${filterIndex} filtered data:`, filteredDataForSet.length);
 
       // Pagination logic
       const totalCount = filteredDataForSet.length;
@@ -286,15 +294,11 @@ export const DataTable = ({
   }, [
     filterSets,
     latestRates,
-    selectedProgram,
-    selectedLocationRegion,
-    selectedModifier,
-    selectedServiceDescription,
-    selectedProviderType,
-    selectedEntries,
+    selectedTableRows,
     isAllStatesSelected,
     onRowSelection,
     formatText,
+    selectedEntries,
     currentPages
   ]);
 

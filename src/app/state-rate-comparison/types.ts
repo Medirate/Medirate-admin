@@ -5,6 +5,11 @@ export interface FilterSet {
   stateOptions: { value: string; label: string }[];
   serviceCodeOptions: string[];
   number: number;  // Add number property for filter set identification
+  program?: string;
+  locationRegion?: string;
+  modifier?: string;
+  serviceDescription?: string;
+  providerType?: string;
 }
 
 export interface ServiceData {
