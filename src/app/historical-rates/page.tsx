@@ -21,6 +21,7 @@ import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import type { Dispatch, SetStateAction } from 'react';
+import { gunzipSync, strFromU8 } from "fflate";
 
 interface ServiceData {
   state_name: string;
@@ -440,27 +441,85 @@ const getDropdownOptions = (options: string[], isMandatory: boolean = false): { 
   return dropdownOptions;
 };
 
+// Add helper to get available options for each filter based on current selections
+function getAvailableOptionsForFilter(filterKey: keyof Selections, selections: Selections, filterOptionsData: any): string[] {
+  if (!filterOptionsData || !filterOptionsData.combinations) return [];
+  
+  // For all other filters, ensure that if a fee_schedule_date is selected, we only consider combos where the date is present in the array (or matches the string)
+  return Array.from(new Set(
+    filterOptionsData.combinations
+      .filter((combo: any) => {
+        // Now check all other selections except the current filterKey
+        return Object.entries(selections).every(([key, value]) => {
+          if (key === filterKey) return true;
+          if (!value) return true;
+          return combo[key] === value;
+        });
+      })
+      .map((c: any) => c[filterKey])
+      .filter((val: any): val is string => Boolean(val))
+  )).sort() as string[];
+}
+
+// Add Selections type and state for unified filter management
+// --- NEW: Types for client-side filtering ---
+interface Combination {
+  [key: string]: string;
+}
+
+type Selections = {
+  [key: string]: string | null;
+};
+// --- END NEW ---
+
 export default function HistoricalRates() {
   const { isAuthenticated, isLoading, user } = useKindeBrowserClient();
   const router = useRouter();
-  // TEMPORARY: Remove useData usage to prevent build errors
-  // const { data, loading, error, refreshData, filterOptions, refreshFilters } = useData();
-  const data: ServiceData[] = [];
-  const loading = false;
-  const error: string | null = null;
-  // TEMPORARY: Dummy filterOptions and functions for build
-  const filterOptions: any = {
-    serviceCategories: [],
-    states: [],
-    serviceCodes: [],
-    programs: [],
-    locationRegions: [],
-    modifiers: [],
-    serviceDescriptions: [],
-    providerTypes: [],
+  
+  // Add proper data state management
+  const [data, setData] = useState<ServiceData[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
+  
+  // Add proper refreshData function
+  const refreshData = async (filters: Record<string, string> = {}): Promise<{ data: ServiceData[]; totalCount: number; currentPage: number; itemsPerPage: number } | null> => {
+    console.log('[DEBUG] refreshData called with filters:', filters);
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams();
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value) params.append(key, value);
+      });
+      const url = `/api/state-payment-comparison?${params.toString()}`;
+      console.log('[DEBUG] Fetching:', url);
+      const response = await fetch(url);
+      const result = await response.json();
+      console.log('[DEBUG] API response:', result);
+      if (result && Array.isArray(result.data)) {
+        setData(result.data);
+        setHasSearched(true);
+        return result;
+      } else {
+        setError('Invalid data format received');
+        return null;
+      }
+    } catch (err) {
+      setError('Failed to fetch data. Please try again.');
+      console.error('[DEBUG] Error in refreshData:', err);
+      return null;
+    } finally {
+      setLoading(false);
+    }
   };
-  const refreshData = async (..._args: any[]) => { return { data: [], totalCount: 0, currentPage: 1, itemsPerPage: 50, filterOptions }; };
-  const refreshFilters = async (..._args: any[]) => {};
+
+  // Add proper refreshFilters function (placeholder for now)
+  const refreshFilters = async () => {
+    // This can be implemented later if needed for filter options
+    console.log('refreshFilters called');
+  };
+
   const [isSubscriptionCheckComplete, setIsSubscriptionCheckComplete] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -477,44 +536,63 @@ export default function HistoricalRates() {
   const [totalCount, setTotalCount] = useState<number>(0);
   const itemsPerPage: number = 50;
 
-  // Filter states
-  const [selectedServiceCategory, setSelectedServiceCategory] = useState("");
-  const [selectedState, setSelectedState] = useState("");
-  const [selectedServiceCode, setSelectedServiceCode] = useState("");
-  const [serviceCategories, setServiceCategories] = useState<string[]>([]);
-  const [states, setStates] = useState<string[]>([]);
-  const [serviceCodes, setServiceCodes] = useState<string[]>([]);
+  // Keep only the states that are still needed
   const [selectedEntry, setSelectedEntry] = useState<ServiceData | null>(null);
   const [showRatePerHour, setShowRatePerHour] = useState(false);
   const [comment, setComment] = useState<string | null>(null);
-  const [selectedProgram, setSelectedProgram] = useState("");
-  const [selectedLocationRegion, setSelectedLocationRegion] = useState("");
-  const [selectedModifier, setSelectedModifier] = useState("");
-  const [programs, setPrograms] = useState<string[]>([]);
-  const [locationRegions, setLocationRegions] = useState<string[]>([]);
-  const [modifiers, setModifiers] = useState<{ value: string; label: string; details?: string }[]>([]);
-  const [serviceDescriptions, setServiceDescriptions] = useState<string[]>([]);
-  const [selectedServiceDescription, setSelectedServiceDescription] = useState("");
-  const [selectedProviderType, setSelectedProviderType] = useState("");
-  const [providerTypes, setProviderTypes] = useState<string[]>([]);
   const [filterStep, setFilterStep] = useState(1);
   const [shouldExtractFilters, setShouldExtractFilters] = useState(false);
+  const [filterOptionsData, setFilterOptionsData] = useState<any>(null);
+  const [isLoadingFilters, setIsLoadingFilters] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
 
-  // Update areFiltersApplied to include pagination
-  const areFiltersApplied = selectedServiceCategory && selectedState && selectedServiceCode;
+  // Replace individual filter states with selections state
+  const [selections, setSelections] = useState<Selections>({
+    service_category: null,
+    state_name: null,
+    service_code: null,
+    service_description: null,
+    program: null,
+    location_region: null,
+    provider_type: null,
+    modifier_1: null,
+  });
+
+  // Update areFiltersApplied to use selections state
+  const areFiltersApplied = selections.service_category && selections.state_name && (selections.service_code || selections.service_description);
+
+  // Generic handler to update selections state
+  const handleSelectionChange = (field: keyof Selections, value: string | null) => {
+    const newSelections: Selections = { ...selections, [field]: value };
+    // Reset dependent filters if needed (simple version)
+    const dependencyChain: (keyof Selections)[] = [
+      'service_category', 'state_name', 'service_code',
+      'service_description', 'program', 'location_region',
+      'provider_type', 'modifier_1'
+    ];
+    const changedIndex = dependencyChain.indexOf(field);
+    if (changedIndex !== -1) {
+      for (let i = changedIndex + 1; i < dependencyChain.length; i++) {
+        newSelections[dependencyChain[i]] = null;
+      }
+    }
+    setSelections(newSelections);
+    setCurrentPage(1); // Reset to first page when filter changes
+  };
 
   const filteredData = useMemo(() => {
-    if (!selectedServiceCategory || !selectedState || !selectedServiceCode) return [];
+    if (!selections.service_category || !selections.state_name || (!selections.service_code && !selections.service_description)) return [];
 
     // First get all matching entries
     const allMatchingEntries = data.filter(item => {
-      if (selectedServiceCategory && item.service_category !== selectedServiceCategory) return false;
-      if (selectedState && item.state_name !== selectedState) return false;
-      if (selectedServiceCode && item.service_code !== selectedServiceCode) return false;
-      if (selectedProgram && selectedProgram !== "-" && item.program !== selectedProgram) return false;
-      if (selectedLocationRegion && selectedLocationRegion !== "-" && item.location_region !== selectedLocationRegion) return false;
-      if (selectedModifier && selectedModifier !== "-") {
-        const selectedModifierCode = selectedModifier.split(' - ')[0];
+      if (selections.service_category && item.service_category !== selections.service_category) return false;
+      if (selections.state_name && item.state_name !== selections.state_name) return false;
+      if (selections.service_code && item.service_code !== selections.service_code) return false;
+      if (selections.service_description && item.service_description !== selections.service_description) return false;
+      if (selections.program && selections.program !== "-" && item.program !== selections.program) return false;
+      if (selections.location_region && selections.location_region !== "-" && item.location_region !== selections.location_region) return false;
+      if (selections.modifier_1 && selections.modifier_1 !== "-") {
+        const selectedModifierCode = selections.modifier_1.split(' - ')[0];
         const hasModifier = 
           (item.modifier_1 && item.modifier_1.split(' - ')[0] === selectedModifierCode) ||
           (item.modifier_2 && item.modifier_2.split(' - ')[0] === selectedModifierCode) ||
@@ -522,17 +600,15 @@ export default function HistoricalRates() {
           (item.modifier_4 && item.modifier_4.split(' - ')[0] === selectedModifierCode);
         if (!hasModifier) return false;
       }
-      if (selectedProviderType && selectedProviderType !== "-") {
-        if (item.provider_type !== selectedProviderType) return false;
+      if (selections.provider_type && selections.provider_type !== "-") {
+        if (item.provider_type !== selections.provider_type) return false;
       }
-      if (selectedServiceDescription && selectedServiceDescription !== "-" && item.service_description !== selectedServiceDescription) return false;
 
       // Handle "-" selections (empty/null values)
-      if (selectedProgram === "-" && item.program) return false;
-      if (selectedLocationRegion === "-" && item.location_region) return false;
-      if (selectedProviderType === "-" && item.provider_type) return false;
-      if (selectedServiceDescription === "-" && item.service_description) return false;
-      if (selectedModifier === "-") {
+      if (selections.program === "-" && item.program) return false;
+      if (selections.location_region === "-" && item.location_region) return false;
+      if (selections.provider_type === "-" && item.provider_type) return false;
+      if (selections.modifier_1 === "-") {
         const hasAnyModifier = item.modifier_1 || item.modifier_2 || item.modifier_3 || item.modifier_4;
         if (hasAnyModifier) return false;
       }
@@ -580,14 +656,14 @@ export default function HistoricalRates() {
     return latestEntries;
   }, [
     data,
-    selectedServiceCategory,
-    selectedState,
-    selectedServiceCode,
-    selectedProgram,
-    selectedLocationRegion,
-    selectedModifier,
-    selectedProviderType,
-    selectedServiceDescription
+    selections.service_category,
+    selections.state_name,
+    selections.service_code,
+    selections.service_description,
+    selections.program,
+    selections.location_region,
+    selections.modifier_1,
+    selections.provider_type
   ]);
 
   useEffect(() => {
@@ -734,11 +810,9 @@ export default function HistoricalRates() {
 
     const checkAuthStatus = async () => {
       try {
-        // Make a lightweight authenticated request to verify the session is still valid
         const response = await fetch('/api/auth-check');
         if (response.status === 401) {
           console.warn('🔄 Session expired, redirecting to login...');
-          setAuthError('Your session has expired. Please sign in again.');
           router.push("/api/auth/login");
         }
       } catch (error) {
@@ -746,18 +820,15 @@ export default function HistoricalRates() {
       }
     };
 
-    // Check authentication status every 5 minutes
     const authCheckInterval = setInterval(checkAuthStatus, 5 * 60 * 1000);
 
-    // Also check when the page becomes visible again (user returns from another tab)
     const handleVisibilityChange = () => {
       if (!document.hidden && isAuthenticated) {
         checkAuthStatus();
         
-        // Refresh data if filters are applied
-        if (areFiltersApplied) {
-          console.log('🔄 Tab became visible, refreshing data...');
-          // Since this page uses the shared DataContext, it will auto-refresh
+        if (hasSearched && !authError && areFiltersApplied) {
+          console.log('🔄 Tab became visible, refreshing current search...');
+          // Refresh data if needed
         }
       }
     };
@@ -768,7 +839,7 @@ export default function HistoricalRates() {
       clearInterval(authCheckInterval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [isAuthenticated, router, areFiltersApplied]);
+  }, [isAuthenticated, router, hasSearched, authError, areFiltersApplied]);
 
   // Now the useEffect can safely use checkSubscriptionAndSubUser
   useEffect(() => {
@@ -777,42 +848,21 @@ export default function HistoricalRates() {
 
   // Move all useEffect hooks here, before any conditional returns
   useEffect(() => {
-      if (data.length > 0) {
-      extractFilters(
-        data,
-        setServiceCategories,
-        setStates,
-        setPrograms,
-        setLocationRegions,
-        setModifiers,
-        setProviderTypes
-      );
+    if (shouldExtractFilters) {
+      setShouldExtractFilters(false);
     }
-  }, [data]);
+  }, [shouldExtractFilters]);
 
   useEffect(() => {
-    if (selectedServiceCategory && selectedState) {
-      fetchComment(selectedServiceCategory, selectedState);
+    if (selections.service_category && selections.state_name) {
+      fetchComment(selections.service_category, selections.state_name);
     } else {
       setComment(null);
     }
-  }, [selectedServiceCategory, selectedState]);
+  }, [selections.service_category, selections.state_name]);
 
-  useEffect(() => {
-    if (shouldExtractFilters) {
-      extractFilters(
-        data,
-        setServiceCategories,
-        setStates,
-        setPrograms,
-        setLocationRegions,
-        setModifiers,
-        setProviderTypes
-      );
-      setShouldExtractFilters(false);
-    }
-  }, [shouldExtractFilters, data]);
-
+  // Comment out problematic useEffect blocks for now
+  /*
   useEffect(() => {
     const descriptions = filteredData.map(item => item.service_description).filter((desc): desc is string => !!desc);
     setServiceDescriptions([...new Set(descriptions)].sort((a, b) => a.localeCompare(b)));
@@ -846,155 +896,86 @@ export default function HistoricalRates() {
     }
     // Add other filters as needed
   }, [filterOptions]);
+  */
 
   // Debug: Log filterOptions and selected filters
   useEffect(() => {
-    console.log('filterOptions.serviceCodes:', filterOptions?.serviceCodes);
-    console.log('selectedServiceCategory:', selectedServiceCategory, 'selectedState:', selectedState);
-  }, [filterOptions, selectedServiceCategory, selectedState]);
+    console.log('filterOptionsData:', filterOptionsData);
+    console.log('selectedServiceCategory:', selections.service_category, 'selectedState:', selections.state_name);
+  }, [filterOptionsData, selections.service_category, selections.state_name]);
 
-  useEffect(() => {
-    if (selectedServiceCategory && selectedState) {
-      refreshData({
-        serviceCategory: selectedServiceCategory,
-        state: selectedState
-      });
-    }
-  }, [selectedServiceCategory, selectedState, refreshData]);
-
-  // Populate Service Codes when Service Line and State are selected
-  useEffect(() => {
-    if (selectedServiceCategory && selectedState) {
-      refreshData({
-        serviceCategory: selectedServiceCategory,
-        state: selectedState
-      });
-    }
-  }, [selectedServiceCategory, selectedState, refreshData]);
+  // Remove duplicate useEffect hooks that call refreshData
+  // The pagination useEffect below handles all data fetching
 
   // Add handleServiceCategoryChange above where it is used
   const handleServiceCategoryChange = async (category: string) => {
-    setSelectedServiceCategory(category);
-    setSelectedState("");
-    setSelectedServiceCode("");
-    setSelectedServiceDescription("");
-    setSelectedProgram("");
-    setSelectedLocationRegion("");
-    setSelectedModifier("");
-    setSelectedProviderType("");
-    setStates([]);
-    setServiceCodes([]);
-    setPrograms([]);
-    setLocationRegions([]);
-    setModifiers([]);
-    setProviderTypes([]);
-    if (typeof refreshFilters === 'function') {
-      await refreshFilters(category);
-    }
+    handleSelectionChange('service_category', category);
   };
 
   // Update handleStateChange to use pagination
   const handleStateChange = async (state: string) => {
-    setSelectedState(state);
-    setSelectedServiceCode("");
-    setSelectedServiceDescription("");
-    setSelectedProgram("");
-    setSelectedLocationRegion("");
-    setSelectedModifier("");
-    setSelectedProviderType("");
-    setServiceCodes([]);
-    setPrograms([]);
-    setLocationRegions([]);
-    setModifiers([]);
-    setProviderTypes([]);
-    setCurrentPage(1); // Reset to first page when filter changes
-    if (typeof refreshFilters === 'function') {
-      await refreshFilters(selectedServiceCategory, state);
-    }
+    handleSelectionChange('state_name', state);
   };
 
   // Update handleServiceCodeChange to use pagination
   const handleServiceCodeChange = async (code: string) => {
-    const matchingItem = data.find(item => item.service_code?.trim() === code.trim());
-    const matchingDescription = matchingItem?.service_description?.trim() || '';
-    setSelectedServiceCode(code);
-    setSelectedServiceDescription(matchingDescription);
-    setSelectedProgram("");
-    setSelectedLocationRegion("");
-    setSelectedModifier("");
-    setSelectedProviderType("");
-    setPrograms([]);
-    setLocationRegions([]);
-    setModifiers([]);
-    setProviderTypes([]);
-    setCurrentPage(1); // Reset to first page when filter changes
-    if (typeof refreshData === 'function') {
-      const result = await refreshData({
-        serviceCategory: selectedServiceCategory,
-        state: selectedState,
-        serviceCode: code,
-        page: "1",
-        itemsPerPage: String(itemsPerPage)
-      });
-      if (result) {
-        setTotalCount(result.totalCount);
-      }
-    }
+    handleSelectionChange('service_code', code);
   };
 
   // Update handleServiceDescriptionChange to use pagination
   const handleServiceDescriptionChange = async (desc: string) => {
-    setSelectedServiceDescription(desc);
-    setSelectedProviderType("");
-    setCurrentPage(1); // Reset to first page when filter changes
-    if (typeof refreshData === 'function') {
-      const result = await refreshData({
-        serviceCategory: selectedServiceCategory,
-        state: selectedState,
-        serviceCode: selectedServiceCode,
-        serviceDescription: desc,
-        page: "1",
-        itemsPerPage: String(itemsPerPage)
-      });
-      if (result) {
-        setTotalCount(result.totalCount);
-      }
-    }
+    handleSelectionChange('service_description', desc);
   };
 
   // Add useEffect for pagination
   useEffect(() => {
     if (areFiltersApplied) {
-      refreshData({
-        serviceCategory: selectedServiceCategory,
-        state: selectedState,
-        serviceCode: selectedServiceCode,
-        page: String(currentPage),
-        itemsPerPage: String(itemsPerPage)
-      }).then(result => {
+      const filters: Record<string, string> = {};
+      if (selections.service_category) filters.service_category = selections.service_category;
+      if (selections.state_name) filters.state_name = selections.state_name;
+      if (selections.service_code) filters.service_code = selections.service_code;
+      if (selections.service_description) filters.service_description = selections.service_description;
+      if (selections.program) filters.program = selections.program;
+      if (selections.location_region) filters.location_region = selections.location_region;
+      if (selections.provider_type) filters.provider_type = selections.provider_type;
+      if (selections.modifier_1) filters.modifier_1 = selections.modifier_1;
+      filters.page = String(currentPage);
+      filters.itemsPerPage = String(itemsPerPage);
+      
+      refreshData(filters).then(result => {
         if (result) {
           setTotalCount(result.totalCount);
         }
       });
     }
-  }, [currentPage, areFiltersApplied, selectedServiceCategory, selectedState, selectedServiceCode]);
+  }, [currentPage, areFiltersApplied, selections, itemsPerPage]);
 
-  // Update resetFilters to reset pagination
+  // Update useEffect for service category and state changes
+  useEffect(() => {
+    if (selections.service_category && selections.state_name) {
+      const filters: Record<string, string> = {
+        service_category: selections.service_category,
+        state_name: selections.state_name,
+        page: '1',
+        itemsPerPage: String(itemsPerPage)
+      };
+      refreshData(filters);
+    }
+  }, [selections.service_category, selections.state_name, itemsPerPage]);
+
+  // Update resetFilters to use selections state
   const resetFilters = async () => {
-    setSelectedServiceCategory("");
-    setSelectedState("");
-    setSelectedServiceCode("");
-    setSelectedServiceDescription("");
-    setSelectedProgram("");
-    setSelectedLocationRegion("");
-    setSelectedModifier("");
-    setSelectedProviderType("");
+    setSelections({
+      service_category: null,
+      state_name: null,
+      service_code: null,
+      service_description: null,
+      program: null,
+      location_region: null,
+      provider_type: null,
+      modifier_1: null,
+    });
     setSelectedEntry(null);
-    setStates([]);
-    setPrograms([]);
-    setLocationRegions([]);
-    setModifiers([]);
-    setProviderTypes([]);
     setCurrentPage(1);
     setTotalCount(0);
     if (typeof refreshFilters === 'function') {
@@ -1083,11 +1064,11 @@ export default function HistoricalRates() {
   // Derived loading state for service code options
   const serviceCodeOptionsLoading =
     loading ||
-    (!!selectedServiceCategory && !!selectedState && (!filterOptions.serviceCodes || filterOptions.serviceCodes.length === 0));
+    (!!selections.service_category && !!selections.state_name && (!filterOptionsData || !filterOptionsData.combinations || filterOptionsData.combinations.length === 0));
 
   // Replace the tableData logic with grouping by all fields except rate_effective_date and rate
   const tableData = useMemo(() => {
-    if (!selectedServiceCategory || !selectedState || !selectedServiceCode) return [];
+    if (!selections.service_category || !selections.state_name || !selections.service_code) return [];
 
     // Group by all fields except rate_effective_date and rate
     const grouped: { [key: string]: ServiceData } = {};
@@ -1116,27 +1097,55 @@ export default function HistoricalRates() {
     });
     // Return all latest entries for each unique combination
     return Object.values(grouped) as ServiceData[];
-  }, [data, selectedServiceCategory, selectedState, selectedServiceCode, selectedProgram, selectedLocationRegion, selectedModifier, selectedProviderType]);
+  }, [data, selections.service_category, selections.state_name, selections.service_code, selections.service_description, selections.program, selections.location_region, selections.modifier_1, selections.provider_type]);
 
   // Add this handler near other filter handlers
   const handleProviderTypeChange = async (providerType: string) => {
-    setSelectedProviderType(providerType);
-    setCurrentPage(1);
-    if (typeof refreshData === 'function') {
-      await refreshData({
-        serviceCategory: selectedServiceCategory,
-        state: selectedState,
-        serviceCode: selectedServiceCode,
-        serviceDescription: selectedServiceDescription,
-        program: selectedProgram,
-        locationRegion: selectedLocationRegion,
-        modifier: selectedModifier,
-        providerType: providerType,
-        page: "1",
-        itemsPerPage: String(itemsPerPage)
-      });
-    }
+    handleSelectionChange('provider_type', providerType);
   };
+
+  useEffect(() => {
+    async function loadUltraFilterOptions() {
+      try {
+        setIsLoadingFilters(true);
+        setLocalError(null);
+        const res = await fetch("/filter_options.json.gz");
+        if (!res.ok) throw new Error(`Failed to fetch filter options: ${res.status} ${res.statusText}`);
+        const gzipped = new Uint8Array(await res.arrayBuffer());
+        const decompressed = gunzipSync(gzipped);
+        const jsonStr = strFromU8(decompressed);
+        const data = JSON.parse(jsonStr);
+        // Handle new columnar format with mappings
+        if (data.m && data.v && data.c) {
+          const { m: mappings, v: values, c: columns } = data;
+          const numRows: number = values[0].length;
+          const combinations: any[] = [];
+          for (let i = 0; i < numRows; i++) {
+            const combo: Record<string, string> = {};
+            columns.forEach((col: string, colIndex: number) => {
+              const intValue = values[colIndex][i];
+              combo[col] = intValue === -1 ? '' : mappings[col][intValue];
+            });
+            combinations.push(combo);
+          }
+          // Extract unique values for each filter
+          const filters: Record<string, string[]> = {};
+          columns.forEach((col: string) => {
+            const uniqueValues = [...new Set(combinations.map((c: any) => c[col]).filter((v: string) => v))];
+            filters[col as string] = uniqueValues.sort();
+          });
+          setFilterOptionsData({ filters, combinations });
+        } else {
+          setFilterOptionsData(data);
+        }
+      } catch (err) {
+        setLocalError(`Could not load filter options: ${err instanceof Error ? err.message : 'Unknown error'}. Please try refreshing the page.`);
+      } finally {
+        setIsLoadingFilters(false);
+      }
+    }
+    loadUltraFilterOptions();
+  }, []);
 
   // Don't render anything until the subscription check is complete
   if (isLoading || !isSubscriptionCheckComplete) {
@@ -1150,6 +1159,16 @@ export default function HistoricalRates() {
       </div>
     );
   }
+
+  // Add available options variables like dashboard
+  const availableServiceCategories = getAvailableOptionsForFilter('service_category', selections, filterOptionsData) as string[];
+  const availableStates = getAvailableOptionsForFilter('state_name', selections, filterOptionsData) as string[];
+  const availableServiceCodes = getAvailableOptionsForFilter('service_code', selections, filterOptionsData) as string[];
+  const availableServiceDescriptions = getAvailableOptionsForFilter('service_description', selections, filterOptionsData) as string[];
+  const availablePrograms = getAvailableOptionsForFilter('program', selections, filterOptionsData) as string[];
+  const availableLocationRegions = getAvailableOptionsForFilter('location_region', selections, filterOptionsData) as string[];
+  const availableProviderTypes = getAvailableOptionsForFilter('provider_type', selections, filterOptionsData) as string[];
+  const availableModifiers = getAvailableOptionsForFilter('modifier_1', selections, filterOptionsData) as string[];
 
   return (
     <AppLayout activeTab="historicalRates">
@@ -1176,17 +1195,6 @@ export default function HistoricalRates() {
           <h1 className="text-3xl sm:text-5xl md:text-6xl text-[#012C61] font-lemonMilkRegular uppercase mb-3 sm:mb-0">
             Historical Rates
           </h1>
-          <div className="flex flex-col items-end">
-            <div className="flex items-center space-x-2 mb-4">
-              <label className="text-sm font-medium text-[#012C61]">Show Rate Per Hour</label>
-              <input
-                type="checkbox"
-                checked={showRatePerHour}
-                onChange={(e) => setShowRatePerHour(e.target.checked)}
-                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
-              />
-            </div>
-          </div>
         </div>
 
           <button
@@ -1198,173 +1206,170 @@ export default function HistoricalRates() {
 
           <div className="space-y-8">
             <div className="p-4 sm:p-6 bg-white rounded-xl shadow-lg">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Service Line</label>
-                  <Select
-                    options={serviceCategories.map(category => ({ value: category, label: category }))}
-                    value={selectedServiceCategory ? { value: selectedServiceCategory, label: selectedServiceCategory } : null}
-                    onChange={(option) => handleServiceCategoryChange(option?.value || "")}
-                    placeholder="Select Service Line"
-                    isSearchable
-                      filterOption={customFilterOption}
-                    className="react-select-container"
-                    classNamePrefix="react-select"
-                  />
-                  {selectedServiceCategory && (
-                    <button onClick={() => setSelectedServiceCategory("")} className="text-xs text-blue-500 hover:underline mt-1">Clear</button>
-                  )}
+              {isLoadingFilters && (
+                <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-3"></div>
+                    <p className="text-blue-700">
+                      Loading filter options... This may take a moment for large datasets.
+                    </p>
+                  </div>
                 </div>
-
-                {selectedServiceCategory ? (
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">State</label>
-                    <Select
-                      options={states.map(state => ({ value: state, label: state }))}
-                      value={selectedState ? { value: selectedState, label: selectedState } : null}
-                      onChange={(option) => handleStateChange(option?.value || "")}
-                      placeholder="Select State"
-                      isSearchable
-                        filterOption={customFilterOption}
-                      className="react-select-container"
-                      classNamePrefix="react-select"
-                    />
-                    {selectedState && (
-                      <button onClick={() => setSelectedState("")} className="text-xs text-blue-500 hover:underline mt-1">Clear</button>
-                    )}
+              )}
+              {!isLoadingFilters && filterOptionsData && (
+                <>
+                  <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm text-blue-700">
+                      <strong>Instructions:</strong> Select filters below. All filters are interconnected and update dynamically.
+                    </p>
                   </div>
-                ) : (
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">State</label>
-                    <div className="text-gray-400 text-sm">
-                      Select a service line first
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+                    {/* Service Line */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">Service Line</label>
+                      <Select
+                        instanceId="service_category_select"
+                        options={availableServiceCategories.map((o: string) => ({ value: o, label: o }))}
+                        value={selections.service_category ? { value: selections.service_category, label: selections.service_category } : null}
+                        onChange={option => handleSelectionChange('service_category', option?.value || null)}
+                        placeholder="Select Service Line"
+                        isClearable
+                        className="react-select-container"
+                        classNamePrefix="react-select"
+                      />
+                      {selections.service_category && (
+                        <button onClick={() => handleSelectionChange('service_category', null)} className="text-xs text-blue-500 hover:underline mt-1">Clear</button>
+                      )}
+                    </div>
+                    {/* State */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">State</label>
+                      <Select
+                        instanceId="state_name_select"
+                        options={availableStates.map((o: string) => ({ value: o, label: o }))}
+                        value={selections.state_name ? { value: selections.state_name, label: selections.state_name } : null}
+                        onChange={option => handleSelectionChange('state_name', option?.value || null)}
+                        placeholder="Select State"
+                        isClearable
+                        isDisabled={!selections.service_category}
+                        className="react-select-container"
+                        classNamePrefix="react-select"
+                      />
+                      {selections.state_name && (
+                        <button onClick={() => handleSelectionChange('state_name', null)} className="text-xs text-blue-500 hover:underline mt-1">Clear</button>
+                      )}
+                    </div>
+                    {/* Service Code */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">Service Code</label>
+                      <Select
+                        instanceId="service_code_select"
+                        options={availableServiceCodes.map((o: string) => ({ value: o, label: o }))}
+                        value={selections.service_code ? { value: selections.service_code, label: selections.service_code } : null}
+                        onChange={option => handleSelectionChange('service_code', option?.value || null)}
+                        placeholder="Select Service Code"
+                        isClearable
+                        isDisabled={!selections.service_category || !selections.state_name}
+                        className="react-select-container"
+                        classNamePrefix="react-select"
+                      />
+                      {selections.service_code && (
+                        <button onClick={() => handleSelectionChange('service_code', null)} className="text-xs text-blue-500 hover:underline mt-1">Clear</button>
+                      )}
+                    </div>
+                    {/* Service Description */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">Service Description</label>
+                      <Select
+                        instanceId="service_description_select"
+                        options={availableServiceDescriptions.map((o: string) => ({ value: o, label: o }))}
+                        value={selections.service_description ? { value: selections.service_description, label: selections.service_description } : null}
+                        onChange={option => handleSelectionChange('service_description', option?.value || null)}
+                        placeholder="Select Service Description"
+                        isClearable
+                        isDisabled={!selections.service_category || !selections.state_name}
+                        className="react-select-container"
+                        classNamePrefix="react-select"
+                      />
+                      {selections.service_description && (
+                        <button onClick={() => handleSelectionChange('service_description', null)} className="text-xs text-blue-500 hover:underline mt-1">Clear</button>
+                      )}
+                    </div>
+                    {/* Program */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">Program</label>
+                      <Select
+                        instanceId="program_select"
+                        options={availablePrograms.map((o: string) => ({ value: o, label: o }))}
+                        value={selections.program ? { value: selections.program, label: selections.program } : null}
+                        onChange={option => handleSelectionChange('program', option?.value || null)}
+                        placeholder="Select Program"
+                        isClearable
+                        isDisabled={!selections.service_category || !selections.state_name}
+                        className="react-select-container"
+                        classNamePrefix="react-select"
+                      />
+                      {selections.program && (
+                        <button onClick={() => handleSelectionChange('program', null)} className="text-xs text-blue-500 hover:underline mt-1">Clear</button>
+                      )}
+                    </div>
+                    {/* Location/Region */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">Location/Region</label>
+                      <Select
+                        instanceId="location_region_select"
+                        options={availableLocationRegions.map((o: string) => ({ value: o, label: o }))}
+                        value={selections.location_region ? { value: selections.location_region, label: selections.location_region } : null}
+                        onChange={option => handleSelectionChange('location_region', option?.value || null)}
+                        placeholder="Select Location/Region"
+                        isClearable
+                        isDisabled={!selections.service_category || !selections.state_name}
+                        className="react-select-container"
+                        classNamePrefix="react-select"
+                      />
+                      {selections.location_region && (
+                        <button onClick={() => handleSelectionChange('location_region', null)} className="text-xs text-blue-500 hover:underline mt-1">Clear</button>
+                      )}
+                    </div>
+                    {/* Provider Type */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">Provider Type</label>
+                      <Select
+                        instanceId="provider_type_select"
+                        options={availableProviderTypes.map((o: string) => ({ value: o, label: o }))}
+                        value={selections.provider_type ? { value: selections.provider_type, label: selections.provider_type } : null}
+                        onChange={option => handleSelectionChange('provider_type', option?.value || null)}
+                        placeholder="Select Provider Type"
+                        isClearable
+                        isDisabled={!selections.service_category || !selections.state_name}
+                        className="react-select-container"
+                        classNamePrefix="react-select"
+                      />
+                      {selections.provider_type && (
+                        <button onClick={() => handleSelectionChange('provider_type', null)} className="text-xs text-blue-500 hover:underline mt-1">Clear</button>
+                      )}
+                    </div>
+                    {/* Modifier */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">Modifier</label>
+                      <Select
+                        instanceId="modifier_1_select"
+                        options={availableModifiers.map((o: string) => ({ value: o, label: o }))}
+                        value={selections.modifier_1 ? { value: selections.modifier_1, label: selections.modifier_1 } : null}
+                        onChange={option => handleSelectionChange('modifier_1', option?.value || null)}
+                        placeholder="Select Modifier"
+                        isClearable
+                        isDisabled={!selections.service_category || !selections.state_name}
+                        className="react-select-container"
+                        classNamePrefix="react-select"
+                      />
+                      {selections.modifier_1 && (
+                        <button onClick={() => handleSelectionChange('modifier_1', null)} className="text-xs text-blue-500 hover:underline mt-1">Clear</button>
+                      )}
                     </div>
                   </div>
-                )}
-
-                {selectedServiceCategory && selectedState ? (
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">Service Code</label>
-                    <Select
-                      options={filterOptions.serviceCodes?.map((code: string) => ({ value: code, label: code })) || []}
-                      value={selectedServiceCode ? { value: selectedServiceCode, label: selectedServiceCode } : null}
-                      onChange={(option) => handleServiceCodeChange(option?.value || "")}
-                      placeholder={"Select Service Code"}
-                      isDisabled={false}
-                      isSearchable
-                      filterOption={customFilterOption}
-                      className="react-select-container"
-                      classNamePrefix="react-select"
-                    />
-                    {selectedServiceCode && (
-                      <button onClick={() => setSelectedServiceCode("")} className="text-xs text-blue-500 hover:underline mt-1">Clear</button>
-                    )}
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">Service Code</label>
-                    <div className="text-gray-400 text-sm">
-                      {selectedServiceCategory ? "Select a state to see available service codes" : "Select a service line first"}
-                    </div>
-                  </div>
-                )}
-
-                {selectedServiceCategory && selectedState && (selectedServiceCode || selectedServiceDescription) && (
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">Modifier</label>
-                    <Select
-                      options={getDropdownOptions(modifiers.map(m => m.value))}
-                      value={selectedModifier ? { value: selectedModifier, label: selectedModifier } : null}
-                      onChange={(option) => setSelectedModifier(option?.value || "")}
-                      placeholder="Select Modifier"
-                      isSearchable
-                      filterOption={customFilterOption}
-                      isDisabled={!selectedServiceCode && !selectedServiceDescription}
-                      className={`react-select-container ${!selectedServiceCode && !selectedServiceDescription ? 'opacity-50' : ''}`}
-                      classNamePrefix="react-select"
-                    />
-                    {selectedModifier && selectedModifier !== "-" && (
-                      <button onClick={() => setSelectedModifier("")} className="text-xs text-blue-500 hover:underline mt-1">Clear</button>
-                    )}
-                  </div>
-                )}
-
-                {selectedServiceCategory && selectedState && selectedServiceCode && (
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">Program</label>
-                    <Select
-                      options={getDropdownOptions(programs)}
-                      value={selectedProgram ? { value: selectedProgram, label: selectedProgram } : null}
-                      onChange={(option) => setSelectedProgram(option?.value || "")}
-                      placeholder="Select Program"
-                      isSearchable
-                      filterOption={customFilterOption}
-                      className="react-select-container"
-                      classNamePrefix="react-select"
-                    />
-                    {selectedProgram && selectedProgram !== "-" && (
-                      <button onClick={() => setSelectedProgram("")} className="text-xs text-blue-500 hover:underline mt-1">Clear</button>
-                    )}
-                  </div>
-                )}
-
-                {selectedServiceCategory && selectedState && selectedServiceCode && (
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">Location/Region</label>
-                    <Select
-                      options={getDropdownOptions(locationRegions)}
-                      value={selectedLocationRegion ? { value: selectedLocationRegion, label: selectedLocationRegion } : null}
-                      onChange={(option) => setSelectedLocationRegion(option?.value || "")}
-                      placeholder="Select Location/Region"
-                      isSearchable
-                      filterOption={customFilterOption}
-                      className="react-select-container"
-                      classNamePrefix="react-select"
-                    />
-                    {selectedLocationRegion && selectedLocationRegion !== "-" && (
-                      <button onClick={() => setSelectedLocationRegion("")} className="text-xs text-blue-500 hover:underline mt-1">Clear</button>
-                    )}
-                  </div>
-                )}
-
-                {selectedServiceCategory && selectedState && selectedServiceCode && (
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">Service Description</label>
-                    <Select
-                      options={getDropdownOptions(serviceDescriptions)}
-                      value={selectedServiceDescription ? { value: selectedServiceDescription, label: selectedServiceDescription } : null}
-                      onChange={(option) => handleServiceDescriptionChange(option?.value || "")}
-                      placeholder="Select Service Description"
-                      isSearchable
-                      filterOption={customFilterOption}
-                      className="react-select-container"
-                      classNamePrefix="react-select"
-                    />
-                    {selectedServiceDescription && selectedServiceDescription !== "-" && (
-                      <button onClick={() => setSelectedServiceDescription("")} className="text-xs text-blue-500 hover:underline mt-1">Clear</button>
-                    )}
-                  </div>
-                )}
-
-                {selectedServiceCategory && selectedState && selectedServiceCode && (
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">Provider Type</label>
-                    <Select
-                      options={getDropdownOptions(providerTypes)}
-                      value={selectedProviderType ? { value: selectedProviderType, label: selectedProviderType } : null}
-                    onChange={(option) => handleProviderTypeChange(option?.value || "")}
-                      placeholder="Select Provider Type"
-                      isSearchable
-                      filterOption={customFilterOption}
-                      className={`react-select-container ${!selectedServiceCode && !selectedServiceDescription ? 'opacity-50' : ''}`}
-                      classNamePrefix="react-select"
-                    />
-                    {selectedProviderType && selectedProviderType !== "-" && (
-                      <button onClick={() => setSelectedProviderType("")} className="text-xs text-blue-500 hover:underline mt-1">Clear</button>
-                    )}
-                  </div>
-                )}
-              </div>
+                </>
+              )}
             </div>
 
             {!areFiltersApplied && (
@@ -1393,32 +1398,6 @@ export default function HistoricalRates() {
 
                 <div className="p-6 bg-white rounded-xl shadow-lg">
                   <h2 className="text-xl font-semibold mb-4 text-gray-800">Rate History</h2>
-                  
-                  <div className="flex justify-center items-center mb-6">
-                    <div className="flex items-center bg-gray-100 p-1 rounded-lg">
-                      <button
-                        onClick={() => setShowRatePerHour(false)}
-                        className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                          !showRatePerHour
-                            ? 'bg-blue-600 text-white shadow-sm'
-                            : 'text-gray-500 hover:bg-gray-200'
-                        }`}
-                      >
-                        Base Rate
-                      </button>
-                      <button
-                        onClick={() => setShowRatePerHour(true)}
-                        className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                          showRatePerHour
-                            ? 'bg-blue-600 text-white shadow-sm'
-                            : 'text-gray-500 hover:bg-gray-200'
-                        }`}
-                      >
-                        Hourly Equivalent Rate
-                      </button>
-                    </div>
-                  </div>
-
                   <div className="w-full h-80">
                     <ReactECharts
                       option={{
