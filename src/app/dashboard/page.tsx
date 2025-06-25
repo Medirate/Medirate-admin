@@ -210,6 +210,7 @@ export default function Dashboard() {
   const [isUpdatingFilters, setIsUpdatingFilters] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }[]>([]);
   const [pendingFilters, setPendingFilters] = useState<Set<keyof Selections>>(new Set());
+  const [displayedItems, setDisplayedItems] = useState(50); // Adjust this number based on your needs
   
   const itemsPerPage = 50; // Adjust this number based on your needs
 
@@ -414,10 +415,7 @@ export default function Dashboard() {
       filters.page = String(currentPage);
       filters.itemsPerPage = String(itemsPerPage);
       if (selections.modifier_1) filters.modifier_1 = selections.modifier_1;
-      // Add sort config
-      if (sortConfig.length > 0) {
-        filters.sort = sortConfig.map(s => `${s.key}:${s.direction}`).join(',');
-      }
+      // Remove sort config from API call since we're doing client-side sorting
       console.log('[DEBUG] handleSearch filters:', filters);
       const result = await refreshData(filters) as RefreshDataResponse | null;
       if (result?.data) {
@@ -432,7 +430,7 @@ export default function Dashboard() {
     } finally {
       setIsSearching(false);
     }
-  }, [selections, startDate, endDate, currentPage, itemsPerPage, refreshData, sortConfig]);
+  }, [selections, startDate, endDate, currentPage, itemsPerPage, refreshData]);
 
   // All useEffect hooks
   useEffect(() => {
@@ -798,6 +796,7 @@ export default function Dashboard() {
     setCurrentPage(1);
     setHasSearched(false);
     setSortConfig([]);
+    setDisplayedItems(itemsPerPage); // Reset to initial load amount
   };
 
   // Add pagination controls component
@@ -805,27 +804,132 @@ export default function Dashboard() {
     if (!hasSearched || totalCount === 0) return null;
     const totalPages = Math.ceil(totalCount / itemsPerPage);
     if (totalPages <= 1) return null;
-
     const startItem = (currentPage - 1) * itemsPerPage + 1;
     const endItem = Math.min(currentPage * itemsPerPage, totalCount);
-
     return (
       <div className="flex flex-col items-center justify-center mt-4">
         <div className="mb-2 text-sm text-gray-700">
           Showing <span className="font-medium">{startItem}</span> to <span className="font-medium">{endItem}</span> of <span className="font-medium">{totalCount}</span> results
         </div>
         <div className="flex items-center space-x-1">
-          <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-2 py-1 rounded hover:bg-blue-100 disabled:opacity-50"> {'<<'} </button>
-          <button onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1} className="px-2 py-1 rounded hover:bg-blue-100 disabled:opacity-50"> {'<'} </button>
+          <button onClick={() => handlePageChange(1)} disabled={currentPage === 1} className="px-2 py-1 rounded hover:bg-blue-100 disabled:opacity-50"> {'<<'} </button>
+          <button onClick={() => handlePageChange(Math.max(currentPage - 1, 1))} disabled={currentPage === 1} className="px-2 py-1 rounded hover:bg-blue-100 disabled:opacity-50"> {'<'} </button>
           <span className="px-3 py-1">Page {currentPage} of {totalPages}</span>
-          <button onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages} className="px-2 py-1 rounded hover:bg-blue-100 disabled:opacity-50"> {'>'} </button>
-          <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-2 py-1 rounded hover:bg-blue-100 disabled:opacity-50"> {'>>'} </button>
+          <button onClick={() => handlePageChange(Math.min(currentPage + 1, totalPages))} disabled={currentPage === totalPages} className="px-2 py-1 rounded hover:bg-blue-100 disabled:opacity-50"> {'>'} </button>
+          <button onClick={() => handlePageChange(totalPages)} disabled={currentPage === totalPages} className="px-2 py-1 rounded hover:bg-blue-100 disabled:opacity-50"> {'>>'} </button>
         </div>
       </div>
     );
   };
 
   // After all useState/useEffect/useCallback hooks, but before any useMemo or code that uses available* variables:
+
+  // Add client-side sorting functionality
+  const sortedData = useMemo(() => {
+    if (!data || data.length === 0 || sortConfig.length === 0) {
+      return data;
+    }
+
+    return [...data].sort((a, b) => {
+      for (const sort of sortConfig) {
+        const { key, direction } = sort;
+        let aValue: any = a[key];
+        let bValue: any = b[key];
+
+        // Handle special cases for sorting
+        if (key === 'rate') {
+          // Extract numeric value from rate strings (e.g., "$123.45" -> 123.45)
+          aValue = parseFloat((aValue || '0').replace(/[^0-9.-]/g, ''));
+          bValue = parseFloat((bValue || '0').replace(/[^0-9.-]/g, ''));
+        } else if (key === 'rate_effective_date') {
+          // Convert date strings to Date objects for proper comparison
+          // Handle MM/DD/YYYY format and other common formats
+          const parseDate = (dateStr: string): number => {
+            if (!dateStr) return 0;
+            
+            // Try parsing as MM/DD/YYYY first
+            const mmddyyyyMatch = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+            if (mmddyyyyMatch) {
+              const [, month, day, year] = mmddyyyyMatch;
+              return new Date(parseInt(year), parseInt(month) - 1, parseInt(day)).getTime();
+            }
+            
+            // Try parsing as YYYY-MM-DD
+            const yyyymmddMatch = dateStr.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+            if (yyyymmddMatch) {
+              const [, year, month, day] = yyyymmddMatch;
+              return new Date(parseInt(year), parseInt(month) - 1, parseInt(day)).getTime();
+            }
+            
+            // Fallback to native Date parsing
+            const parsed = new Date(dateStr);
+            return isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+          };
+          
+          aValue = parseDate(aValue);
+          bValue = parseDate(bValue);
+        } else {
+          // For text fields, ensure we have strings and handle null/undefined
+          aValue = (aValue || '').toString().toLowerCase();
+          bValue = (bValue || '').toString().toLowerCase();
+        }
+
+        // Compare values
+        if (aValue < bValue) {
+          return direction === 'asc' ? -1 : 1;
+        }
+        if (aValue > bValue) {
+          return direction === 'asc' ? 1 : -1;
+        }
+        // If equal, continue to next sort level
+      }
+      return 0;
+    });
+  }, [data, sortConfig]);
+
+  // Restore handleLoadMore for Load More mode
+  const handleLoadMore = async () => {
+    const nextPage = currentPage + 1;
+    const filters: any = {};
+    for (const [key, value] of Object.entries(selections)) {
+      if (value) filters[key] = value;
+    }
+    if (startDate) filters.start_date = startDate.toISOString().split('T')[0];
+    if (endDate) filters.end_date = endDate.toISOString().split('T')[0];
+    filters.page = String(nextPage);
+    filters.itemsPerPage = String(itemsPerPage);
+    setLoading(true);
+    const result = await refreshData(filters);
+    setLoading(false);
+    if (result?.data) {
+      setData(prev => [...prev, ...result.data]); // APPEND
+      setCurrentPage(nextPage);
+      setTotalCount(result.totalCount);
+    }
+  };
+
+  // Update hasMoreItems logic for Load More mode
+  const hasMoreItems = data.length < totalCount;
+
+  // Update handlePageChange for Pagination mode
+  const handlePageChange = async (page: number) => {
+    const filters: any = {};
+    for (const [key, value] of Object.entries(selections)) {
+      if (value) filters[key] = value;
+    }
+    if (startDate) filters.start_date = startDate.toISOString().split('T')[0];
+    if (endDate) filters.end_date = endDate.toISOString().split('T')[0];
+    filters.page = String(page);
+    filters.itemsPerPage = String(itemsPerPage);
+    setLoading(true);
+    const result = await refreshData(filters);
+    setLoading(false);
+    if (result?.data) {
+      setData(result.data); // REPLACE
+      setCurrentPage(page);
+      setTotalCount(result.totalCount);
+    }
+  };
 
   // Helper
   function getAvailableOptionsForFilter(filterKey: keyof Selections) {
@@ -1027,9 +1131,35 @@ export default function Dashboard() {
     setCurrentPage(1);
   };
 
+  // 1. Remove Load More logic and button
+  // ... existing code ...
+  // Remove handleLoadMore, hasMoreItems, and LoadMoreButton
+  // ... existing code ...
+
+  // 2. Add handlePageChange for classic pagination
+  // ... existing code ...
+  // Remove handlePageChange, hasMoreItems, and LoadMoreButton
+  // ... existing code ...
+
+  // 4. Table rendering: just use sortedData (which is the current page's data)
+  // ... existing code ...
+
   return (
     <AppLayout activeTab="dashboard">
       <div className="p-4 sm:p-8 bg-gradient-to-br from-gray-50 to-blue-50 min-h-screen">
+        {/* Toggle for Load More vs Pagination */}
+        <div className="flex justify-end mb-2">
+          <button
+            onClick={() => {
+              setCurrentPage(1);
+              setData([]);
+              setHasSearched(false);
+            }}
+            className="px-4 py-2 bg-gray-200 rounded text-sm hover:bg-gray-300"
+          >
+            Switch to Pagination Mode
+          </button>
+        </div>
         {/* Error Messages */}
         <ErrorMessage error={localError} />
         {authError && (
@@ -1405,120 +1535,122 @@ export default function Dashboard() {
               overflow: 'auto'
             }}
           >
-            <table className="min-w-full" style={{ width: '100%', tableLayout: 'auto' }}>
-              <thead className="bg-gray-50 sticky top-0 z-20">
+              <table className="min-w-full" style={{ width: '100%', tableLayout: 'auto' }}>
+                <thead className="bg-gray-50 sticky top-0 z-20">
                 <tr>
-                  <th className={clsx(
-                    'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                    pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                  )} onClick={(e) => handleSort('state_name', e)}>
+                    <th className={clsx(
+                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                    )} onClick={(e) => handleSort('state_name', e)}>
                     State<SortIndicator sortKey="state_name" />
                     </th>
-                  <th className={clsx(
-                    'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                    pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                  )} onClick={(e) => handleSort('service_category', e)}>
+                    <th className={clsx(
+                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                    )} onClick={(e) => handleSort('service_category', e)}>
                     Service Category<SortIndicator sortKey="service_category" />
                     </th>
-                  <th className={clsx(
-                    'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                    pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                  )} onClick={(e) => handleSort('service_code', e)}>
+                    <th className={clsx(
+                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                    )} onClick={(e) => handleSort('service_code', e)}>
                     Service Code<SortIndicator sortKey="service_code" />
                     </th>
-                  <th className={clsx(
-                    'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                    pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                  )} onClick={(e) => handleSort('service_description', e)}>
+                    <th className={clsx(
+                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                    )} onClick={(e) => handleSort('service_description', e)}>
                     Service Description<SortIndicator sortKey="service_description" />
                     </th>
-                  <th className={clsx(
-                    'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                    pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                  )} onClick={(e) => handleSort('duration_unit', e)}>
+                    <th className={clsx(
+                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                    )} onClick={(e) => handleSort('duration_unit', e)}>
                     Duration Unit<SortIndicator sortKey="duration_unit" />
                     </th>
-                  <th className={clsx(
-                    'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                    pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                  )} onClick={(e) => handleSort('rate', e)}>
+                    <th className={clsx(
+                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                    )} onClick={(e) => handleSort('rate', e)}>
                     Rate per Base Unit<SortIndicator sortKey="rate" />
                     </th>
-                  <th className={clsx(
-                    'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                    pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                  )} onClick={(e) => handleSort('rate_effective_date', e)}>
+                    <th className={clsx(
+                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                    )} onClick={(e) => handleSort('rate_effective_date', e)}>
                     Effective Date<SortIndicator sortKey="rate_effective_date" />
                     </th>
-                  <th className={clsx(
-                    'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                    pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                  )} onClick={(e) => handleSort('modifier_1', e)}>
+                    <th className={clsx(
+                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                    )} onClick={(e) => handleSort('modifier_1', e)}>
                     Modifier 1<SortIndicator sortKey="modifier_1" />
                     </th>
-                  <th className={clsx(
-                    'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                    pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                  )} onClick={(e) => handleSort('modifier_2', e)}>
+                    <th className={clsx(
+                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                    )} onClick={(e) => handleSort('modifier_2', e)}>
                     Modifier 2<SortIndicator sortKey="modifier_2" />
                     </th>
-                  <th className={clsx(
-                    'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                    pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                  )} onClick={(e) => handleSort('modifier_3', e)}>
+                    <th className={clsx(
+                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                    )} onClick={(e) => handleSort('modifier_3', e)}>
                     Modifier 3<SortIndicator sortKey="modifier_3" />
                     </th>
-                  <th className={clsx(
-                    'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                    pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                  )} onClick={(e) => handleSort('modifier_4', e)}>
+                    <th className={clsx(
+                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                    )} onClick={(e) => handleSort('modifier_4', e)}>
                     Modifier 4<SortIndicator sortKey="modifier_4" />
                     </th>
-                  <th className={clsx(
-                    'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                    pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                  )} onClick={(e) => handleSort('program', e)}>
+                    <th className={clsx(
+                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                    )} onClick={(e) => handleSort('program', e)}>
                     Program<SortIndicator sortKey="program" />
                     </th>
-                  <th className={clsx(
-                    'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                    pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                  )} onClick={(e) => handleSort('location_region', e)}>
+                    <th className={clsx(
+                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                    )} onClick={(e) => handleSort('location_region', e)}>
                     Location/Region<SortIndicator sortKey="location_region" />
                     </th>
-                  <th className={clsx(
-                    'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                    pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                  )} onClick={(e) => handleSort('provider_type', e)}>
+                    <th className={clsx(
+                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                    )} onClick={(e) => handleSort('provider_type', e)}>
                     Provider Type<SortIndicator sortKey="provider_type" />
                     </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {data.map((item: any, idx: number) => (
-                  <tr key={item.id || item.rowKey || `${item.service_code}-${item.rate_effective_date}-${idx}`} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.state_code || STATE_ABBREVIATIONS[item.state_name?.toUpperCase() || ""] || item.state_name || '-'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{SERVICE_CATEGORY_ABBREVIATIONS[item.service_category?.toUpperCase() || ""] || item.service_category || '-'}</td>
+                  {sortedData.map((item: any, idx: number) => (
+                    <tr key={`id-${item.id}-${item.service_code ?? ''}-${item.rate_effective_date ?? ''}-${idx}`}
+                        className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.state_code || STATE_ABBREVIATIONS[item.state_name?.toUpperCase() || ""] || item.state_name || '-'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{SERVICE_CATEGORY_ABBREVIATIONS[item.service_category?.toUpperCase() || ""] || item.service_category || '-'}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.service_code || '-'}</td>
                     <td className="px-6 py-4 text-sm text-gray-900 max-w-[220px] truncate" title={item.service_description || '-'}>{item.service_description || '-'}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.duration_unit || '-'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.rate ? (item.rate.trim().startsWith('$') ? item.rate : `$${item.rate}`) : '-'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.rate ? (item.rate.trim().startsWith('$') ? item.rate : `$${item.rate}`) : '-'}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.rate_effective_date || '-'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.modifier_1 ? (item.modifier_1_details ? `${item.modifier_1} - ${item.modifier_1_details}` : item.modifier_1) : '-'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.modifier_2 ? (item.modifier_2_details ? `${item.modifier_2} - ${item.modifier_2_details}` : item.modifier_2) : '-'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.modifier_3 ? (item.modifier_3_details ? `${item.modifier_3} - ${item.modifier_3_details}` : item.modifier_3) : '-'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.modifier_4 ? (item.modifier_4_details ? `${item.modifier_4} - ${item.modifier_4_details}` : item.modifier_4) : '-'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.modifier_1 ? (item.modifier_1_details ? `${item.modifier_1} - ${item.modifier_1_details}` : item.modifier_1) : '-'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.modifier_2 ? (item.modifier_2_details ? `${item.modifier_2} - ${item.modifier_2_details}` : item.modifier_2) : '-'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.modifier_3 ? (item.modifier_3_details ? `${item.modifier_3} - ${item.modifier_3_details}` : item.modifier_3) : '-'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.modifier_4 ? (item.modifier_4_details ? `${item.modifier_4} - ${item.modifier_4_details}` : item.modifier_4) : '-'}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.program || '-'}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.location_region || '-'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.provider_type || '-'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.provider_type || '-'}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-
-            {/* Add pagination controls */}
-            <PaginationControls />
+            {/* Always show both controls after a search */}
+            <div className="flex flex-col items-center mt-4">
+              <PaginationControls />
+            </div>
           </>
         )}
       </div>
