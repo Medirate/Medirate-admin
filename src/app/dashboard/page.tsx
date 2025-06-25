@@ -1030,6 +1030,36 @@ export default function Dashboard() {
     return getAvailableOptionsForFilter('fee_schedule_date');
   }, [filterOptionsData, selections]);
 
+  // Add visibleColumns useMemo here, before the early return
+  const visibleColumns = useMemo(() => {
+    const columns: Record<string, boolean> = {
+      state_name: false,
+      service_category: false,
+      service_code: false,
+      service_description: false,
+      duration_unit: false,
+      rate: false,
+      rate_effective_date: false,
+      modifier_1: false,
+      modifier_2: false,
+      modifier_3: false,
+      modifier_4: false,
+      program: false,
+      location_region: false,
+      provider_type: false,
+    };
+    if (sortedData.length > 0) {
+      sortedData.forEach(item => {
+        Object.keys(columns).forEach(key => {
+          if (item[key] && item[key] !== '-') {
+            columns[key] = true;
+          }
+        });
+      });
+    }
+    return columns;
+  }, [sortedData]);
+
   // Debug logs for Fee Schedule Date dropdown
   if (typeof window !== 'undefined') {
     console.log("DEBUG availableDates", availableDates, "Selections:", selections);
@@ -1524,116 +1554,172 @@ export default function Dashboard() {
           >
               <table className="min-w-full" style={{ width: '100%', tableLayout: 'auto' }}>
                 <thead className="bg-gray-50 sticky top-0 z-20">
-                <tr>
-                    <th className={clsx(
-                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                    )} onClick={(e) => handleSort('state_name', e)}>
-                    State<SortIndicator sortKey="state_name" />
-                    </th>
-                    <th className={clsx(
-                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                    )} onClick={(e) => handleSort('service_category', e)}>
-                    Service Category<SortIndicator sortKey="service_category" />
-                    </th>
-                    <th className={clsx(
-                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                    )} onClick={(e) => handleSort('service_code', e)}>
-                    Service Code<SortIndicator sortKey="service_code" />
-                    </th>
-                    <th className={clsx(
-                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                    )} onClick={(e) => handleSort('service_description', e)}>
-                    Service Description<SortIndicator sortKey="service_description" />
-                    </th>
-                    <th className={clsx(
-                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                    )} onClick={(e) => handleSort('duration_unit', e)}>
-                    Duration Unit<SortIndicator sortKey="duration_unit" />
-                    </th>
-                    <th className={clsx(
-                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                    )} onClick={(e) => handleSort('rate', e)}>
-                    Rate per Base Unit<SortIndicator sortKey="rate" />
-                    </th>
-                    <th className={clsx(
-                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                    )} onClick={(e) => handleSort('rate_effective_date', e)}>
-                    Effective Date<SortIndicator sortKey="rate_effective_date" />
-                    </th>
-                    <th className={clsx(
-                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                    )} onClick={(e) => handleSort('modifier_1', e)}>
-                    Modifier 1<SortIndicator sortKey="modifier_1" />
-                    </th>
-                    <th className={clsx(
-                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                    )} onClick={(e) => handleSort('modifier_2', e)}>
-                    Modifier 2<SortIndicator sortKey="modifier_2" />
-                    </th>
-                    <th className={clsx(
-                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                    )} onClick={(e) => handleSort('modifier_3', e)}>
-                    Modifier 3<SortIndicator sortKey="modifier_3" />
-                    </th>
-                    <th className={clsx(
-                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                    )} onClick={(e) => handleSort('modifier_4', e)}>
-                    Modifier 4<SortIndicator sortKey="modifier_4" />
-                    </th>
-                    <th className={clsx(
-                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                    )} onClick={(e) => handleSort('program', e)}>
-                    Program<SortIndicator sortKey="program" />
-                    </th>
-                    <th className={clsx(
-                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                    )} onClick={(e) => handleSort('location_region', e)}>
-                    Location/Region<SortIndicator sortKey="location_region" />
-                    </th>
-                    <th className={clsx(
-                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                    )} onClick={(e) => handleSort('provider_type', e)}>
-                    Provider Type<SortIndicator sortKey="provider_type" />
-                    </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
+                  <tr>
+                    {visibleColumns.state_name && (
+                      <th className={clsx(
+                        'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                        pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                      )} onClick={(e) => handleSort('state_name', e)}>
+                        State<SortIndicator sortKey="state_name" />
+                      </th>
+                    )}
+                    {visibleColumns.service_category && (
+                      <th className={clsx(
+                        'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                        pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                      )} onClick={(e) => handleSort('service_category', e)}>
+                        Service Category<SortIndicator sortKey="service_category" />
+                      </th>
+                    )}
+                    {visibleColumns.service_code && (
+                      <th className={clsx(
+                        'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                        pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                      )} onClick={(e) => handleSort('service_code', e)}>
+                        Service Code<SortIndicator sortKey="service_code" />
+                      </th>
+                    )}
+                    {visibleColumns.service_description && (
+                      <th className={clsx(
+                        'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                        pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                      )} onClick={(e) => handleSort('service_description', e)}>
+                        Service Description<SortIndicator sortKey="service_description" />
+                      </th>
+                    )}
+                    {visibleColumns.duration_unit && (
+                      <th className={clsx(
+                        'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                        pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                      )} onClick={(e) => handleSort('duration_unit', e)}>
+                        Duration Unit<SortIndicator sortKey="duration_unit" />
+                      </th>
+                    )}
+                    {visibleColumns.rate && (
+                      <th className={clsx(
+                        'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                        pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                      )} onClick={(e) => handleSort('rate', e)}>
+                        Rate per Base Unit<SortIndicator sortKey="rate" />
+                      </th>
+                    )}
+                    {visibleColumns.rate_effective_date && (
+                      <th className={clsx(
+                        'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                        pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                      )} onClick={(e) => handleSort('rate_effective_date', e)}>
+                        Effective Date<SortIndicator sortKey="rate_effective_date" />
+                      </th>
+                    )}
+                    {visibleColumns.modifier_1 && (
+                      <th className={clsx(
+                        'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                        pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                      )} onClick={(e) => handleSort('modifier_1', e)}>
+                        Modifier 1<SortIndicator sortKey="modifier_1" />
+                      </th>
+                    )}
+                    {visibleColumns.modifier_2 && (
+                      <th className={clsx(
+                        'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                        pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                      )} onClick={(e) => handleSort('modifier_2', e)}>
+                        Modifier 2<SortIndicator sortKey="modifier_2" />
+                      </th>
+                    )}
+                    {visibleColumns.modifier_3 && (
+                      <th className={clsx(
+                        'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                        pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                      )} onClick={(e) => handleSort('modifier_3', e)}>
+                        Modifier 3<SortIndicator sortKey="modifier_3" />
+                      </th>
+                    )}
+                    {visibleColumns.modifier_4 && (
+                      <th className={clsx(
+                        'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                        pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                      )} onClick={(e) => handleSort('modifier_4', e)}>
+                        Modifier 4<SortIndicator sortKey="modifier_4" />
+                      </th>
+                    )}
+                    {visibleColumns.program && (
+                      <th className={clsx(
+                        'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                        pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                      )} onClick={(e) => handleSort('program', e)}>
+                        Program<SortIndicator sortKey="program" />
+                      </th>
+                    )}
+                    {visibleColumns.location_region && (
+                      <th className={clsx(
+                        'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                        pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                      )} onClick={(e) => handleSort('location_region', e)}>
+                        Location/Region<SortIndicator sortKey="location_region" />
+                      </th>
+                    )}
+                    {visibleColumns.provider_type && (
+                      <th className={clsx(
+                        'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                        pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                      )} onClick={(e) => handleSort('provider_type', e)}>
+                        Provider Type<SortIndicator sortKey="provider_type" />
+                      </th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
                   {sortedData.map((item: any, idx: number) => (
                     <tr key={`id-${item.id}-${item.service_code ?? ''}-${item.rate_effective_date ?? ''}-${idx}`}
                         className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.state_code || STATE_ABBREVIATIONS[item.state_name?.toUpperCase() || ""] || item.state_name || '-'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{SERVICE_CATEGORY_ABBREVIATIONS[item.service_category?.toUpperCase() || ""] || item.service_category || '-'}</td>
+                      {visibleColumns.state_name && (
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.state_code || STATE_ABBREVIATIONS[item.state_name?.toUpperCase() || ""] || item.state_name || '-'}</td>
+                      )}
+                      {visibleColumns.service_category && (
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{SERVICE_CATEGORY_ABBREVIATIONS[item.service_category?.toUpperCase() || ""] || item.service_category || '-'}</td>
+                      )}
+                      {visibleColumns.service_code && (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.service_code || '-'}</td>
-                    <td className="px-6 py-4 text-sm text-gray-900 max-w-[220px] truncate" title={item.service_description || '-'}>{item.service_description || '-'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.duration_unit || '-'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.rate ? (item.rate.trim().startsWith('$') ? item.rate : `$${item.rate}`) : '-'}</td>
+                      )}
+                      {visibleColumns.service_description && (
+                        <td className="px-6 py-4 text-sm text-gray-900 max-w-[220px] truncate" title={item.service_description || '-'}>{item.service_description || '-'}</td>
+                      )}
+                      {visibleColumns.duration_unit && (
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.duration_unit || '-'}</td>
+                      )}
+                      {visibleColumns.rate && (
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.rate ? (item.rate.trim().startsWith('$') ? item.rate : `$${item.rate}`) : '-'}</td>
+                      )}
+                      {visibleColumns.rate_effective_date && (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.rate_effective_date || '-'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.modifier_1 ? (item.modifier_1_details ? `${item.modifier_1} - ${item.modifier_1_details}` : item.modifier_1) : '-'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.modifier_2 ? (item.modifier_2_details ? `${item.modifier_2} - ${item.modifier_2_details}` : item.modifier_2) : '-'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.modifier_3 ? (item.modifier_3_details ? `${item.modifier_3} - ${item.modifier_3_details}` : item.modifier_3) : '-'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.modifier_4 ? (item.modifier_4_details ? `${item.modifier_4} - ${item.modifier_4_details}` : item.modifier_4) : '-'}</td>
+                      )}
+                      {visibleColumns.modifier_1 && (
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.modifier_1 ? (item.modifier_1_details ? `${item.modifier_1} - ${item.modifier_1_details}` : item.modifier_1) : '-'}</td>
+                      )}
+                      {visibleColumns.modifier_2 && (
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.modifier_2 ? (item.modifier_2_details ? `${item.modifier_2} - ${item.modifier_2_details}` : item.modifier_2) : '-'}</td>
+                      )}
+                      {visibleColumns.modifier_3 && (
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.modifier_3 ? (item.modifier_3_details ? `${item.modifier_3} - ${item.modifier_3_details}` : item.modifier_3) : '-'}</td>
+                      )}
+                      {visibleColumns.modifier_4 && (
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.modifier_4 ? (item.modifier_4_details ? `${item.modifier_4} - ${item.modifier_4_details}` : item.modifier_4) : '-'}</td>
+                      )}
+                      {visibleColumns.program && (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.program || '-'}</td>
+                      )}
+                      {visibleColumns.location_region && (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.location_region || '-'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.provider_type || '-'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      )}
+                      {visibleColumns.provider_type && (
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.provider_type || '-'}</td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
             {/* Always show both controls after a search */}
             <div className="flex flex-col items-center mt-4">
             <PaginationControls />

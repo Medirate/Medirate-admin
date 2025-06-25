@@ -110,6 +110,36 @@ export const DataTable = ({
         return acc;
       }, {} as { [key: string]: ServiceData[] });
 
+      // Calculate visible columns for this filter set's data
+      const calculateVisibleColumns = (data: ServiceData[]) => {
+        const columns: Record<string, boolean> = {
+          state_name: false,
+          service_category: false,
+          service_code: false,
+          service_description: false,
+          program: false,
+          location_region: false,
+          modifier_1: false,
+          modifier_2: false,
+          modifier_3: false,
+          modifier_4: false,
+          duration_unit: false,
+          rate: false,
+          rate_effective_date: false,
+          provider_type: false,
+        };
+        data.forEach(item => {
+          Object.keys(columns).forEach(key => {
+            if (item[key as keyof ServiceData] && item[key as keyof ServiceData] !== '-') {
+              columns[key] = true;
+            }
+          });
+        });
+        return columns;
+      };
+
+      const visibleColumns = calculateVisibleColumns(paginatedData);
+
       return (
         <div key={filterIndex} className="mb-8 overflow-hidden rounded-lg shadow-lg">
           {Object.keys(groupedByState).length > 0 && (
@@ -127,19 +157,48 @@ export const DataTable = ({
                   <thead className="bg-white sticky top-0 z-10 shadow">
                     <tr>
                       <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider"></th>
-                      <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">State</th>
-                      <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Service Category</th>
-                      <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Service Code</th>
-                      <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Service Description</th>
-                      <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Program</th>
-                      <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Region</th>
-                      <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Modifier 1</th>
-                      <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Modifier 2</th>
-                      <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Modifier 3</th>
-                      <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Modifier 4</th>
-                      <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Rate</th>
-                      <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Effective Date</th>
-                      <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Provider Type</th>
+                      {visibleColumns.state_name && (
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">State</th>
+                      )}
+                      {visibleColumns.service_category && (
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Service Category</th>
+                      )}
+                      {visibleColumns.service_code && (
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Service Code</th>
+                      )}
+                      {visibleColumns.service_description && (
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Service Description</th>
+                      )}
+                      {visibleColumns.program && (
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Program</th>
+                      )}
+                      {visibleColumns.location_region && (
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Region</th>
+                      )}
+                      {visibleColumns.modifier_1 && (
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Modifier 1</th>
+                      )}
+                      {visibleColumns.modifier_2 && (
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Modifier 2</th>
+                      )}
+                      {visibleColumns.modifier_3 && (
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Modifier 3</th>
+                      )}
+                      {visibleColumns.modifier_4 && (
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Modifier 4</th>
+                      )}
+                      {visibleColumns.rate && (
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Rate</th>
+                      )}
+                      {visibleColumns.duration_unit && (
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Duration Unit</th>
+                      )}
+                      {visibleColumns.rate_effective_date && (
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Effective Date</th>
+                      )}
+                      {visibleColumns.provider_type && (
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Provider Type</th>
+                      )}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
@@ -196,111 +255,96 @@ export const DataTable = ({
                               </div>
                             </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {STATE_ABBREVIATIONS[item.state_name?.toUpperCase() || ""] || item.state_name || '-'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {SERVICE_CATEGORY_ABBREVIATIONS[item.service_category?.trim().toUpperCase() || ""] || item.service_category || '-'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(item.service_code)}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 max-w-[220px]">
-                            <div className="relative group">
-                              <span className="truncate block group-hover:text-blue-600 transition-colors duration-200" title={item.service_description || '-'}>
-                                {item.service_description && item.service_description.length > 30
-                                  ? item.service_description.slice(0, 30) + '...'
-                                  : item.service_description || '-'}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(item.program)}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(item.location_region)}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(item.modifier_1)}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(item.modifier_2)}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(item.modifier_3)}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(item.modifier_4)}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.rate}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{new Date(item.rate_effective_date).toLocaleDateString()}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(item.provider_type)}</td>
+                          {visibleColumns.state_name && (
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {STATE_ABBREVIATIONS[item.state_name?.toUpperCase() || ""] || item.state_name || '-'}
+                            </td>
+                          )}
+                          {visibleColumns.service_category && (
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {SERVICE_CATEGORY_ABBREVIATIONS[item.service_category?.trim().toUpperCase() || ""] || item.service_category || '-'}
+                            </td>
+                          )}
+                          {visibleColumns.service_code && (
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(item.service_code)}</td>
+                          )}
+                          {visibleColumns.service_description && (
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 max-w-[220px]">
+                              <div className="relative group">
+                                <span className="truncate block group-hover:text-blue-600 transition-colors duration-200" title={item.service_description || '-'}>
+                                  {item.service_description && item.service_description.length > 30
+                                    ? item.service_description.slice(0, 30) + '...'
+                                    : item.service_description || '-'}
+                                </span>
+                              </div>
+                            </td>
+                          )}
+                          {visibleColumns.program && (
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(item.program)}</td>
+                          )}
+                          {visibleColumns.location_region && (
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(item.location_region)}</td>
+                          )}
+                          {visibleColumns.modifier_1 && (
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(item.modifier_1)}</td>
+                          )}
+                          {visibleColumns.modifier_2 && (
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(item.modifier_2)}</td>
+                          )}
+                          {visibleColumns.modifier_3 && (
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(item.modifier_3)}</td>
+                          )}
+                          {visibleColumns.modifier_4 && (
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(item.modifier_4)}</td>
+                          )}
+                          {visibleColumns.rate && (
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.rate}</td>
+                          )}
+                          {visibleColumns.duration_unit && (
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(item.duration_unit)}</td>
+                          )}
+                          {visibleColumns.rate_effective_date && (
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(item.rate_effective_date)}</td>
+                          )}
+                          {visibleColumns.provider_type && (
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(item.provider_type)}</td>
+                          )}
                         </tr>
                       );
                     })}
                   </tbody>
                 </table>
               </div>
+              {/* Pagination controls for this state */}
+              {totalPages > 1 && (
+                <div className="flex justify-center mt-4">
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => handlePageChange(filterIndex, Math.max(currentPage - 1, 1))}
+                      disabled={currentPage === 1}
+                      className="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Previous
+                    </button>
+                    <span className="text-sm text-gray-600">
+                      Page {currentPage} of {totalPages}
+                    </span>
+                    <button
+                      onClick={() => handlePageChange(filterIndex, Math.min(currentPage + 1, totalPages))}
+                      disabled={currentPage === totalPages}
+                      className="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
-          {/* Pagination Controls */}
-          {totalPages > 1 && (
-            <div className="flex justify-center items-center py-4">
-              <button
-                onClick={() => handlePageChange(filterIndex, Math.max(1, currentPage - 1))}
-                disabled={currentPage === 1}
-                className="px-3 py-1 mx-1 rounded-full bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50"
-              >
-                Previous
-              </button>
-              {/* Page numbers with ellipsis */}
-              {(() => {
-                const maxVisible = 5;
-                let start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
-                let end = Math.min(totalPages, start + maxVisible - 1);
-                if (end - start + 1 < maxVisible) {
-                  start = Math.max(1, end - maxVisible + 1);
-                }
-                const pages = [];
-                if (start > 1) {
-                  pages.push(
-                    <button
-                      key={1}
-                      onClick={() => handlePageChange(filterIndex, 1)}
-                      className={`px-3 py-1 mx-1 rounded-full ${currentPage === 1 ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                    >1</button>
-                  );
-                  if (start > 2) pages.push(<span key="start-ellipsis" className="mx-1 text-gray-400">...</span>);
-                }
-                for (let page = start; page <= end; page++) {
-                  pages.push(
-                    <button
-                      key={page}
-                      onClick={() => handlePageChange(filterIndex, page)}
-                      className={`px-3 py-1 mx-1 rounded-full ${currentPage === page ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                    >{page}</button>
-                  );
-                }
-                if (end < totalPages) {
-                  if (end < totalPages - 1) pages.push(<span key="end-ellipsis" className="mx-1 text-gray-400">...</span>);
-                  pages.push(
-                    <button
-                      key={totalPages}
-                      onClick={() => handlePageChange(filterIndex, totalPages)}
-                      className={`px-3 py-1 mx-1 rounded-full ${currentPage === totalPages ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                    >{totalPages}</button>
-                  );
-                }
-                return pages;
-              })()}
-              <button
-                onClick={() => handlePageChange(filterIndex, Math.min(totalPages, currentPage + 1))}
-                disabled={currentPage === totalPages}
-                className="px-3 py-1 mx-1 rounded-full bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50"
-              >
-                Next
-              </button>
-            </div>
-          )}
         </div>
       );
     });
-  }, [
-    filterSets,
-    latestRates,
-    selectedTableRows,
-    isAllStatesSelected,
-    onRowSelection,
-    formatText,
-    selectedEntries,
-    currentPages
-  ]);
+  }, [filterSets, latestRates, selectedEntries, currentPages, onRowSelection, formatText]);
 
   return tableContent;
 };

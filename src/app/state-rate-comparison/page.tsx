@@ -248,14 +248,14 @@ export default function StatePaymentComparison() {
       if (result && Array.isArray(result.data)) {
         setData(result.data);
         return result;
-      } else {
+        } else {
         setError('Invalid data format received');
         return null;
-      }
-    } catch (err) {
+        }
+      } catch (err) {
       setError('Failed to fetch data. Please try again.');
       return null;
-    } finally {
+      } finally {
       setLoading(false);
     }
   };
@@ -318,7 +318,7 @@ export default function StatePaymentComparison() {
         if (response.status === 401) {
           console.warn('🔄 Session expired, redirecting to login...');
           setAuthError('Your session has expired. Please sign in again.');
-          router.push("/api/auth/login");
+      router.push("/api/auth/login");
         }
       } catch (error) {
         console.error('Error checking auth status:', error);
@@ -612,7 +612,7 @@ export default function StatePaymentComparison() {
       } catch (error) {
         console.error("Error loading data:", error);
         setFetchError("Failed to load data. Please try again.");
-      } finally {
+    } finally {
         setFilterLoading(false);
       }
     };
@@ -1913,7 +1913,7 @@ export default function StatePaymentComparison() {
                               ? [{ value: '-', label: '-' }, ...availablePrograms.map((program: any) => ({ value: program, label: program }))]
                               : []
                           }
-                          value={filterSet.program ? { value: filterSet.program, label: filterSet.program } : null}
+                            value={filterSet.program ? { value: filterSet.program, label: filterSet.program } : null}
                           onChange={(option) => handleProgramChange(index, option?.value || "")}
                           placeholder="Select Program"
                           isSearchable
@@ -2127,14 +2127,14 @@ export default function StatePaymentComparison() {
 
             {/* Data Table */}
             {filterSets.map((set, index) => (
-              <DataTable
+            <DataTable
                 key={index}
                 filterSets={[{ ...set, number: index + 1 }]}
                 latestRates={filterSetData[index] || []}
-                selectedTableRows={selectedTableRows}
-                isAllStatesSelected={isAllStatesSelected}
+              selectedTableRows={selectedTableRows}
+              isAllStatesSelected={isAllStatesSelected}
                 onRowSelection={handleRowSelection}
-                formatText={formatText}
+              formatText={formatText}
                 selectedEntries={selectedEntries}
               />
             ))}
@@ -2143,7 +2143,7 @@ export default function StatePaymentComparison() {
             <CalculationDetails />
           </>
         )}
-            </div>
+      </div>
     </AppLayout>
   );
 }
