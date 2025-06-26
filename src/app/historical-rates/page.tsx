@@ -555,6 +555,7 @@ export default function HistoricalRates() {
     program: null,
     location_region: null,
     provider_type: null,
+    duration_unit: null,
     modifier_1: null,
   });
 
@@ -568,7 +569,7 @@ export default function HistoricalRates() {
     const dependencyChain: (keyof Selections)[] = [
       'service_category', 'state_name', 'service_code',
       'service_description', 'program', 'location_region',
-      'provider_type', 'modifier_1'
+      'provider_type', 'duration_unit', 'modifier_1'
     ];
     const changedIndex = dependencyChain.indexOf(field);
     if (changedIndex !== -1) {
@@ -578,6 +579,9 @@ export default function HistoricalRates() {
     }
     setSelections(newSelections);
     setCurrentPage(1); // Reset to first page when filter changes
+    
+    // Clear selected entry when filters change to show table first instead of chart
+    setSelectedEntry(null);
   };
 
   const filteredData = useMemo(() => {
@@ -603,11 +607,15 @@ export default function HistoricalRates() {
       if (selections.provider_type && selections.provider_type !== "-") {
         if (item.provider_type !== selections.provider_type) return false;
       }
+      if (selections.duration_unit && selections.duration_unit !== "-") {
+        if (item.duration_unit !== selections.duration_unit) return false;
+      }
 
       // Handle "-" selections (empty/null values)
       if (selections.program === "-" && item.program) return false;
       if (selections.location_region === "-" && item.location_region) return false;
       if (selections.provider_type === "-" && item.provider_type) return false;
+      if (selections.duration_unit === "-" && item.duration_unit) return false;
       if (selections.modifier_1 === "-") {
         const hasAnyModifier = item.modifier_1 || item.modifier_2 || item.modifier_3 || item.modifier_4;
         if (hasAnyModifier) return false;
@@ -663,7 +671,8 @@ export default function HistoricalRates() {
     selections.program,
     selections.location_region,
     selections.modifier_1,
-    selections.provider_type
+    selections.provider_type,
+    selections.duration_unit
   ]);
 
   useEffect(() => {
@@ -689,7 +698,8 @@ export default function HistoricalRates() {
       rate_effective_date: false
     };
 
-    if (filteredData.length > 0) {
+    // Only process columns if we have data and are not loading
+    if (filteredData.length > 0 && !loading) {
       filteredData.forEach(item => {
         Object.keys(columns).forEach(key => {
           if (item[key as keyof ServiceData] && item[key as keyof ServiceData] !== '-') {
@@ -697,10 +707,19 @@ export default function HistoricalRates() {
           }
         });
       });
+      
+      // Ensure essential columns are always visible if we have data
+      if (filteredData.length > 0) {
+        columns.state_name = true;
+        columns.service_category = true;
+        columns.service_code = true;
+        columns.rate = true;
+        columns.rate_effective_date = true;
+      }
     }
 
     return columns;
-  }, [filteredData]);
+  }, [filteredData, loading]);
 
   // Now fetchComment is after all useState hooks
   const fetchComment = async (serviceCategory: string, state: string) => {
@@ -938,6 +957,7 @@ export default function HistoricalRates() {
       if (selections.program) filters.program = selections.program;
       if (selections.location_region) filters.location_region = selections.location_region;
       if (selections.provider_type) filters.provider_type = selections.provider_type;
+      if (selections.duration_unit) filters.duration_unit = selections.duration_unit;
       if (selections.modifier_1) filters.modifier_1 = selections.modifier_1;
       filters.page = String(currentPage);
       filters.itemsPerPage = String(itemsPerPage);
@@ -973,6 +993,7 @@ export default function HistoricalRates() {
       program: null,
       location_region: null,
       provider_type: null,
+      duration_unit: null,
       modifier_1: null,
     });
     setSelectedEntry(null);
@@ -984,6 +1005,15 @@ export default function HistoricalRates() {
   };
 
   const formatText = (text: string | undefined) => text || '-';
+
+  // Helper function to format rates with 2 decimal points
+  const formatRate = (rate: string | undefined) => {
+    if (!rate) return '-';
+    // Remove any existing $ and parse as number
+    const numericRate = parseFloat(rate.replace(/[^0-9.-]/g, ''));
+    if (isNaN(numericRate)) return rate; // Return original if not a valid number
+    return `$${numericRate.toFixed(2)}`;
+  };
 
   const getGraphData = () => {
     if (!selectedEntry) return { xAxis: [], series: [] };
@@ -1147,34 +1177,6 @@ export default function HistoricalRates() {
     loadUltraFilterOptions();
   }, []);
 
-  // After tableData is defined, add:
-  const visibleColumns = useMemo(() => {
-    const columns: Record<string, boolean> = {
-      state_name: false,
-      service_category: false,
-      service_code: false,
-      service_description: false,
-      program: false,
-      location_region: false,
-      modifier_1: false,
-      modifier_2: false,
-      modifier_3: false,
-      modifier_4: false,
-      duration_unit: false,
-      rate: false,
-      rate_effective_date: false,
-      provider_type: false,
-    };
-    tableData.forEach(item => {
-      Object.keys(columns).forEach(key => {
-        if (item[key as keyof ServiceData] && item[key as keyof ServiceData] !== '-') {
-          columns[key] = true;
-        }
-      });
-    });
-    return columns;
-  }, [tableData]);
-
   // Don't render anything until the subscription check is complete
   if (isLoading || !isSubscriptionCheckComplete) {
     return (
@@ -1196,6 +1198,7 @@ export default function HistoricalRates() {
   const availablePrograms = getAvailableOptionsForFilter('program', selections, filterOptionsData) as string[];
   const availableLocationRegions = getAvailableOptionsForFilter('location_region', selections, filterOptionsData) as string[];
   const availableProviderTypes = getAvailableOptionsForFilter('provider_type', selections, filterOptionsData) as string[];
+  const availableDurationUnits = getAvailableOptionsForFilter('duration_unit', selections, filterOptionsData) as string[];
   const availableModifiers = getAvailableOptionsForFilter('modifier_1', selections, filterOptionsData) as string[];
 
   return (
@@ -1221,7 +1224,7 @@ export default function HistoricalRates() {
 
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 sm:mb-8">
           <h1 className="text-3xl sm:text-5xl md:text-6xl text-[#012C61] font-lemonMilkRegular uppercase mb-3 sm:mb-0">
-            Rate History
+            Historical Rates
           </h1>
         </div>
 
@@ -1279,7 +1282,7 @@ export default function HistoricalRates() {
                         onChange={option => handleSelectionChange('state_name', option?.value || null)}
                         placeholder="Select State"
                         isClearable
-                        isDisabled={!selections.service_category}
+                        isDisabled={!selections.service_category || availableStates.length === 0}
                         className="react-select-container"
                         classNamePrefix="react-select"
                       />
@@ -1297,7 +1300,7 @@ export default function HistoricalRates() {
                         onChange={option => handleSelectionChange('service_code', option?.value || null)}
                         placeholder="Select Service Code"
                         isClearable
-                        isDisabled={!selections.service_category || !selections.state_name}
+                        isDisabled={!selections.service_category || !selections.state_name || availableServiceCodes.length === 0}
                         className="react-select-container"
                         classNamePrefix="react-select"
                       />
@@ -1315,7 +1318,7 @@ export default function HistoricalRates() {
                         onChange={option => handleSelectionChange('service_description', option?.value || null)}
                         placeholder="Select Service Description"
                         isClearable
-                        isDisabled={!selections.service_category || !selections.state_name}
+                        isDisabled={!selections.service_category || !selections.state_name || availableServiceDescriptions.length === 0}
                         className="react-select-container"
                         classNamePrefix="react-select"
                       />
@@ -1333,7 +1336,7 @@ export default function HistoricalRates() {
                         onChange={option => handleSelectionChange('program', option?.value || null)}
                         placeholder="Select Program"
                         isClearable
-                        isDisabled={!selections.service_category || !selections.state_name}
+                        isDisabled={!selections.service_category || !selections.state_name || availablePrograms.length === 0}
                         className="react-select-container"
                         classNamePrefix="react-select"
                       />
@@ -1351,7 +1354,7 @@ export default function HistoricalRates() {
                         onChange={option => handleSelectionChange('location_region', option?.value || null)}
                         placeholder="Select Location/Region"
                         isClearable
-                        isDisabled={!selections.service_category || !selections.state_name}
+                        isDisabled={!selections.service_category || !selections.state_name || availableLocationRegions.length === 0}
                         className="react-select-container"
                         classNamePrefix="react-select"
                       />
@@ -1369,12 +1372,30 @@ export default function HistoricalRates() {
                         onChange={option => handleSelectionChange('provider_type', option?.value || null)}
                         placeholder="Select Provider Type"
                         isClearable
-                        isDisabled={!selections.service_category || !selections.state_name}
+                        isDisabled={!selections.service_category || !selections.state_name || availableProviderTypes.length === 0}
                         className="react-select-container"
                         classNamePrefix="react-select"
                       />
                       {selections.provider_type && (
                         <button onClick={() => handleSelectionChange('provider_type', null)} className="text-xs text-blue-500 hover:underline mt-1">Clear</button>
+                      )}
+                    </div>
+                    {/* Duration Unit */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">Duration Unit</label>
+                      <Select
+                        instanceId="duration_unit_select"
+                        options={availableDurationUnits.map((o: string) => ({ value: o, label: o }))}
+                        value={selections.duration_unit ? { value: selections.duration_unit, label: selections.duration_unit } : null}
+                        onChange={option => handleSelectionChange('duration_unit', option?.value || null)}
+                        placeholder="Select Duration Unit"
+                        isClearable
+                        isDisabled={!selections.service_category || !selections.state_name || availableDurationUnits.length === 0}
+                        className="react-select-container"
+                        classNamePrefix="react-select"
+                      />
+                      {selections.duration_unit && (
+                        <button onClick={() => handleSelectionChange('duration_unit', null)} className="text-xs text-blue-500 hover:underline mt-1">Clear</button>
                       )}
                     </div>
                     {/* Modifier */}
@@ -1387,7 +1408,7 @@ export default function HistoricalRates() {
                         onChange={option => handleSelectionChange('modifier_1', option?.value || null)}
                         placeholder="Select Modifier"
                         isClearable
-                        isDisabled={!selections.service_category || !selections.state_name}
+                        isDisabled={!selections.service_category || !selections.state_name || availableModifiers.length === 0}
                         className="react-select-container"
                         classNamePrefix="react-select"
                       />
@@ -1538,157 +1559,217 @@ export default function HistoricalRates() {
               </>
             )}
 
-            {areFiltersApplied && (
+            {/* Loading state when filters are applied but data is loading */}
+            {areFiltersApplied && loading && (
+              <div className="p-6 bg-white rounded-xl shadow-lg text-center">
+                <div className="flex justify-center items-center mb-4">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                </div>
+                <p className="text-lg font-medium text-gray-700 mb-2">
+                  Loading table data...
+                </p>
+                <p className="text-sm text-gray-500">
+                  Please wait while we fetch and process your data.
+                </p>
+              </div>
+            )}
+
+            {areFiltersApplied && !loading && filteredData.length > 0 && (
               <div className="overflow-hidden rounded-lg shadow-lg">
                 <div className="overflow-x-auto">
                 <table className="min-w-full bg-white">
                   <thead className="bg-gray-50 sticky top-0">
                     <tr>
-                      {/* Only show selection column if there is data */}
-                      {tableData.length > 0 && (
-                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider"></th>
-                      )}
-                      {visibleColumns.state_name && (
+                      <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider"></th>
+                      {getVisibleColumns.state_name && (
                         <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">State</th>
                       )}
-                      {visibleColumns.service_category && (
+                      {getVisibleColumns.service_category && (
                         <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Service Category</th>
                       )}
-                      {visibleColumns.service_code && (
+                      {getVisibleColumns.service_code && (
                         <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Service Code</th>
                       )}
-                      {visibleColumns.service_description && (
+                      {getVisibleColumns.service_description && (
                         <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Service Description</th>
                       )}
-                      {visibleColumns.program && (
-                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Program</th>
-                      )}
-                      {visibleColumns.location_region && (
-                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Region</th>
-                      )}
-                      {visibleColumns.modifier_1 && (
-                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Modifier 1</th>
-                      )}
-                      {visibleColumns.modifier_2 && (
-                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Modifier 2</th>
-                      )}
-                      {visibleColumns.modifier_3 && (
-                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Modifier 3</th>
-                      )}
-                      {visibleColumns.modifier_4 && (
-                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Modifier 4</th>
-                      )}
-                      {visibleColumns.rate && (
-                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Rate</th>
-                      )}
-                      {visibleColumns.duration_unit && (
+                      {getVisibleColumns.duration_unit && (
                         <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Duration Unit</th>
                       )}
-                      {visibleColumns.rate_effective_date && (
+                      {getVisibleColumns.rate && (
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Rate per Base Unit</th>
+                      )}
+                      {getVisibleColumns.modifier_1 && (
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Modifier 1</th>
+                      )}
+                      {getVisibleColumns.modifier_2 && (
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Modifier 2</th>
+                      )}
+                      {getVisibleColumns.modifier_3 && (
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Modifier 3</th>
+                      )}
+                      {getVisibleColumns.modifier_4 && (
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Modifier 4</th>
+                      )}
+                      {getVisibleColumns.rate_effective_date && (
                         <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Effective Date</th>
                       )}
-                      {visibleColumns.provider_type && (
-                      <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Provider Type</th>
+                      {getVisibleColumns.program && (
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Program</th>
                       )}
+                      {getVisibleColumns.location_region && (
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Location/Region</th>
+                      )}
+                      <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Provider Type</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {tableData.map((item, idx) => {
-                      // Determine if this row is selected
-                      const isSelected = selectedEntry &&
-                        item.state_name === selectedEntry.state_name &&
-                        item.service_category === selectedEntry.service_category &&
-                        item.service_code === selectedEntry.service_code &&
-                        item.service_description === selectedEntry.service_description &&
-                        item.program === selectedEntry.program &&
-                        item.location_region === selectedEntry.location_region &&
-                        item.modifier_1 === selectedEntry.modifier_1 &&
-                        item.modifier_2 === selectedEntry.modifier_2 &&
-                        item.modifier_3 === selectedEntry.modifier_3 &&
-                        item.modifier_4 === selectedEntry.modifier_4 &&
-                        item.duration_unit === selectedEntry.duration_unit &&
-                        item.provider_type === selectedEntry.provider_type;
+                      {tableData.map((item, index) => {
+                        const entry = item as ServiceData;
+                        const isSelected =
+                          selectedEntry &&
+                          selectedEntry.state_name === entry.state_name &&
+                          selectedEntry.service_category === entry.service_category &&
+                          selectedEntry.service_code === entry.service_code &&
+                          selectedEntry.service_description === entry.service_description &&
+                          selectedEntry.program === entry.program &&
+                          selectedEntry.location_region === entry.location_region &&
+                          selectedEntry.modifier_1 === entry.modifier_1 &&
+                          selectedEntry.modifier_1_details === entry.modifier_1_details &&
+                          selectedEntry.modifier_2 === entry.modifier_2 &&
+                          selectedEntry.modifier_2_details === entry.modifier_2_details &&
+                          selectedEntry.modifier_3 === entry.modifier_3 &&
+                          selectedEntry.modifier_3_details === entry.modifier_3_details &&
+                          selectedEntry.modifier_4 === entry.modifier_4 &&
+                          selectedEntry.modifier_4_details === entry.modifier_4_details &&
+                          selectedEntry.duration_unit === entry.duration_unit &&
+                          selectedEntry.provider_type === entry.provider_type &&
+                          selectedEntry.rate_effective_date === entry.rate_effective_date;
+
+                        const rateValue = typeof entry.rate === 'string' ? parseFloat(entry.rate.replace('$', '')) : 0;
+                        const durationUnit = entry.duration_unit?.toUpperCase();
+                      const hourlyRate = durationUnit === '15 MINUTES' ? rateValue * 4 : rateValue;
+
                       return (
-                        <tr
-                          key={idx}
-                          className={isSelected ? "bg-blue-50" : "hover:bg-gray-50"}
-                          style={{ cursor: "pointer" }}
-                          onClick={() => setSelectedEntry(item)}
+                        <tr 
+                          key={index} 
+                          className={`group relative transition-all duration-200 ease-in-out cursor-pointer ${
+                            isSelected 
+                              ? 'bg-blue-50 shadow-[0_0_0_1px_rgba(59,130,246,0.2)]' 
+                              : 'hover:bg-gray-50 hover:shadow-[0_2px_4px_rgba(0,0,0,0.05)] hover:scale-[1.01] hover:z-10'
+                          }`}
+                          onClick={() => setSelectedEntry(entry)}
                         >
-                          {/* Only show selection column if there is data */}
-                          {tableData.length > 0 && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              <div className="flex items-center space-x-2">
-                                {isSelected ? (
-                                  <>
-                                    <button
-                                      onClick={e => { e.stopPropagation(); setSelectedEntry(null); }}
-                                      className="mr-1 p-0.5 rounded-full hover:bg-red-100 focus:outline-none"
-                                      title="Deselect"
-                                      style={{ lineHeight: 0 }}
-                                    >
-                                      <svg className="w-3 h-3 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                      </svg>
-                                    </button>
-                                    <div className="w-5 h-5 rounded-full border-2 flex items-center justify-center border-blue-500 bg-blue-500 shadow-[0_0_0_3px_rgba(59,130,246,0.2)]">
-                                      <svg className="w-3 h-3 text-white transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                      </svg>
-                                    </div>
-                                  </>
-                                ) : (
-                                  <div className="w-5 h-5 rounded-full border-2 flex items-center justify-center border-gray-300">
-                                    <svg className="w-3 h-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
-                                    </svg>
-                                  </div>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${
+                                isSelected 
+                                  ? 'border-blue-500 bg-blue-500 shadow-[0_0_0_3px_rgba(59,130,246,0.2)]' 
+                                  : 'border-gray-300 group-hover:border-blue-300 group-hover:shadow-[0_0_0_2px_rgba(59,130,246,0.1)]'
+                              }`}>
+                                {isSelected && (
+                                  <svg 
+                                    className="w-3 h-3 text-white transition-transform duration-200" 
+                                    fill="none" 
+                                    stroke="currentColor" 
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path 
+                                      strokeLinecap="round" 
+                                      strokeLinejoin="round" 
+                                      strokeWidth={2} 
+                                      d="M5 13l4 4L19 7" 
+                                    />
+                                  </svg>
                                 )}
                               </div>
+                              {isSelected && (
+                                <button
+                                  onClick={e => { e.stopPropagation(); setSelectedEntry(null); }}
+                                  className="ml-2 text-gray-400 hover:text-red-500 transition-colors duration-200"
+                                  title="Deselect"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                  </svg>
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                          {getVisibleColumns.state_name && (
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {STATE_ABBREVIATIONS[entry.state_name?.toUpperCase() || ""] || entry.state_name || '-'}
+                              </td>
+                          )}
+                          {getVisibleColumns.service_category && (
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {SERVICE_CATEGORY_ABBREVIATIONS[entry.service_category?.trim().toUpperCase() || ""] || entry.service_category || '-'}
+                              </td>
+                          )}
+                          {getVisibleColumns.service_code && (
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(entry.service_code)}</td>
+                          )}
+                          {getVisibleColumns.service_description && (
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              <CustomTooltip content={entry.service_description || '-'}>
+                                <div className="max-w-[220px] truncate cursor-pointer group">
+                                  <span className="group-hover:text-blue-600 transition-colors duration-200">
+                                    {entry.service_description && entry.service_description.length > 30
+                                      ? entry.service_description.slice(0, 30) + '...'
+                                      : entry.service_description || '-'}
+                                  </span>
+                                </div>
+                              </CustomTooltip>
                             </td>
                           )}
-                          {visibleColumns.state_name && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.state_name || '-'}</td>
+                          {getVisibleColumns.duration_unit && (
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {entry.duration_unit || '-'}
+                            </td>
                           )}
-                          {visibleColumns.service_category && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.service_category || '-'}</td>
+                          {getVisibleColumns.rate && (
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {formatRate(entry.rate)}
+                            </td>
                           )}
-                          {visibleColumns.service_code && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.service_code || '-'}</td>
+                          {getVisibleColumns.modifier_1 && (
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {entry.modifier_1 ? `${entry.modifier_1}${entry.modifier_1_details ? ` - ${entry.modifier_1_details}` : ''}` : '-'}
+                            </td>
                           )}
-                          {visibleColumns.service_description && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.service_description || '-'}</td>
+                          {getVisibleColumns.modifier_2 && (
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {entry.modifier_2 ? `${entry.modifier_2}${entry.modifier_2_details ? ` - ${entry.modifier_2_details}` : ''}` : '-'}
+                            </td>
                           )}
-                          {visibleColumns.program && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.program || '-'}</td>
+                          {getVisibleColumns.modifier_3 && (
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {entry.modifier_3 ? `${entry.modifier_3}${entry.modifier_3_details ? ` - ${entry.modifier_3_details}` : ''}` : '-'}
+                            </td>
                           )}
-                          {visibleColumns.location_region && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.location_region || '-'}</td>
+                          {getVisibleColumns.modifier_4 && (
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {entry.modifier_4 ? `${entry.modifier_4}${entry.modifier_4_details ? ` - ${entry.modifier_4_details}` : ''}` : '-'}
+                            </td>
                           )}
-                          {visibleColumns.modifier_1 && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.modifier_1 || '-'}</td>
+                          {getVisibleColumns.rate_effective_date && (
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {entry.rate_effective_date ? new Date(entry.rate_effective_date).toLocaleDateString() : '-'}
+                            </td>
                           )}
-                          {visibleColumns.modifier_2 && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.modifier_2 || '-'}</td>
+                          {getVisibleColumns.program && (
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {entry.program}
+                            </td>
                           )}
-                          {visibleColumns.modifier_3 && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.modifier_3 || '-'}</td>
+                          {getVisibleColumns.location_region && (
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {formatText(entry.location_region)}
+                            </td>
                           )}
-                          {visibleColumns.modifier_4 && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.modifier_4 || '-'}</td>
-                          )}
-                          {visibleColumns.rate && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.rate || '-'}</td>
-                          )}
-                          {visibleColumns.duration_unit && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.duration_unit || '-'}</td>
-                          )}
-                          {visibleColumns.rate_effective_date && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.rate_effective_date || '-'}</td>
-                          )}
-                          {visibleColumns.provider_type && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.provider_type || '-'}</td>
-                          )}
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {formatText(entry.provider_type)}
+                          </td>
                         </tr>
                       );
                     })}

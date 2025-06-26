@@ -131,6 +131,7 @@ interface FilterSet {
   modifier?: string;
   serviceDescription?: string;
   providerType?: string;
+  durationUnit?: string;
 }
 
 const darkenColor = (color: string, amount: number): string => {
@@ -223,6 +224,7 @@ export default function StatePaymentComparison() {
       program: null,
       location_region: null,
       provider_type: null,
+      duration_unit: null,
     fee_schedule_date: null,
       modifier_1: null,
   });
@@ -464,6 +466,7 @@ export default function StatePaymentComparison() {
   const [selectedModifier, setSelectedModifier] = useState("");
   const [selectedServiceDescription, setSelectedServiceDescription] = useState("");
   const [selectedProviderType, setSelectedProviderType] = useState("");
+  const [selectedDurationUnit, setSelectedDurationUnit] = useState("");
   const [showApplyToAllPrompt, setShowApplyToAllPrompt] = useState(false);
   const [lastSelectedModifier, setLastSelectedModifier] = useState<string | null>(null);
   const [selectedTableRows, setSelectedTableRows] = useState<{[state: string]: string[]}>({});
@@ -920,6 +923,18 @@ export default function StatePaymentComparison() {
     }
   };
 
+  const handleDurationUnitChange = async (index: number, durationUnit: string) => {
+    const newFilters = [...filterSets];
+    newFilters[index] = {
+      ...newFilters[index],
+      durationUnit: durationUnit
+    };
+    setFilterSets(newFilters);
+    if (index === 0) {
+      handleSelectionChange('duration_unit', durationUnit);
+    }
+  };
+
   // Fetch state averages for All States mode
   const fetchAllStatesAverages = useCallback(async (serviceCategory: string, serviceCode: string) => {
     try {
@@ -962,10 +977,14 @@ export default function StatePaymentComparison() {
         (
           !selectedProviderType ||
           (selectedProviderType === '-' ? !item.provider_type || item.provider_type.trim() === '' : item.provider_type?.trim() === selectedProviderType.trim())
+        ) &&
+        (
+          !selectedDurationUnit ||
+          (selectedDurationUnit === '-' ? !item.duration_unit || item.duration_unit.trim() === '' : item.duration_unit?.trim() === selectedDurationUnit.trim())
         )
       ));
     });
-  }, [latestRates, filterSets, selectedProgram, selectedLocationRegion, selectedModifier, selectedServiceDescription, selectedProviderType]);
+  }, [latestRates, filterSets, selectedProgram, selectedLocationRegion, selectedModifier, selectedServiceDescription, selectedProviderType, selectedDurationUnit]);
 
   // Group filtered data by state
   const groupedByState = useMemo(() => {
@@ -992,7 +1011,8 @@ export default function StatePaymentComparison() {
         (!filterSet.locationRegion || item.location_region === filterSet.locationRegion) &&
         (!filterSet.modifier || [item.modifier_1, item.modifier_2, item.modifier_3, item.modifier_4].includes(filterSet.modifier)) &&
         (!filterSet.serviceDescription || item.service_description === filterSet.serviceDescription) &&
-        (!filterSet.providerType || item.provider_type === filterSet.providerType)
+        (!filterSet.providerType || item.provider_type === filterSet.providerType) &&
+        (!filterSet.durationUnit || item.duration_unit === filterSet.durationUnit)
       ));
 
       // If "All States" is selected, calculate the average rate for each state
@@ -1103,6 +1123,7 @@ export default function StatePaymentComparison() {
   const availablePrograms = getAvailableOptionsForFilter('program');
   const availableLocationRegions = getAvailableOptionsForFilter('location_region');
   const availableProviderTypes = getAvailableOptionsForFilter('provider_type');
+  const availableDurationUnits = getAvailableOptionsForFilter('duration_unit');
   const availableModifiers = getAvailableOptionsForFilter('modifier_1');
 
   // ✅ Prepare ECharts Data
@@ -1918,7 +1939,8 @@ export default function StatePaymentComparison() {
                           placeholder="Select Program"
                           isSearchable
                           filterOption={customFilterOption}
-                            className="react-select-container"
+                            isDisabled={(availablePrograms || []).length === 0}
+                            className={`react-select-container ${(availablePrograms || []).length === 0 ? 'opacity-50' : ''}`}
                           classNamePrefix="react-select"
                         />
                         {filterSet.program && (
@@ -1948,7 +1970,8 @@ export default function StatePaymentComparison() {
                           placeholder="Select Location/Region"
                           isSearchable
                           filterOption={customFilterOption}
-                            className="react-select-container"
+                            isDisabled={(availableLocationRegions || []).length === 0}
+                            className={`react-select-container ${(availableLocationRegions || []).length === 0 ? 'opacity-50' : ''}`}
                           classNamePrefix="react-select"
                         />
                         {filterSet.locationRegion && (
@@ -2009,7 +2032,8 @@ export default function StatePaymentComparison() {
                           placeholder="Select Provider Type"
                           isSearchable
                           filterOption={customFilterOption}
-                            className="react-select-container"
+                            isDisabled={(availableProviderTypes || []).length === 0}
+                            className={`react-select-container ${(availableProviderTypes || []).length === 0 ? 'opacity-50' : ''}`}
                           classNamePrefix="react-select"
                         />
                         {filterSet.providerType && (
@@ -2019,6 +2043,37 @@ export default function StatePaymentComparison() {
                           >
                             Clear
                         </button>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Duration Unit Selector */}
+                    {filterSet.serviceCategory && filterSet.states.length > 0 && (
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">Duration Unit</label>
+                        <Select
+                          instanceId={`duration-unit-select-${index}`}
+                          options={
+                            (availableDurationUnits && availableDurationUnits.length > 0)
+                              ? [{ value: '-', label: '-' }, ...availableDurationUnits.map((unit: any) => ({ value: unit, label: unit }))]
+                              : []
+                          }
+                          value={filterSet.durationUnit ? { value: filterSet.durationUnit, label: filterSet.durationUnit } : null}
+                          onChange={(option) => handleDurationUnitChange(index, option?.value || "")}
+                          placeholder="Select Duration Unit"
+                          isSearchable
+                          filterOption={customFilterOption}
+                          isDisabled={(availableDurationUnits || []).length === 0}
+                          className={`react-select-container ${(availableDurationUnits || []).length === 0 ? 'opacity-50' : ''}`}
+                          classNamePrefix="react-select"
+                        />
+                        {filterSet.durationUnit && (
+                          <button
+                            onClick={() => handleDurationUnitChange(index, "")}
+                            className="text-xs text-blue-500 hover:underline mt-1"
+                          >
+                            Clear
+                          </button>
                         )}
                       </div>
                     )}

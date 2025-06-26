@@ -198,6 +198,7 @@ export default function Dashboard() {
     program: null,
     location_region: null,
     provider_type: null,
+    duration_unit: null,
     fee_schedule_date: null,
     modifier_1: null,
   });
@@ -215,7 +216,9 @@ export default function Dashboard() {
   const itemsPerPage = 50; // Adjust this number based on your needs
 
   const refreshData = async (filters: Record<string, string> = {}): Promise<RefreshDataResponse | null> => {
-    console.log('[DEBUG] refreshData called with filters:', filters);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('📡 Fetching data with filters:', Object.keys(filters).length > 0 ? filters : 'none');
+    }
     setLoading(true);
     setError(null);
     try {
@@ -224,12 +227,13 @@ export default function Dashboard() {
         if (value) params.append(key, value);
       });
       const url = `/api/state-payment-comparison?${params.toString()}`;
-      console.log('[DEBUG] Fetching:', url);
       const response = await fetch(url);
       const result = await response.json();
-      console.log('[DEBUG] API response:', result);
       if (result && Array.isArray(result.data)) {
         setData(result.data);
+        if (process.env.NODE_ENV === 'development') {
+          console.log('✅ Data fetched successfully:', result.data.length, 'records');
+        }
         return result;
       } else {
         setError('Invalid data format received');
@@ -237,7 +241,7 @@ export default function Dashboard() {
       }
     } catch (err) {
       setError('Failed to fetch data. Please try again.');
-      console.error('[DEBUG] Error in refreshData:', err);
+      console.error('❌ Error in refreshData:', err);
       return null;
     } finally {
       setLoading(false);
@@ -279,6 +283,10 @@ export default function Dashboard() {
       
       if (selections.provider_type) {
         conditions.push(combo => combo.provider_type === selections.provider_type);
+      }
+      
+      if (selections.duration_unit) {
+        conditions.push(combo => combo.duration_unit === selections.duration_unit);
       }
       
       if (selections.modifier_1) {
@@ -363,17 +371,19 @@ export default function Dashboard() {
       )).sort();
       
       // Update available options
-      console.log(`✅ Updated filter options based on current selections:`, {
-        states: states.length,
-        serviceCodes: serviceCodes.length,
-        serviceDescriptions: serviceDescriptions.length,
-        programs: programs.length,
-        locationRegions: locationRegions.length,
-        providerTypes: providerTypes.length,
-        feeScheduleDates: feeScheduleDates.length,
-        modifiers: modifiers.length,
-        currentSelections: selections
-      });
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`✅ Filter options updated:`, {
+          states: states.length,
+          serviceCodes: serviceCodes.length,
+          serviceDescriptions: serviceDescriptions.length,
+          programs: programs.length,
+          locationRegions: locationRegions.length,
+          providerTypes: providerTypes.length,
+          durationUnits: availableDurationUnits.length,
+          feeScheduleDates: feeScheduleDates.length,
+          modifiers: modifiers.length
+        });
+      }
     } catch (error) {
       console.error('Error updating filter options:', error);
     } finally {
@@ -392,7 +402,9 @@ export default function Dashboard() {
         .filter(Boolean);
       
       const uniqueStates = Array.from(new Set(states)).sort();
-      console.log(`✅ Loaded ${uniqueStates.length} states for ${serviceCategory}`);
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`✅ Loaded ${uniqueStates.length} states for ${serviceCategory}`);
+      }
     } catch (error) {
       console.error('Error loading states:', error);
     } finally {
@@ -401,7 +413,9 @@ export default function Dashboard() {
   }, [filterOptionsData]);
 
   const handleSearch = useCallback(async () => {
-    console.log('[DEBUG] handleSearch triggered');
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔍 Search triggered');
+    }
     setIsSearching(true);
     setHasSearched(true);
     setPendingFilters(new Set());
@@ -416,7 +430,6 @@ export default function Dashboard() {
       filters.itemsPerPage = String(itemsPerPage);
       if (selections.modifier_1) filters.modifier_1 = selections.modifier_1;
       // Remove sort config from API call since we're doing client-side sorting
-      console.log('[DEBUG] handleSearch filters:', filters);
       const result = await refreshData(filters) as RefreshDataResponse | null;
       if (result?.data) {
         setTotalCount(result.totalCount);
@@ -491,35 +504,60 @@ export default function Dashboard() {
         const decompressed = gunzipSync(gzipped);
         const jsonStr = strFromU8(decompressed);
         const data = JSON.parse(jsonStr);
-        // Debug: log the raw data structure and its keys
-        console.log("DEBUG: raw filter data", data);
-        console.log("DEBUG: raw filter data keys", Object.keys(data));
         // Handle new columnar format with mappings
         if (data.m && data.v && data.c) {
           const { m: mappings, v: values, c: columns } = data;
           const numRows: number = values[0].length;
           const combinations: any[] = [];
           for (let i = 0; i < numRows; i++) {
-            const combo: Record<string, string> = {};
+            const combo: Record<string, any> = {};
             columns.forEach((col: string, colIndex: number) => {
               const intValue = values[colIndex][i];
-              combo[col] = intValue === -1 ? '' : mappings[col][intValue];
+              if (col === 'rate_effective_date') {
+                // Handle rate_effective_date as array of integers
+                if (Array.isArray(intValue)) {
+                  // Convert array of integers to array of date strings
+                  combo[col] = intValue.map(dateInt => 
+                    dateInt === -1 ? '' : mappings[col][String(dateInt)]
+                  ).filter(date => date !== '');
+                } else {
+                  // Fallback for single integer
+                  combo[col] = intValue === -1 ? '' : mappings[col][String(intValue)];
+                }
+              } else {
+                // Handle other fields as single integers
+                combo[col] = intValue === -1 ? '' : mappings[col][String(intValue)];
+              }
             });
             combinations.push(combo);
           }
           // Extract unique values for each filter
           const filters: Record<string, string[]> = {};
           columns.forEach((col: string) => {
-            const uniqueValues = [...new Set(combinations.map((c: any) => c[col]).filter((v: string) => v))];
-            filters[col as string] = uniqueValues.sort();
+            if (col === 'rate_effective_date') {
+              // For dates, flatten arrays and get unique values
+              const allDates = combinations
+                .map((c: any) => c[col])
+                .flat()
+                .filter((v: any) => v && v !== '');
+              filters[col as string] = [...new Set(allDates)].sort();
+            } else {
+              // For other fields, get unique single values
+              const uniqueValues = [...new Set(combinations.map((c: any) => c[col]).filter((v: any) => v && v !== ''))];
+              filters[col as string] = uniqueValues.sort();
+            }
           });
           setFilterOptionsData({ filters, combinations });
-          // Debug logs
-          console.log("DEBUG: filterOptionsData", { filters, combinations });
-          console.log("DEBUG: filters.service_category", filters["service_category"]);
-          Object.keys(filters).forEach(key => {
-            console.log(`DEBUG: filters[${key}]`, filters[key]);
-          });
+          
+          if (process.env.NODE_ENV === 'development') {
+            console.log("📊 Filter data loaded:", {
+              totalCombinations: combinations.length,
+              columns: columns.length,
+              serviceCategories: filters.service_category?.length || 0,
+              states: filters.state_name?.length || 0,
+              totalDates: filters.rate_effective_date?.length || 0
+            });
+          }
         } else {
           setFilterOptionsData(data);
         }
@@ -653,7 +691,7 @@ export default function Dashboard() {
     const dependencyChain: (keyof Selections)[] = [
         'service_category', 'state_name', 'service_code', 
         'service_description', 'program', 'location_region', 
-      'provider_type', 'fee_schedule_date', 'modifier_1'
+        'provider_type', 'duration_unit', 'fee_schedule_date', 'modifier_1'
     ];
     const changedIndex = dependencyChain.indexOf(field);
     if (changedIndex !== -1) {
@@ -788,6 +826,7 @@ export default function Dashboard() {
       program: null,
       location_region: null,
       provider_type: null,
+      duration_unit: null,
       fee_schedule_date: null,
       modifier_1: null,
     });
@@ -934,42 +973,43 @@ export default function Dashboard() {
   // Helper
   function getAvailableOptionsForFilter(filterKey: keyof Selections) {
     if (!filterOptionsData || !filterOptionsData.combinations) return [];
+    
     // Special handling for fee_schedule_date to aggregate dates from the 'rate_effective_date' column
     if (filterKey === 'fee_schedule_date') {
       const dateSet = new Set<string>();
       filterOptionsData.combinations.forEach(combo => {
-        // Check if this combo matches all current selections except fee_schedule_date
+        // Only check selections that are actually set (not null)
         const matches = Object.entries(selections).every(([key, value]) => {
           if (key === 'fee_schedule_date') return true; // skip current filter
-          if (!value) return true;
+          if (!value) return true; // skip unset selections
           return combo[key] === value;
         });
-        if (matches) {
-          // 'rate_effective_date' can be a string or array of strings
-          const dates = Array.isArray(combo.rate_effective_date)
-            ? combo.rate_effective_date
-            : combo.rate_effective_date
-              ? [combo.rate_effective_date]
-              : [];
-          dates.forEach((date: string) => {
-            if (date) dateSet.add(date);
-          });
+        if (matches && combo.rate_effective_date) {
+          // Handle rate_effective_date as array of dates
+          if (Array.isArray(combo.rate_effective_date)) {
+            combo.rate_effective_date.forEach(date => {
+              if (date) dateSet.add(date);
+            });
+          } else {
+            // Fallback for single date string
+            dateSet.add(combo.rate_effective_date);
+          }
         }
       });
       return Array.from(dateSet).sort();
     }
-    // For all other filters, ensure that if a fee_schedule_date is selected, we only consider combos where the date is present in the array (or matches the string)
+    
+    // For all other filters, ensure that if a fee_schedule_date is selected, we only consider combos where the date matches
     return Array.from(new Set(
       filterOptionsData.combinations
         .filter(combo => {
-          // If a fee_schedule_date is selected, only consider combos where the date is present
+          // If a fee_schedule_date is selected, only consider combos where the date matches
           if (selections.fee_schedule_date) {
-            const dates = Array.isArray(combo.rate_effective_date)
-              ? combo.rate_effective_date
-              : combo.rate_effective_date
-                ? [combo.rate_effective_date]
-                : [];
-            if (!dates.includes(selections.fee_schedule_date)) return false;
+            if (Array.isArray(combo.rate_effective_date)) {
+              if (!combo.rate_effective_date.includes(selections.fee_schedule_date)) return false;
+            } else {
+              if (combo.rate_effective_date !== selections.fee_schedule_date) return false;
+            }
           }
           // Now check all other selections except the current filterKey
           return Object.entries(selections).every(([key, value]) => {
@@ -990,6 +1030,7 @@ export default function Dashboard() {
   const availablePrograms = getAvailableOptionsForFilter('program');
   const availableLocationRegions = getAvailableOptionsForFilter('location_region');
   const availableProviderTypes = getAvailableOptionsForFilter('provider_type');
+  const availableDurationUnits = getAvailableOptionsForFilter('duration_unit');
   const availableFeeScheduleDates = getAvailableOptionsForFilter('fee_schedule_date');
   const availableModifiers = getAvailableOptionsForFilter('modifier_1');
 
@@ -1021,6 +1062,7 @@ export default function Dashboard() {
         c.program === selections.program &&
         c.location_region === selections.location_region &&
         c.provider_type === selections.provider_type &&
+        c.duration_unit === selections.duration_unit &&
         c.modifier_1 === selections.modifier_1
     );
   }, [filterOptionsData, selections]);
@@ -1030,49 +1072,122 @@ export default function Dashboard() {
     return getAvailableOptionsForFilter('fee_schedule_date');
   }, [filterOptionsData, selections]);
 
-  // Add visibleColumns useMemo here, before the early return
-  const visibleColumns = useMemo(() => {
-    const columns: Record<string, boolean> = {
-      state_name: false,
-      service_category: false,
-      service_code: false,
-      service_description: false,
-      duration_unit: false,
-      rate: false,
-      rate_effective_date: false,
-      modifier_1: false,
-      modifier_2: false,
-      modifier_3: false,
-      modifier_4: false,
-      program: false,
-      location_region: false,
-      provider_type: false,
-    };
-    if (sortedData.length > 0) {
-      sortedData.forEach(item => {
-        Object.keys(columns).forEach(key => {
-          if (item[key] && item[key] !== '-') {
-            columns[key] = true;
+  // Cleaner debug logs for Fee Schedule Date dropdown
+  if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+    const activeSelections = Object.entries(selections)
+      .filter(([_, value]) => value !== null)
+      .reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {});
+    
+    console.log("🔍 Filter Debug:", {
+      availableDates: availableDates.length,
+      activeSelections,
+      totalCombinations: filterOptionsData?.combinations?.length || 0
+    });
+
+    // Debug: Show which states have data for the selected service category
+    if (selections.service_category && !selections.state_name) {
+      const statesWithData = filterOptionsData?.combinations
+        ?.filter(c => c.service_category === selections.service_category)
+        ?.map(c => c.state_name)
+        ?.filter(Boolean);
+      
+      if (statesWithData) {
+        const uniqueStates = [...new Set(statesWithData)].sort();
+        console.log(`🗺️ States with ${selections.service_category} data:`, uniqueStates);
+        
+        // Check if ANY state has dates for this service category
+        const datesForAnyState = filterOptionsData?.combinations
+          ?.filter(c => c.service_category === selections.service_category && c.rate_effective_date)
+          ?.map(c => c.rate_effective_date)
+          ?.filter(Boolean);
+        
+        if (datesForAnyState) {
+          const uniqueDates = [...new Set(datesForAnyState)].sort();
+          console.log(`📅 Dates available for ${selections.service_category} (any state):`, uniqueDates.length, 'dates');
+          console.log(`📅 Sample dates:`, uniqueDates.slice(0, 5));
+        }
+        
+        // NEW: Show which states have which dates
+        console.log(`📊 State-Date breakdown for ${selections.service_category}:`);
+        const stateDateMap = new Map<string, Set<string>>();
+        
+        filterOptionsData?.combinations?.forEach(combo => {
+          if (combo.service_category === selections.service_category && combo.state_name && combo.rate_effective_date) {
+            if (!stateDateMap.has(combo.state_name)) {
+              stateDateMap.set(combo.state_name, new Set());
+            }
+            
+            // Handle rate_effective_date as array of dates
+            if (Array.isArray(combo.rate_effective_date)) {
+              combo.rate_effective_date.forEach(date => {
+                if (date) stateDateMap.get(combo.state_name)!.add(date);
+              });
+            } else {
+              // Fallback for single date string
+              stateDateMap.get(combo.state_name)!.add(combo.rate_effective_date);
+            }
           }
         });
-      });
+        
+        // Sort states and show their dates
+        const sortedStates = Array.from(stateDateMap.keys()).sort();
+        sortedStates.forEach(state => {
+          const dates = Array.from(stateDateMap.get(state)!).sort();
+          console.log(`  ${state}: ${dates.length} dates - ${dates.slice(0, 3).join(', ')}${dates.length > 3 ? '...' : ''}`);
+        });
+      }
     }
-    return columns;
-  }, [sortedData]);
 
-  // Debug logs for Fee Schedule Date dropdown
-  if (typeof window !== 'undefined') {
-    console.log("DEBUG availableDates", availableDates, "Selections:", selections);
-    console.log(
-      "DEBUG matches",
-      filterOptionsData && filterOptionsData.combinations
-        ? filterOptionsData.combinations.filter(
-            c =>
-              c.service_category === selections.service_category &&
+    // Debug: When a state is selected, check what dates exist for that specific combination
+    if (selections.service_category && selections.state_name) {
+      const datesForThisCombination = filterOptionsData?.combinations
+        ?.filter(c => 
+          c.service_category === selections.service_category && 
+          c.state_name === selections.state_name && 
+          c.rate_effective_date
+        )
+        ?.map(c => c.rate_effective_date)
+        ?.filter(Boolean);
+      
+      if (datesForThisCombination) {
+        const uniqueDates = [...new Set(datesForThisCombination)].sort();
+        console.log(`📅 Dates for ${selections.state_name} + ${selections.service_category}:`, uniqueDates.length, 'dates');
+        if (uniqueDates.length === 0) {
+          console.log(`❌ No dates found for ${selections.state_name} + ${selections.service_category}`);
+          // Check if this combination exists at all
+          const combinationsExist = filterOptionsData?.combinations
+            ?.filter(c => 
+              c.service_category === selections.service_category && 
               c.state_name === selections.state_name
-          )
-        : []
-    );
+            );
+          console.log(`🔍 Combinations exist for this pair:`, combinationsExist?.length || 0);
+          
+          // Debug: Let's see what the actual combinations look like
+          if (combinationsExist && combinationsExist.length > 0) {
+            console.log(`🔍 Sample combination:`, combinationsExist[0]);
+            console.log(`🔍 All combinations for this pair:`, combinationsExist.slice(0, 3));
+          }
+        } else {
+          console.log(`✅ Found dates:`, uniqueDates.slice(0, 5));
+        }
+      }
+      
+      // Debug: Let's also check what the getAvailableOptionsForFilter function is actually doing
+      console.log(`🔍 Testing getAvailableOptionsForFilter logic:`);
+      const testCombinations = filterOptionsData?.combinations?.filter(combo => {
+        // Only check selections that are actually set (not null)
+        const matches = Object.entries(selections).every(([key, value]) => {
+          if (key === 'fee_schedule_date') return true; // skip current filter
+          if (!value) return true; // skip unset selections
+          return combo[key] === value;
+        });
+        return matches && combo.rate_effective_date;
+      });
+      console.log(`🔍 Combinations that pass the filter logic:`, testCombinations?.length || 0);
+      if (testCombinations && testCombinations.length > 0) {
+        console.log(`🔍 Sample filtered combination:`, testCombinations[0]);
+      }
+    }
   }
 
   // Only after all hooks, do any early returns:
@@ -1091,6 +1206,15 @@ export default function Dashboard() {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  };
+
+  // Helper function to format rates with 2 decimal points
+  const formatRate = (rate: string | undefined) => {
+    if (!rate) return '-';
+    // Remove any existing $ and parse as number
+    const numericRate = parseFloat(rate.replace(/[^0-9.-]/g, ''));
+    if (isNaN(numericRate)) return rate; // Return original if not a valid number
+    return `$${numericRate.toFixed(2)}`;
   };
 
   // Filter options are now handled by the backend API
@@ -1134,6 +1258,7 @@ export default function Dashboard() {
       program: null,
       location_region: null,
       provider_type: providerType,
+      duration_unit: null,
       fee_schedule_date: null,
       modifier_1: null,
     });
@@ -1443,6 +1568,25 @@ export default function Dashboard() {
                 </div>
                 <div className="space-y-1">
                   <label className="text-sm font-medium text-gray-700">
+                    Duration Unit
+                  </label>
+                  <Select
+                    instanceId="duration_unit_select"
+                    options={availableDurationUnits.map(o => ({ value: o, label: o }))}
+                    value={selections.duration_unit ? { value: selections.duration_unit, label: selections.duration_unit } : null}
+                    onChange={(option) => handleSelectionChange('duration_unit', option?.value || null)}
+                    placeholder="Select Duration Unit"
+                    isClearable
+                    isDisabled={!selections.service_category || !selections.state_name || availableDurationUnits.length === 0}
+                    className={clsx("react-select-container", pendingFilters.has('duration_unit') ? 'pending-outline' : 'applied-outline')}
+                    classNamePrefix="react-select"
+                  />
+                  <div className="mt-1">
+                    <ClearButton filterKey="duration_unit" />
+                </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-gray-700">
                     Modifier
                   </label>
                     <Select
@@ -1554,172 +1698,116 @@ export default function Dashboard() {
           >
               <table className="min-w-full" style={{ width: '100%', tableLayout: 'auto' }}>
                 <thead className="bg-gray-50 sticky top-0 z-20">
-                  <tr>
-                    {visibleColumns.state_name && (
-                      <th className={clsx(
-                        'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                        pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                      )} onClick={(e) => handleSort('state_name', e)}>
-                        State<SortIndicator sortKey="state_name" />
-                      </th>
-                    )}
-                    {visibleColumns.service_category && (
-                      <th className={clsx(
-                        'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                        pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                      )} onClick={(e) => handleSort('service_category', e)}>
-                        Service Category<SortIndicator sortKey="service_category" />
-                      </th>
-                    )}
-                    {visibleColumns.service_code && (
-                      <th className={clsx(
-                        'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                        pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                      )} onClick={(e) => handleSort('service_code', e)}>
-                        Service Code<SortIndicator sortKey="service_code" />
-                      </th>
-                    )}
-                    {visibleColumns.service_description && (
-                      <th className={clsx(
-                        'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                        pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                      )} onClick={(e) => handleSort('service_description', e)}>
-                        Service Description<SortIndicator sortKey="service_description" />
-                      </th>
-                    )}
-                    {visibleColumns.duration_unit && (
-                      <th className={clsx(
-                        'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                        pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                      )} onClick={(e) => handleSort('duration_unit', e)}>
-                        Duration Unit<SortIndicator sortKey="duration_unit" />
-                      </th>
-                    )}
-                    {visibleColumns.rate && (
-                      <th className={clsx(
-                        'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                        pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                      )} onClick={(e) => handleSort('rate', e)}>
-                        Rate per Base Unit<SortIndicator sortKey="rate" />
-                      </th>
-                    )}
-                    {visibleColumns.rate_effective_date && (
-                      <th className={clsx(
-                        'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                        pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                      )} onClick={(e) => handleSort('rate_effective_date', e)}>
-                        Effective Date<SortIndicator sortKey="rate_effective_date" />
-                      </th>
-                    )}
-                    {visibleColumns.modifier_1 && (
-                      <th className={clsx(
-                        'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                        pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                      )} onClick={(e) => handleSort('modifier_1', e)}>
-                        Modifier 1<SortIndicator sortKey="modifier_1" />
-                      </th>
-                    )}
-                    {visibleColumns.modifier_2 && (
-                      <th className={clsx(
-                        'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                        pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                      )} onClick={(e) => handleSort('modifier_2', e)}>
-                        Modifier 2<SortIndicator sortKey="modifier_2" />
-                      </th>
-                    )}
-                    {visibleColumns.modifier_3 && (
-                      <th className={clsx(
-                        'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                        pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                      )} onClick={(e) => handleSort('modifier_3', e)}>
-                        Modifier 3<SortIndicator sortKey="modifier_3" />
-                      </th>
-                    )}
-                    {visibleColumns.modifier_4 && (
-                      <th className={clsx(
-                        'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                        pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                      )} onClick={(e) => handleSort('modifier_4', e)}>
-                        Modifier 4<SortIndicator sortKey="modifier_4" />
-                      </th>
-                    )}
-                    {visibleColumns.program && (
-                      <th className={clsx(
-                        'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                        pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                      )} onClick={(e) => handleSort('program', e)}>
-                        Program<SortIndicator sortKey="program" />
-                      </th>
-                    )}
-                    {visibleColumns.location_region && (
-                      <th className={clsx(
-                        'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                        pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                      )} onClick={(e) => handleSort('location_region', e)}>
-                        Location/Region<SortIndicator sortKey="location_region" />
-                      </th>
-                    )}
-                    {visibleColumns.provider_type && (
-                      <th className={clsx(
-                        'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                        pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                      )} onClick={(e) => handleSort('provider_type', e)}>
-                        Provider Type<SortIndicator sortKey="provider_type" />
-                      </th>
-                    )}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tr>
+                    <th className={clsx(
+                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                    )} onClick={(e) => handleSort('state_name', e)}>
+                    State<SortIndicator sortKey="state_name" />
+                    </th>
+                    <th className={clsx(
+                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                    )} onClick={(e) => handleSort('service_category', e)}>
+                    Service Category<SortIndicator sortKey="service_category" />
+                    </th>
+                    <th className={clsx(
+                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                    )} onClick={(e) => handleSort('service_code', e)}>
+                    Service Code<SortIndicator sortKey="service_code" />
+                    </th>
+                    <th className={clsx(
+                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                    )} onClick={(e) => handleSort('service_description', e)}>
+                    Service Description<SortIndicator sortKey="service_description" />
+                    </th>
+                    <th className={clsx(
+                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                    )} onClick={(e) => handleSort('duration_unit', e)}>
+                    Duration Unit<SortIndicator sortKey="duration_unit" />
+                    </th>
+                    <th className={clsx(
+                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                    )} onClick={(e) => handleSort('rate', e)}>
+                    Rate per Base Unit<SortIndicator sortKey="rate" />
+                    </th>
+                    <th className={clsx(
+                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                    )} onClick={(e) => handleSort('rate_effective_date', e)}>
+                    Effective Date<SortIndicator sortKey="rate_effective_date" />
+                    </th>
+                    <th className={clsx(
+                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                    )} onClick={(e) => handleSort('modifier_1', e)}>
+                    Modifier 1<SortIndicator sortKey="modifier_1" />
+                    </th>
+                    <th className={clsx(
+                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                    )} onClick={(e) => handleSort('modifier_2', e)}>
+                    Modifier 2<SortIndicator sortKey="modifier_2" />
+                    </th>
+                    <th className={clsx(
+                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                    )} onClick={(e) => handleSort('modifier_3', e)}>
+                    Modifier 3<SortIndicator sortKey="modifier_3" />
+                    </th>
+                    <th className={clsx(
+                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                    )} onClick={(e) => handleSort('modifier_4', e)}>
+                    Modifier 4<SortIndicator sortKey="modifier_4" />
+                    </th>
+                    <th className={clsx(
+                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                    )} onClick={(e) => handleSort('program', e)}>
+                    Program<SortIndicator sortKey="program" />
+                    </th>
+                    <th className={clsx(
+                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                    )} onClick={(e) => handleSort('location_region', e)}>
+                    Location/Region<SortIndicator sortKey="location_region" />
+                    </th>
+                    <th className={clsx(
+                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                    )} onClick={(e) => handleSort('provider_type', e)}>
+                    Provider Type<SortIndicator sortKey="provider_type" />
+                    </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
                   {sortedData.map((item: any, idx: number) => (
                     <tr key={`id-${item.id}-${item.service_code ?? ''}-${item.rate_effective_date ?? ''}-${idx}`}
                         className="hover:bg-gray-50">
-                      {visibleColumns.state_name && (
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.state_code || STATE_ABBREVIATIONS[item.state_name?.toUpperCase() || ""] || item.state_name || '-'}</td>
-                      )}
-                      {visibleColumns.service_category && (
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{SERVICE_CATEGORY_ABBREVIATIONS[item.service_category?.toUpperCase() || ""] || item.service_category || '-'}</td>
-                      )}
-                      {visibleColumns.service_code && (
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.state_code || STATE_ABBREVIATIONS[item.state_name?.toUpperCase() || ""] || item.state_name || '-'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{SERVICE_CATEGORY_ABBREVIATIONS[item.service_category?.toUpperCase() || ""] || item.service_category || '-'}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.service_code || '-'}</td>
-                      )}
-                      {visibleColumns.service_description && (
-                        <td className="px-6 py-4 text-sm text-gray-900 max-w-[220px] truncate" title={item.service_description || '-'}>{item.service_description || '-'}</td>
-                      )}
-                      {visibleColumns.duration_unit && (
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.duration_unit || '-'}</td>
-                      )}
-                      {visibleColumns.rate && (
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.rate ? (item.rate.trim().startsWith('$') ? item.rate : `$${item.rate}`) : '-'}</td>
-                      )}
-                      {visibleColumns.rate_effective_date && (
+                    <td className="px-6 py-4 text-sm text-gray-900 max-w-[220px] truncate" title={item.service_description || '-'}>{item.service_description || '-'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.duration_unit || '-'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatRate(item.rate)}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.rate_effective_date || '-'}</td>
-                      )}
-                      {visibleColumns.modifier_1 && (
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.modifier_1 ? (item.modifier_1_details ? `${item.modifier_1} - ${item.modifier_1_details}` : item.modifier_1) : '-'}</td>
-                      )}
-                      {visibleColumns.modifier_2 && (
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.modifier_2 ? (item.modifier_2_details ? `${item.modifier_2} - ${item.modifier_2_details}` : item.modifier_2) : '-'}</td>
-                      )}
-                      {visibleColumns.modifier_3 && (
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.modifier_3 ? (item.modifier_3_details ? `${item.modifier_3} - ${item.modifier_3_details}` : item.modifier_3) : '-'}</td>
-                      )}
-                      {visibleColumns.modifier_4 && (
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.modifier_4 ? (item.modifier_4_details ? `${item.modifier_4} - ${item.modifier_4_details}` : item.modifier_4) : '-'}</td>
-                      )}
-                      {visibleColumns.program && (
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.modifier_1 ? (item.modifier_1_details ? `${item.modifier_1} - ${item.modifier_1_details}` : item.modifier_1) : '-'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.modifier_2 ? (item.modifier_2_details ? `${item.modifier_2} - ${item.modifier_2_details}` : item.modifier_2) : '-'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.modifier_3 ? (item.modifier_3_details ? `${item.modifier_3} - ${item.modifier_3_details}` : item.modifier_3) : '-'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.modifier_4 ? (item.modifier_4_details ? `${item.modifier_4} - ${item.modifier_4_details}` : item.modifier_4) : '-'}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.program || '-'}</td>
-                      )}
-                      {visibleColumns.location_region && (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.location_region || '-'}</td>
-                      )}
-                      {visibleColumns.provider_type && (
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.provider_type || '-'}</td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.provider_type || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
             {/* Always show both controls after a search */}
             <div className="flex flex-col items-center mt-4">
             <PaginationControls />

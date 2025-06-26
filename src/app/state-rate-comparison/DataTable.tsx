@@ -298,7 +298,7 @@ export const DataTable = ({
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(item.modifier_4)}</td>
                           )}
                           {visibleColumns.rate && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.rate}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatRate(item.rate)}</td>
                           )}
                           {visibleColumns.duration_unit && (
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(item.duration_unit)}</td>
@@ -433,4 +433,13 @@ function getRowKey(item: ServiceData) {
     item.duration_unit,
     item.provider_type
   ].map(x => x ?? '').join('|');
-} 
+}
+
+// Helper function to format rates with 2 decimal points
+const formatRate = (rate: string | undefined) => {
+  if (!rate) return '-';
+  // Remove any existing $ and parse as number
+  const numericRate = parseFloat(rate.replace(/[^0-9.-]/g, ''));
+  if (isNaN(numericRate)) return rate; // Return original if not a valid number
+  return `$${numericRate.toFixed(2)}`;
+}; 
