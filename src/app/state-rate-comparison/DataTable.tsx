@@ -9,6 +9,8 @@ interface DataTableProps {
   onRowSelection: (state: string, item: ServiceData) => void;
   formatText: (text: string | null | undefined) => string;
   selectedEntries: { [state: string]: ServiceData[] };
+  hideNumberBadge?: boolean;
+  hideStateHeading?: boolean;
 }
 
 const ITEMS_PER_PAGE = 25;
@@ -20,7 +22,9 @@ export const DataTable = ({
   isAllStatesSelected,
   onRowSelection,
   formatText,
-  selectedEntries
+  selectedEntries,
+  hideNumberBadge = false,
+  hideStateHeading = false
 }: DataTableProps) => {
   // Track current page for each filter set
   const [currentPages, setCurrentPages] = useState<{ [filterIndex: number]: number }>({});
@@ -142,7 +146,11 @@ export const DataTable = ({
 
       return (
         <div key={filterIndex} className="mb-8 overflow-hidden rounded-lg shadow-lg">
-          {Object.keys(groupedByState).length > 0 && (
+          {!hideStateHeading &&
+            Object.keys(groupedByState).length === 1 &&
+            <div className="font-lemonMilkRegular text-lg text-[#012C61] mb-2 mt-4">{Object.keys(groupedByState)[0]}</div>
+          }
+          {!hideNumberBadge && Object.keys(groupedByState).length > 0 && (
             <div className="bg-[#012C61] text-white px-6 py-3 flex items-center">
               <div className="bg-white text-[#012C61] rounded-full w-6 h-6 flex items-center justify-center font-bold">
                 {filterSet.number}
@@ -151,7 +159,9 @@ export const DataTable = ({
           )}
           {Object.entries(groupedByState).map(([state, items]) => (
             <div key={state} className="mb-8">
-              <div className="font-lemonMilkRegular text-lg text-[#012C61] mb-2 mt-4">{state}</div>
+              {!hideStateHeading && (
+                <div className="font-lemonMilkRegular text-lg text-[#012C61] mb-2 mt-4">{state}</div>
+              )}
               <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
                 <table className="min-w-full bg-white">
                   <thead className="bg-white sticky top-0 z-10 shadow">

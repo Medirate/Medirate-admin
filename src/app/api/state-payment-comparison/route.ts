@@ -8,6 +8,17 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE!
 );
 
+// Helper function to parse rate from text
+function parseRate(rateText: string): number {
+  if (!rateText) return 0;
+  
+  // Remove $, spaces, and other non-numeric characters except decimal point and minus
+  const cleaned = rateText.replace(/[^\d.-]/g, '');
+  const parsed = parseFloat(cleaned);
+  
+  return isNaN(parsed) ? 0 : parsed;
+}
+
 export async function GET(request: Request) {
   try {
     // Validate authentication
@@ -18,14 +29,88 @@ export async function GET(request: Request) {
     }
 
     const { searchParams } = new URL(request.url);
-    // Only update the main data-fetching logic (not filter options or fee schedule dates)
     const mode = searchParams.get("mode");
-    if (mode) {
-      // Keep existing logic for filter options and fee schedule dates
-      // ...
-      return NextResponse.json({ error: "Not implemented in this refactor" }, { status: 501 });
+    
+    // Handle state averages mode for "All States" feature
+    if (mode === "stateAverages") {
+      const serviceCategory = searchParams.get("serviceCategory");
+      const serviceCode = searchParams.get("serviceCode");
+      const program = searchParams.get("program");
+      const locationRegion = searchParams.get("locationRegion");
+      const providerType = searchParams.get("providerType");
+      const modifier = searchParams.get("modifier");
+      const serviceDescription = searchParams.get("serviceDescription");
+      const durationUnit = searchParams.get("durationUnit");
+      const feeScheduleDate = searchParams.get("feeScheduleDate");
+      const startDate = searchParams.get("startDate");
+      const endDate = searchParams.get("endDate");
+      
+      if (!serviceCategory || !serviceCode) {
+        return NextResponse.json({ error: "Service category and service code are required" }, { status: 400 });
+      }
+
+      // Build the query for state averages
+      let query = supabase
+        .from('master_data')
+        .select('state_name, rate, duration_unit, rate_effective_date')
+        .eq('service_category', serviceCategory)
+        .eq('service_code', serviceCode);
+
+      // Apply additional filters
+      if (program && program !== '-') query = query.eq('program', program);
+      if (locationRegion && locationRegion !== '-') query = query.eq('location_region', locationRegion);
+      if (providerType && providerType !== '-') query = query.eq('provider_type', providerType);
+      if (durationUnit && durationUnit !== '-') query = query.eq('duration_unit', durationUnit);
+      if (serviceDescription && serviceDescription !== '-') query = query.eq('service_description', serviceDescription);
+      
+      if (modifier && modifier !== '-') {
+        query = query.or(`modifier_1.eq.${modifier},modifier_2.eq.${modifier},modifier_3.eq.${modifier},modifier_4.eq.${modifier}`);
+      }
+
+      // Apply date filters
+      if (feeScheduleDate) {
+        query = query.eq('rate_effective_date', feeScheduleDate);
+      } else if (startDate && endDate) {
+        query = query.gte('rate_effective_date', startDate).lte('rate_effective_date', endDate);
+      } else if (startDate) {
+        query = query.gte('rate_effective_date', startDate);
+      } else if (endDate) {
+        query = query.lte('rate_effective_date', endDate);
+      }
+
+      // Fetch the data
+      const { data, error } = await query;
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      // Find the latest rate per state
+      const latestRates: { [state: string]: { rate: number, rate_effective_date: string } } = {};
+      data?.forEach((item: any) => {
+        const state = item.state_name;
+        const rate = parseRate(item.rate);
+        const date = item.rate_effective_date;
+        if (rate > 0) {
+          if (!latestRates[state] || new Date(date) > new Date(latestRates[state].rate_effective_date)) {
+            latestRates[state] = { rate, rate_effective_date: date };
+          }
+        }
+      });
+
+      // Calculate averages for each state (just the latest rate)
+      const stateAverages = Object.entries(latestRates).map(([state, obj]) => ({
+        state_name: state,
+        avg_rate: obj.rate,
+        rate_effective_date: obj.rate_effective_date
+      }));
+
+      return NextResponse.json({
+        stateAverages,
+        totalStates: stateAverages.length
+      });
     }
-    // Extract filters from query params (camelCase and snake_case supported)
+
+    // Regular data fetching mode (existing logic)
     const getParam = (key: string) => searchParams.get(key) || searchParams.get(key.replace(/_/g, ''));
     const serviceCategory = getParam("service_category") || getParam("serviceCategory");
     const state = getParam("state_name") || getParam("state");

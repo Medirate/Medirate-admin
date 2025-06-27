@@ -200,6 +200,9 @@ function getRowKey(item: ServiceData) {
   ].map(x => x ?? '').join('|');
 }
 
+// Add at the top of the component, after useState imports
+const ITEMS_PER_STATE_PAGE = 50;
+
 export default function StatePaymentComparison() {
   const { isAuthenticated, isLoading, user } = useKindeBrowserClient();
   const router = useRouter();
@@ -241,7 +244,10 @@ export default function StatePaymentComparison() {
     setError(null);
     try {
       const params = new URLSearchParams();
+      // If All States is selected, do NOT send state_name filter
+      const isAllStates = filterSets[0]?.states && filterSets[0].states.length === filterOptions.states.length;
       Object.entries(filters).forEach(([key, value]) => {
+        if (isAllStates && key === 'state_name') return; // skip state_name in All States mode
         if (value) params.append(key, value);
       });
       const url = `/api/state-payment-comparison?${params.toString()}`;
@@ -497,6 +503,11 @@ export default function StatePaymentComparison() {
   const [chartRefreshKey, setChartRefreshKey] = useState(0);
   // State to hold all states averages for All States mode
   const [allStatesAverages, setAllStatesAverages] = useState<{ state_name: string; avg_rate: number }[] | null>(null);
+  // Add state to track per-state pagination and per-state selected entry
+  const [allStatesTablePages, setAllStatesTablePages] = useState<{ [state: string]: number }>({});
+  const [allStatesSelectedRows, setAllStatesSelectedRows] = useState<{ [state: string]: any | null }>({});
+  const [pendingSearch, setPendingSearch] = useState(false);
+  const [hasSearchedOnce, setHasSearchedOnce] = useState(false);
 
   const hasSelectedRows = useMemo(() => 
     Object.values(selectedTableRows).some(selections => selections.length > 0),
@@ -605,6 +616,7 @@ export default function StatePaymentComparison() {
 
   // Update useEffect to use refreshData
   useEffect(() => {
+    if (pendingSearch) return; // Only fetch when not pending
     const loadData = async () => {
       try {
         setFilterLoading(true);
@@ -620,7 +632,7 @@ export default function StatePaymentComparison() {
       }
     };
     loadData();
-  }, []);
+  }, [pendingSearch]);
 
   // Update extractFilters to use filterOptions from context
   const extractFilters = (data: ServiceData[]) => {
@@ -776,18 +788,7 @@ export default function StatePaymentComparison() {
           newFilters[index].serviceCodeOptions = serviceCodes;
           setFilterSets(newFilters);
           
-          // If there's already a service code selected, fetch data for the table
-          if (newFilters[index].serviceCode) {
-            const result = await refreshData({
-              serviceCategory: newFilters[index].serviceCategory,
-              state_name: selectedState,
-              serviceCode: newFilters[index].serviceCode,
-              itemsPerPage: '1000'
-            });
-            if (result) {
-              setFilterSetData(prev => ({ ...prev, [index]: result.data }));
-            }
-          }
+          // Remove automatic data fetching - this will only happen when Search is clicked
         }
         if (index === 0) setSelectedState(selectedState);
       }
@@ -825,34 +826,9 @@ export default function StatePaymentComparison() {
         setServiceDescriptions([]);
       }
       
-      const filterSet = newFilters[index];
-      if (isAllStatesSelected && filterSet.serviceCategory && filterSet.states.length > 0 && code) {
-        // Fetch all state averages for this category and code
-        await fetchAllStatesAverages(filterSet.serviceCategory, code);
-        // Fetch all data for this category and code, across all states
-        const result = await refreshData({
-          serviceCategory: filterSet.serviceCategory,
-          serviceCode: code,
-          itemsPerPage: '1000' // Only set a high limit in All States mode
-        });
-        if (result) {
-          setFilterSetData(prev => ({ ...prev, [index]: result.data }));
-        }
-      } else {
+      // Remove all automatic data fetching - this will only happen when Search is clicked
+      if (isAllStatesSelected) {
         setAllStatesAverages(null); // Clear averages if not in All States mode
-      }
-      
-      if (code && filterSet.serviceCategory && filterSet.states.length > 0) {
-        // Fetch actual data from Supabase for the table
-        const result = await refreshData({
-          serviceCategory: filterSet.serviceCategory,
-          state_name: filterSet.states[0],
-          serviceCode: code,
-          itemsPerPage: '1000'
-        });
-        if (result) {
-          setFilterSetData(prev => ({ ...prev, [index]: result.data }));
-        }
       }
     } catch (error) {
       console.error("Error updating service code filters:", error);
@@ -938,7 +914,24 @@ export default function StatePaymentComparison() {
   // Fetch state averages for All States mode
   const fetchAllStatesAverages = useCallback(async (serviceCategory: string, serviceCode: string) => {
     try {
-      const res = await fetch(`/api/state-payment-comparison?mode=stateAverages&serviceCategory=${encodeURIComponent(serviceCategory)}&serviceCode=${encodeURIComponent(serviceCode)}`);
+      // Build query parameters for the API call
+      const params = new URLSearchParams();
+      params.append('mode', 'stateAverages');
+      params.append('serviceCategory', serviceCategory);
+      params.append('serviceCode', serviceCode);
+      
+      // Add all filter parameters from the first filter set
+      if (filterSets[0]) {
+        const filterSet = filterSets[0];
+        if (filterSet.program) params.append('program', filterSet.program);
+        if (filterSet.locationRegion) params.append('locationRegion', filterSet.locationRegion);
+        if (filterSet.providerType) params.append('providerType', filterSet.providerType);
+        if (filterSet.modifier) params.append('modifier', filterSet.modifier);
+        if (filterSet.serviceDescription) params.append('serviceDescription', filterSet.serviceDescription);
+        if (filterSet.durationUnit) params.append('durationUnit', filterSet.durationUnit);
+      }
+      
+      const res = await fetch(`/api/state-payment-comparison?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to fetch state averages');
       const data = await res.json();
       setAllStatesAverages(data.stateAverages || []);
@@ -946,7 +939,7 @@ export default function StatePaymentComparison() {
       setAllStatesAverages([]);
       console.error('Error fetching state averages:', err);
     }
-  }, []);
+  }, [filterSets]);
 
   // Then filter based on selections
   const filteredData = useMemo(() => {
@@ -1129,20 +1122,24 @@ export default function StatePaymentComparison() {
   // ✅ Prepare ECharts Data
   const echartOptions = useMemo(() => {
     if (isAllStatesSelected && filterSets[0]?.serviceCode && allStatesAverages) {
-      // All States mode: use backend-aggregated averages
       const code = filterSets[0].serviceCode;
       const statesList = filterOptions.states;
-      // Map state averages to the order of statesList
       const avgMap = new Map(
         allStatesAverages.map(row => [row.state_name.trim().toUpperCase(), Number(row.avg_rate)])
       );
+      // Use selected row if present, otherwise average
       const chartData = statesList.map((state: any) => {
-        const avg = avgMap.get(state.trim().toUpperCase());
-        return typeof avg === 'number' && !isNaN(avg) ? avg : undefined;
+        const stateKey = state.trim().toUpperCase();
+        const selected = allStatesSelectedRows[stateKey];
+        if (selected && selected.row && selected.row.rate) {
+          return { value: parseFloat((selected.row.rate || '').replace(/[^\d.-]/g, '')), color: 'green' };
+        }
+        const avg = avgMap.get(stateKey);
+        return typeof avg === 'number' && !isNaN(avg) ? { value: avg, color: '#36A2EB' } : { value: undefined, color: '#36A2EB' };
       });
       return {
         legend: { show: false },
-        barCategoryGap: '30%',
+        barCategoryGap: '50%', // More gap between bars
         tooltip: {
           trigger: 'item',
           confine: true,
@@ -1170,6 +1167,11 @@ export default function StatePaymentComparison() {
             tooltipContent += `<strong>Rate:</strong> $${value?.toFixed(2)}<br/>`;
             tooltipContent += `<strong>Service Category:</strong> ${filterSets[0].serviceCategory}<br/>`;
             tooltipContent += `<strong>Service Code:</strong> ${code}<br/>`;
+            if (allStatesSelectedRows[state.trim().toUpperCase()] && allStatesSelectedRows[state.trim().toUpperCase()].row) {
+              tooltipContent += `<span style='color:green'><strong>Selected Entry</strong></span><br/>`;
+            } else {
+              tooltipContent += `<span style='color:#36A2EB'><strong>Average</strong></span><br/>`;
+            }
             return tooltipContent;
           }
         },
@@ -1187,15 +1189,29 @@ export default function StatePaymentComparison() {
         series: [{
           name: 'Rate',
           type: 'bar',
-          itemStyle: { color: chartJsColors[0] },
-          data: chartData.filter((rate: any): rate is number => typeof rate === 'number' && !isNaN(rate)),
+          barWidth: 24, // Fixed pixel width for bars
+          barGap: '30%', // More gap between each bar
+          itemStyle: {
+            color: (params: any) => chartData[params.dataIndex]?.color || '#36A2EB'
+          },
+          data: chartData.map(d => d.value),
           label: {
             show: true,
             position: 'top',
-            formatter: (params: any) => params.value != null ? `$${Number(params.value).toFixed(2)}` : '',
-            fontSize: 12,
-            color: '#374151',
-            fontWeight: 'bold'
+            fontSize: 10,
+            color: '#222',
+            fontWeight: 'bold',
+            rotate: 45, // Tilt the labels 45 degrees
+            align: 'center', // Center the label horizontally
+            verticalAlign: 'bottom', // Align the label's bottom to the bar
+            distance: 6, // Move label closer to the bar
+            formatter: (params: any) => (params.value > 0 ? `$${Number(params.value).toFixed(2)}` : ''),
+            rich: {
+              shadow: {
+                textShadowColor: '#fff',
+                textShadowBlur: 4
+              }
+            },
           }
         }],
         grid: {
@@ -1364,7 +1380,7 @@ export default function StatePaymentComparison() {
         top: '15%'
       }
     };
-  }, [selectedEntries, showRatePerHour, isAllStatesSelected, filterSets, allStatesAverages, filterOptions.states]);
+  }, [selectedEntries, showRatePerHour, isAllStatesSelected, filterSets, allStatesAverages, filterOptions.states, allStatesSelectedRows]);
 
   const ChartWithErrorBoundary = () => {
     try {
@@ -1748,6 +1764,99 @@ export default function StatePaymentComparison() {
     ) : null
   );
 
+  // Trigger state averages fetch when "All States" mode is active
+  // Remove automatic fetchAllStatesAverages - this will only happen when Search is clicked
+  // useEffect(() => {
+  //   if (isAllStatesSelected && filterSets[0]?.serviceCategory && filterSets[0]?.serviceCode) {
+  //     fetchAllStatesAverages(filterSets[0].serviceCategory, filterSets[0].serviceCode);
+  //   }
+  // }, [isAllStatesSelected, filterSets, fetchAllStatesAverages]);
+
+  // Handler for page change in a state's table
+  const handleAllStatesTablePageChange = (state: string, newPage: number) => {
+    setAllStatesTablePages(prev => ({ ...prev, [state]: newPage }));
+  };
+
+  // Handler for row selection in a state's table
+  const handleAllStatesRowSelect = (state: string, row: ServiceData) => {
+    const rowKey = getRowKey(row);
+    setAllStatesSelectedRows(prev => ({
+      ...prev,
+      [state]: prev[state] && prev[state].rowKey === rowKey ? null : { rowKey, row }
+    }));
+  };
+
+  // On any filter change, set pendingSearch to true
+  const handleFilterChange = (handler: (...args: any[]) => void) => (...args: any[]) => {
+    setPendingSearch(true);
+    handler(...args);
+  };
+
+  // Wrap all filter handlers
+  const wrappedHandleServiceCategoryChange = handleFilterChange(handleServiceCategoryChange);
+  const wrappedHandleStateChange = handleFilterChange(handleStateChange);
+  const wrappedHandleServiceCodeChange = handleFilterChange(handleServiceCodeChange);
+  const wrappedHandleProgramChange = handleFilterChange(handleProgramChange);
+  const wrappedHandleLocationRegionChange = handleFilterChange(handleLocationRegionChange);
+  const wrappedHandleModifierChange = handleFilterChange(handleModifierChange);
+  const wrappedHandleServiceDescriptionChange = handleFilterChange(handleServiceDescriptionChange);
+  const wrappedHandleProviderTypeChange = handleFilterChange(handleProviderTypeChange);
+  const wrappedHandleDurationUnitChange = handleFilterChange(handleDurationUnitChange);
+
+  // Only fetch data when Search is clicked
+  const handleSearch = async () => {
+    setPendingSearch(false);
+    let success = false;
+    // Now trigger the actual data fetching
+    try {
+      setFilterLoading(true);
+      // For each filter set, fetch the appropriate data
+      for (let index = 0; index < filterSets.length; index++) {
+        const filterSet = filterSets[index];
+        if (filterSet.serviceCategory && filterSet.states.length > 0 && filterSet.serviceCode) {
+          if (isAllStatesSelected && index === 0) {
+            await fetchAllStatesAverages(filterSet.serviceCategory, filterSet.serviceCode);
+            const result = await refreshData({
+              serviceCategory: filterSet.serviceCategory,
+              serviceCode: filterSet.serviceCode,
+              itemsPerPage: '1000'
+            });
+            if (result) {
+              setFilterSetData(prev => ({ ...prev, [index]: result.data }));
+              success = true;
+            }
+          } else {
+            const result = await refreshData({
+              serviceCategory: filterSet.serviceCategory,
+              state_name: filterSet.states[0],
+              serviceCode: filterSet.serviceCode,
+              itemsPerPage: '1000'
+            });
+            if (result) {
+              setFilterSetData(prev => ({ ...prev, [index]: result.data }));
+              success = true;
+            }
+          }
+        }
+      }
+      setChartRefreshKey(k => k + 1);
+      if (success) setHasSearchedOnce(true);
+    } catch (error) {
+      console.error("Error fetching data on search:", error);
+      setFetchError("Failed to fetch data. Please try again.");
+    } finally {
+      setFilterLoading(false);
+    }
+  };
+
+  // Update useEffect for initial data load and filter changes
+  useEffect(() => {
+    if (pendingSearch) return; // Only fetch when not pending
+    // ...existing data loading logic...
+    // For example, call refreshData() or fetchAllStatesAverages() here as needed
+    // (You may need to move your data loading logic from other useEffects here)
+  }, [/* other dependencies */, pendingSearch]);
+
   return (
     <AppLayout activeTab="stateRateComparison">
       <div className="p-4 sm:p-8 bg-gradient-to-br from-gray-50 to-blue-50 min-h-screen">
@@ -1839,7 +1948,7 @@ export default function StatePaymentComparison() {
                           })
                           .map((category: any) => ({ value: category, label: category }))}
                         value={filterSet.serviceCategory ? { value: filterSet.serviceCategory, label: filterSet.serviceCategory } : null}
-                        onChange={(option) => handleServiceCategoryChange(index, option?.value || "")}
+                        onChange={(option) => wrappedHandleServiceCategoryChange(index, option?.value || "")}
                         placeholder="Select Service Line"
                         isSearchable
                         filterOption={customFilterOption}
@@ -1866,7 +1975,7 @@ export default function StatePaymentComparison() {
                                 : null
                           }
                           onChange={(option) => {
-                            handleStateChange(index, option);
+                            wrappedHandleStateChange(index, option);
                             setSelectedState(option?.value || "");
                             console.log('State selected (top-level):', option?.value);
                           }}
@@ -1898,7 +2007,7 @@ export default function StatePaymentComparison() {
                               : []
                           }
                           value={filterSet.serviceCode ? { value: filterSet.serviceCode, label: filterSet.serviceCode } : null}
-                          onChange={(option) => handleServiceCodeChange(index, option?.value || "")}
+                          onChange={(option) => wrappedHandleServiceCodeChange(index, option?.value || "")}
                           placeholder="Select Service Code"
                           isSearchable
                           filterOption={customFilterOption}
@@ -1907,7 +2016,7 @@ export default function StatePaymentComparison() {
                         />
                         {filterSet.serviceCode && (
                           <button
-                            onClick={() => handleServiceCodeChange(index, "")}
+                            onClick={() => wrappedHandleServiceCodeChange(index, "")}
                             className="text-xs text-blue-500 hover:underline mt-1"
                           >
                             Clear
@@ -1935,17 +2044,17 @@ export default function StatePaymentComparison() {
                               : []
                           }
                             value={filterSet.program ? { value: filterSet.program, label: filterSet.program } : null}
-                          onChange={(option) => handleProgramChange(index, option?.value || "")}
+                          onChange={(option) => wrappedHandleProgramChange(index, option?.value || "")}
                           placeholder="Select Program"
                           isSearchable
                           filterOption={customFilterOption}
-                            isDisabled={(availablePrograms || []).length === 0}
-                            className={`react-select-container ${(availablePrograms || []).length === 0 ? 'opacity-50' : ''}`}
+                          isDisabled={(availablePrograms || []).length === 0}
+                          className={`react-select-container ${(availablePrograms || []).length === 0 ? 'opacity-50' : ''}`}
                           classNamePrefix="react-select"
                         />
                         {filterSet.program && (
                           <button
-                            onClick={() => handleProgramChange(index, "")}
+                            onClick={() => wrappedHandleProgramChange(index, "")}
                             className="text-xs text-blue-500 hover:underline mt-1"
                           >
                             Clear
@@ -1966,17 +2075,17 @@ export default function StatePaymentComparison() {
                               : []
                           }
                           value={filterSet.locationRegion ? { value: filterSet.locationRegion, label: filterSet.locationRegion } : null}
-                          onChange={(option) => handleLocationRegionChange(index, option?.value || "")}
+                          onChange={(option) => wrappedHandleLocationRegionChange(index, option?.value || "")}
                           placeholder="Select Location/Region"
                           isSearchable
                           filterOption={customFilterOption}
-                            isDisabled={(availableLocationRegions || []).length === 0}
-                            className={`react-select-container ${(availableLocationRegions || []).length === 0 ? 'opacity-50' : ''}`}
+                          isDisabled={(availableLocationRegions || []).length === 0}
+                          className={`react-select-container ${(availableLocationRegions || []).length === 0 ? 'opacity-50' : ''}`}
                           classNamePrefix="react-select"
                         />
                         {filterSet.locationRegion && (
                           <button
-                            onClick={() => handleLocationRegionChange(index, "")}
+                            onClick={() => wrappedHandleLocationRegionChange(index, "")}
                             className="text-xs text-blue-500 hover:underline mt-1"
                           >
                             Clear
@@ -1997,7 +2106,7 @@ export default function StatePaymentComparison() {
                               : []
                           }
                           value={filterSet.modifier ? { value: filterSet.modifier, label: filterSet.modifier } : null}
-                          onChange={(option) => handleModifierChange(index, option?.value || "")}
+                          onChange={(option) => wrappedHandleModifierChange(index, option?.value || "")}
                           placeholder="Select Modifier"
                           isSearchable
                           filterOption={customFilterOption}
@@ -2007,7 +2116,7 @@ export default function StatePaymentComparison() {
                         />
                         {filterSet.modifier && (
                           <button
-                            onClick={() => handleModifierChange(index, "")}
+                            onClick={() => wrappedHandleModifierChange(index, "")}
                             className="text-xs text-blue-500 hover:underline mt-1"
                           >
                             Clear
@@ -2028,21 +2137,21 @@ export default function StatePaymentComparison() {
                               : []
                           }
                           value={filterSet.providerType ? { value: filterSet.providerType, label: filterSet.providerType } : null}
-                          onChange={(option) => handleProviderTypeChange(index, option?.value || "")}
+                          onChange={(option) => wrappedHandleProviderTypeChange(index, option?.value || "")}
                           placeholder="Select Provider Type"
                           isSearchable
                           filterOption={customFilterOption}
-                            isDisabled={(availableProviderTypes || []).length === 0}
-                            className={`react-select-container ${(availableProviderTypes || []).length === 0 ? 'opacity-50' : ''}`}
+                          isDisabled={(availableProviderTypes || []).length === 0}
+                          className={`react-select-container ${(availableProviderTypes || []).length === 0 ? 'opacity-50' : ''}`}
                           classNamePrefix="react-select"
                         />
                         {filterSet.providerType && (
-                        <button
-                            onClick={() => handleProviderTypeChange(index, "")}
+                          <button
+                            onClick={() => wrappedHandleProviderTypeChange(index, "")}
                             className="text-xs text-blue-500 hover:underline mt-1"
                           >
                             Clear
-                        </button>
+                          </button>
                         )}
                       </div>
                     )}
@@ -2059,7 +2168,7 @@ export default function StatePaymentComparison() {
                               : []
                           }
                           value={filterSet.durationUnit ? { value: filterSet.durationUnit, label: filterSet.durationUnit } : null}
-                          onChange={(option) => handleDurationUnitChange(index, option?.value || "")}
+                          onChange={(option) => wrappedHandleDurationUnitChange(index, option?.value || "")}
                           placeholder="Select Duration Unit"
                           isSearchable
                           filterOption={customFilterOption}
@@ -2069,7 +2178,7 @@ export default function StatePaymentComparison() {
                         />
                         {filterSet.durationUnit && (
                           <button
-                            onClick={() => handleDurationUnitChange(index, "")}
+                            onClick={() => wrappedHandleDurationUnitChange(index, "")}
                             className="text-xs text-blue-500 hover:underline mt-1"
                           >
                             Clear
@@ -2090,7 +2199,7 @@ export default function StatePaymentComparison() {
                               : []
                           }
                           value={filterSet.serviceDescription ? { value: filterSet.serviceDescription, label: filterSet.serviceDescription } : null}
-                          onChange={(option) => handleServiceDescriptionChange(index, option?.value || "")}
+                          onChange={(option) => wrappedHandleServiceDescriptionChange(index, option?.value || "")}
                           placeholder="Select Service Description"
                           isSearchable
                           filterOption={customFilterOption}
@@ -2100,7 +2209,7 @@ export default function StatePaymentComparison() {
                         />
                         {filterSet.serviceDescription && (
                           <button
-                            onClick={() => handleServiceDescriptionChange(index, "")}
+                            onClick={() => wrappedHandleServiceDescriptionChange(index, "")}
                             className="text-xs text-blue-500 hover:underline mt-1"
                           >
                             Clear
@@ -2111,23 +2220,44 @@ export default function StatePaymentComparison() {
                   </div>
                 </div>
               ))}
-              <button
-                onClick={() => setFilterSets([...filterSets, { serviceCategory: "", states: [], serviceCode: "", stateOptions: [], serviceCodeOptions: [] }])}
-                className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-              >
-                Add State to Compare Rate
-              </button>
-                      </div>
-
-            {/* Comparison Metrics */}
-            {shouldShowMetrics && (
-              <div className="mb-8 p-6 bg-white rounded-xl shadow-lg">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Add State to Compare Rate Button (only show if not All States mode) */}
+              {!isAllStatesSelected && (
+                <div className="mt-2">
+                  <button
+                    onClick={() => setFilterSets([...filterSets, { serviceCategory: "", states: [], serviceCode: "", stateOptions: [], serviceCodeOptions: [] }])}
+                    className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                  >
+                    Add State to Compare Rate
+                  </button>
+                </div>
+              )}
+              {/* Search Button */}
+              <div className="flex justify-end mt-4">
+                <button
+                  onClick={handleSearch}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold shadow"
+                  disabled={!pendingSearch}
+                >
+                  Search
+                </button>
+              </div>
+            </div>
+            {/* Show message or results based on pendingSearch and hasSearchedOnce */}
+            {pendingSearch && !hasSearchedOnce ? (
+              <div className="text-center text-gray-500 text-lg py-12">
+                Adjust filters and click <span className="font-semibold text-blue-600">Search</span> to see results.
+              </div>
+            ) : (
+              <>
+                {/* Comparison Metrics */}
+                {shouldShowMetrics && (
+                  <div className="mb-8 p-6 bg-white rounded-xl shadow-lg">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Highest Rate */}
               <div className="flex items-center space-x-4 p-4 bg-green-100 rounded-lg">
                 <FaArrowUp className="h-8 w-8 text-green-500" />
                 <div>
-                      <p className="text-sm text-gray-500">Highest Rate of Selected States</p>
+                          <p className="text-sm text-gray-500">Highest Rate of Selected States</p>
                   <p className="text-xl font-semibold text-gray-800">${maxRate.toFixed(2)}</p>
                 </div>
               </div>
@@ -2136,66 +2266,133 @@ export default function StatePaymentComparison() {
               <div className="flex items-center space-x-4 p-4 bg-red-50 rounded-lg">
                 <FaArrowDown className="h-8 w-8 text-red-500" />
                 <div>
-                      <p className="text-sm text-gray-500">Lowest Rate of Selected States</p>
+                          <p className="text-sm text-gray-500">Lowest Rate of Selected States</p>
                   <p className="text-xl font-semibold text-gray-800">${minRate.toFixed(2)}</p>
                 </div>
               </div>
                 </div>
               </div>
-            )}
+                )}
 
-            {/* Graph Component */}
-            {(isAllStatesSelected && filterSets[0]?.serviceCode && echartOptions) || (Object.values(selectedEntries).length > 0 && echartOptions) ? (
-              <>
-                {/* Display the comment above the graph */}
-                {comments.length > 0 && (
-                  <div className="space-y-4 mb-4">
-                    {comments.map(({ state, comment }, index) => (
-                      <div key={index} className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                        <p className="text-sm text-blue-700">
-                          <strong>Comment for {state}:</strong> {comment}
-                        </p>
+                {/* Graph Component */}
+                {(isAllStatesSelected && filterSets[0]?.serviceCode && echartOptions) || (Object.values(selectedEntries).length > 0 && echartOptions) ? (
+                  <>
+                    {/* Display the comment above the graph */}
+                    {comments.length > 0 && (
+                      <div className="space-y-4 mb-4">
+                        {comments.map(({ state, comment }, index) => (
+                          <div key={index} className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                            <p className="text-sm text-blue-700">
+                              <strong>Comment for {state}:</strong> {comment}
+                            </p>
             </div>
-                    ))}
+                        ))}
           </div>
         )}
-                {/* Chart component */}
+                    {/* Chart component */}
             <ReactECharts
-                  key={JSON.stringify(Object.keys(selectedEntries).sort()) + '-' + chartRefreshKey}
-                  option={echartOptions}
+                      key={`${isAllStatesSelected ? 'all-states-' : 'selected-'}${JSON.stringify(Object.keys(selectedEntries).sort())}-${chartRefreshKey}-${allStatesAverages ? allStatesAverages.length : 0}`}
+                      option={echartOptions}
               style={{ height: '400px', width: '100%' }}
             />
-              </>
-            ) : null}
+                  </>
+                ) : null}
 
-            {/* Empty State */}
-            {shouldShowEmptyState && (
-              <div className="mb-6 sm:mb-8 p-4 sm:p-6 bg-white rounded-xl shadow-lg text-center">
-                <div className="flex justify-center items-center mb-2 sm:mb-3">
-                  <FaChartBar className="h-6 w-6 sm:h-8 sm:w-8 text-blue-500" />
+                {/* Empty State */}
+                {shouldShowEmptyState && (
+                  <div className="mb-6 sm:mb-8 p-4 sm:p-6 bg-white rounded-xl shadow-lg text-center">
+                    <div className="flex justify-center items-center mb-2 sm:mb-3">
+                      <FaChartBar className="h-6 w-6 sm:h-8 sm:w-8 text-blue-500" />
             </div>
-                <p className="text-sm sm:text-base text-gray-600 font-medium">
+                    <p className="text-sm sm:text-base text-gray-600 font-medium">
               Select data from the tables below to generate the rate comparison visualization
             </p>
           </div>
         )}
 
-            {/* Data Table */}
-            {filterSets.map((set, index) => (
+                {/* Data Table */}
+                {!isAllStatesSelected && filterSets.map((set, index) => (
             <DataTable
-                key={index}
-                filterSets={[{ ...set, number: index + 1 }]}
-                latestRates={filterSetData[index] || []}
+                    key={index}
+                    filterSets={[{ ...set, number: index + 1 }]}
+                    latestRates={filterSetData[index] || []}
               selectedTableRows={selectedTableRows}
               isAllStatesSelected={isAllStatesSelected}
-                onRowSelection={handleRowSelection}
+                    onRowSelection={handleRowSelection}
               formatText={formatText}
-                selectedEntries={selectedEntries}
-              />
-            ))}
+                    selectedEntries={selectedEntries}
+                  />
+                ))}
 
-            {/* Calculation Details */}
-            <CalculationDetails />
+                {/* Calculation Details */}
+                <CalculationDetails />
+
+                {isAllStatesSelected && filterSets[0]?.serviceCode && (
+                  <div className="mt-8">
+                    {filterOptions.states.map(state => {
+                      const stateKey = state.trim().toUpperCase();
+                      // Get all entries for this state from filteredData
+                      const stateEntries = filteredData.filter(item => item.state_name?.trim().toUpperCase() === stateKey);
+                      if (stateEntries.length === 0) return null;
+                      // Pagination
+                      const currentPage = allStatesTablePages[stateKey] || 1;
+                      const totalPages = Math.ceil(stateEntries.length / ITEMS_PER_STATE_PAGE);
+                      const paginatedEntries = stateEntries.slice((currentPage - 1) * ITEMS_PER_STATE_PAGE, currentPage * ITEMS_PER_STATE_PAGE);
+                      // Use DataTable for consistency, no extra heading
+                      return (
+                        <div key={stateKey} className="mb-8 bg-white rounded-lg shadow-lg">
+                          <div className="bg-[#012C61] text-white px-6 py-3 font-lemonMilkRegular text-lg font-bold rounded-t-lg">
+                            {state.toUpperCase()}
+                          </div>
+                          <DataTable
+                            filterSets={[
+                              {
+                                serviceCategory: filterSets[0].serviceCategory,
+                                states: [state],
+                                serviceCode: filterSets[0].serviceCode,
+                                stateOptions: [],
+                                serviceCodeOptions: [],
+                                number: 1
+                              }
+                            ]}
+                            latestRates={paginatedEntries}
+                            selectedTableRows={{}}
+                            isAllStatesSelected={true}
+                            onRowSelection={(state, item) => handleAllStatesRowSelect(stateKey, item)}
+                            formatText={formatText}
+                            selectedEntries={allStatesSelectedRows[stateKey]?.row ? { [stateKey]: [allStatesSelectedRows[stateKey].row] } : {}}
+                            hideNumberBadge={true}
+                            hideStateHeading={true}
+                          />
+                          {/* Pagination controls */}
+                          {totalPages > 1 && (
+                            <div className="flex justify-center mt-4">
+                              <button
+                                onClick={() => handleAllStatesTablePageChange(stateKey, Math.max(currentPage - 1, 1))}
+                                disabled={currentPage === 1}
+                                className="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                Previous
+                              </button>
+                              <span className="text-sm text-gray-600 mx-2">
+                                Page {currentPage} of {totalPages}
+                              </span>
+                              <button
+                                onClick={() => handleAllStatesTablePageChange(stateKey, Math.min(currentPage + 1, totalPages))}
+                                disabled={currentPage === totalPages}
+                                className="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                Next
+                              </button>
+                </div>
+                          )}
+            </div>
+                      );
+                    })}
+          </div>
+        )}
+              </>
+            )}
           </>
         )}
       </div>
