@@ -103,47 +103,6 @@ const reverseStateMap = Object.fromEntries(
   Object.entries(stateMap).map(([key, value]) => [value, key])
 );
 
-// Service Line options
-const serviceLines = [
-  "ALL PROVIDER TYPES/SERVICE LINES",
-  "AMBULANCE/MEDICAL TRANSPORTATION",
-  "AMBULATORY SURGERY CENTER",
-  "ANESTHESIA",
-  "APPLIED BEHAVIORAL ANALYSIS/EARLY INTERVENTION",
-  "BEHAVIORAL HEALTH AND/OR SUBSTANCE USE DISORDER TREATMENT",
-  "BRAIN INJURY",
-  "COMMUNITY HEALTH WORKERS",
-  "DENTAL",
-  "DIAGNOSTIC IMAGING",
-  "DURABLE MEDICAL EQUIPMENT (DME)",
-  "FAMILY PLANNING",
-  "FQHC/RHC",
-  "HOME AND COMMUNITY BASED SERVICES",
-  "HOME HEALTH",
-  "HOSPICE",
-  "HOSPITAL",
-  "INTELLECTUAL AND DEVELOPMENTAL DISABILITY (IDD) SERVICES",
-  "LABORATORY",
-  "MANAGED CARE",
-  "MATERNAL HEALTH",
-  "MEDICAL SUPPLIES",
-  "NURSE",
-  "NURSING FACILITY",
-  "NUTRITION",
-  "PHARMACY",
-  "PHYSICIAN",
-  "PHYSICIAN ADMINISTERED DRUGS",
-  "PRESCRIBED PEDIATRIC EXTENDED CARE (PPEC)",
-  "PRESCRIPTION DRUGS",
-  "PRIVATE DUTY NURSING",
-  "SOCIAL SERVICES",
-  "TELEMEDICINE & REMOTE PATIENT MONITORING (RPM)",
-  "THERAPY: OT, PT, ST",
-  "VISION",
-  "GENERAL MEDICAID",
-  "340B",
-];
-
 // Add these new interfaces after your existing interfaces
 interface DropdownProps {
   value: string;
@@ -279,7 +238,14 @@ const searchInFields = (searchText: string, fields: (string | null | undefined)[
 
 // Add a helper function to get service lines for alerts
 const getAlertServiceLines = (alert: Alert) => {
-  return [alert.service_lines_impacted, alert.service_lines_impacted_1, alert.service_lines_impacted_2, alert.service_lines_impacted_3].filter(Boolean).join(", ");
+  return [
+    alert.service_lines_impacted,
+    alert.service_lines_impacted_1,
+    alert.service_lines_impacted_2,
+    alert.service_lines_impacted_3
+  ]
+    .filter(line => line && line.toUpperCase() !== 'NULL')
+    .join(", ");
 };
 
 export default function RateDevelopments() {
@@ -318,6 +284,19 @@ export default function RateDevelopments() {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("providerBulletins");
   const [isSubscriptionCheckComplete, setIsSubscriptionCheckComplete] = useState(false);
+
+  const [serviceLines, setServiceLines] = useState<string[]>([]);
+  useEffect(() => {
+    const fetchServiceCategories = async () => {
+      const { data, error } = await supabase.from("service_category_list").select("categories");
+      if (!error && data) {
+        setServiceLines(data.map((row: any) => row.categories));
+      }
+    };
+    fetchServiceCategories();
+  }, []);
+
+  const uniqueServiceLines = useMemo(() => Array.from(new Set(serviceLines)), [serviceLines]);
 
   // Add subscription check function
   const checkSubscriptionAndSubUser = async () => {
@@ -429,32 +408,28 @@ export default function RateDevelopments() {
 
   const fetchData = async () => {
     setLoading(true);
-    // Fetch Provider Alerts
-    fetch("/api/rate-updates")
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error("Failed to fetch Provider Alerts data");
-        }
-        return response.json();
-      })
-      .then((data: Alert[]) => {
-        setAlerts(data);
-      })
-      .catch((error) => console.error("Error fetching provider alerts:", error));
+    // Fetch Provider Alerts from Supabase
+    const { data: providerAlerts, error: providerError } = await supabase
+      .from("provider_alerts")
+      .select("*")
+      .order("announcement_date", { ascending: false });
+    if (providerError) {
+      console.error("Error fetching provider alerts from Supabase:", providerError);
+      setAlerts([]);
+    } else {
+      setAlerts(providerAlerts || []);
+    }
 
-    // Fetch Legislative Updates
-    fetch("/api/legislative-updates")
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error("Failed to fetch Legislative Updates data");
-        }
-        return response.json();
-      })
-      .then((data: Bill[]) => {
-        console.log('Legislative Updates Data:', data);
-        setBills(data);
-      })
-      .catch((error) => console.error("Error fetching legislative updates:", error));
+    // Fetch Legislative Updates from Supabase
+    const { data: billsData, error: billsError } = await supabase
+      .from("bill_track_50")
+      .select("*");
+    if (billsError) {
+      console.error("Error fetching legislative updates from Supabase:", billsError);
+      setBills([]);
+    } else {
+      setBills(billsData || []);
+    }
     setLoading(false);
   };
 
@@ -545,8 +520,13 @@ export default function RateDevelopments() {
   });
 
   const getServiceLines = (bill: Bill) => {
-    return [bill.service_lines_impacted, bill.service_lines_impacted_1, bill.service_lines_impacted_2, bill.service_lines_impacted_3]
-      .filter(Boolean)
+    return [
+      bill.service_lines_impacted,
+      bill.service_lines_impacted_1,
+      bill.service_lines_impacted_2,
+      bill.service_lines_impacted_3
+    ]
+      .filter(line => line && line.toUpperCase() !== 'NULL')
       .join(", ");
   };
 
@@ -621,10 +601,7 @@ export default function RateDevelopments() {
                 onChange={setSelectedServiceLine}
                 options={[
                   { value: "", label: "All Service Lines" },
-                  ...serviceLines.map(line => ({
-                    value: line,
-                    label: line
-                  }))
+                  ...uniqueServiceLines.map(line => ({ value: line, label: line }))
                 ]}
                 placeholder="All Service Lines"
               />

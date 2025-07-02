@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
+import { createClient } from "@supabase/supabase-js";
 import {
   Menu,
   X,
@@ -14,8 +16,15 @@ import {
   ChartColumnStacked,
   ChartLine,
   Table2,
+  Shield,
 } from "lucide-react";
 import Link from "next/link";
+
+// Initialize Supabase Client
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 interface SideNavProps {
   activeTab: string;
@@ -31,7 +40,53 @@ const SideNav = ({
   toggleSidebar,
 }: SideNavProps) => {
   const pathname = usePathname();
-  const [isClientSide, setIsClientSide] = useState(false); // Track client-side rendering
+  const [isClientSide, setIsClientSide] = useState(false);
+  const { user } = useKindeBrowserClient();
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminCheckComplete, setAdminCheckComplete] = useState(false);
+
+  // Check admin access
+  const checkAdminAccess = async () => {
+    const userEmail = user?.email ?? "";
+    console.log("[Sidenav] Checking admin for email (from session):", userEmail);
+    if (!userEmail) return;
+
+    try {
+      const { data: adminData, error: adminError } = await supabase
+        .from("admin_users")
+        .select("email")
+        .eq("email", userEmail)
+        .single();
+
+      console.log("[Sidenav] Supabase query result:", adminData, "error:", adminError);
+      if (adminData) {
+        console.log("[Sidenav] Email from admin_users table:", adminData.email);
+      }
+
+      if (adminError && adminError.code !== "PGRST116") {
+        console.error("[Sidenav] Error checking admin access:", adminError);
+      } else if (adminData) {
+        setIsAdmin(true);
+        console.log("[Sidenav] User is admin:", adminData);
+      } else {
+        setIsAdmin(false);
+        console.log("[Sidenav] User is NOT admin");
+      }
+    } catch (error) {
+      console.error("[Sidenav] Error in admin check:", error);
+    } finally {
+      setAdminCheckComplete(true);
+      console.log("[Sidenav] adminCheckComplete set to true");
+    }
+  };
+
+  // Check admin access when user changes
+  useEffect(() => {
+    console.log("[Sidenav] useEffect user:", user);
+    if (user?.email) {
+      checkAdminAccess();
+    }
+  }, [user]);
 
   // Update the tab mapping
   useEffect(() => {
@@ -41,6 +96,7 @@ const SideNav = ({
       "/state-rate-comparison": "stateRateComparison",
       "/settings": "settings",
       "/historical-rates": "historicalRates",
+      "/admin-dashboard": "adminDashboard",
     };
 
     // Match the exact path or paths that start with the base path
@@ -186,6 +242,34 @@ const SideNav = ({
               </Link>
             </li>
           ))}
+          
+          {/* Admin Dashboard - Only show if user is admin */}
+          {(() => {
+            console.log("[Sidenav] Render: isAdmin=", isAdmin, "adminCheckComplete=", adminCheckComplete);
+            return adminCheckComplete && isAdmin;
+          })() && (
+            <li className="group">
+              <Link
+                href="/admin-dashboard"
+                onClick={() => setActiveTab("adminDashboard")}
+                className={`flex items-center p-4 hover:bg-gray-200/20 transition-colors cursor-pointer ${
+                  activeTab === "adminDashboard" ? "bg-gray-200/20" : ""
+                }`}
+              >
+                <div className="flex items-center justify-center w-6 h-6">
+                  <Shield size={20} />
+                </div>
+                <span
+                  className={`ml-4 font-semibold transition-opacity duration-300 ease-in-out flex-grow ${
+                    isSidebarCollapsed ? "opacity-0 invisible" : "opacity-100 visible"
+                  }`}
+                  style={{ whiteSpace: "nowrap" }}
+                >
+                  Admin Dashboard
+                </span>
+              </Link>
+            </li>
+          )}
         </ul>
       </nav>
     </aside>

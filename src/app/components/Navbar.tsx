@@ -107,6 +107,12 @@ const Navbar = () => {
     "/email-preferences",
     "/state-rate-comparison",
     "/historical-rates",
+    "/admin-dashboard",
+    "/admin-dashboard/rate-developments",
+    "/admin-dashboard/rate-developments/edit",
+    "/admin-dashboard/rate-developments/update-database",
+    "/admin-dashboard/rate-developments/send-email-alerts",
+    "/rate-developments/email-alerts",
   ];
 
   if (isLoading) {
