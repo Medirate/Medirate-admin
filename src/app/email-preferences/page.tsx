@@ -23,23 +23,8 @@ const STATES = [
   "NORTH CAROLINA", "NORTH DAKOTA", "OHIO", "OKLAHOMA", "OREGON",
   "PENNSYLVANIA", "RHODE ISLAND", "SOUTH CAROLINA", "SOUTH DAKOTA",
   "TENNESSEE", "TEXAS", "UTAH", "VERMONT", "VIRGINIA", "WASHINGTON",
-  "WEST VIRGINIA", "WISCONSIN", "WYOMING"
-];
-
-// ✅ Full list of categories (service lines)
-const CATEGORIES = [
-  "340B", "AMBULANCE/MEDICAL TRANSPORTATION", "AMBULATORY SURGERY CENTER",
-  "ANESTHESIA", "BEHAVIORAL HEALTH AND/OR SUBSTANCE USE DISORDER TREATMENT",
-  "BRAIN INJURY", "COMMUNITY HEALTH WORKERS", "DENTAL",
-  "DIAGNOSTIC IMAGING", "DURABLE MEDICAL EQUIPMENT (DME)", "FAMILY PLANNING",
-  "FQHC/RHC", "GENERAL MEDICAID", "HOME AND COMMUNITY BASED SERVICES",
-  "HOME HEALTH", "HOSPICE", "HOSPITAL", "INTELLECTUAL AND DEVELOPMENTAL DISABILITY (IDD) SERVICES",
-  "LABORATORY", "MANAGED CARE", "MATERNAL HEALTH", "MEDICAL SUPPLIES",
-  "NURSE", "NURSING FACILITY", "NUTRITION", "PHARMACY", "PHYSICIAN",
-  "PHYSICIAN ADMINISTERED DRUGS", "PRESCRIBED PEDIATRIC EXTENDED CARE (PPEC)",
-  "PRESCRIPTION DRUGS", "PRIVATE DUTY NURSING", "SOCIAL SERVICES",
-  "TELEMEDICINE & REMOTE PATIENT MONITORING (RPM)", "THERAPY: OT, PT, ST",
-  "VISION"
+  "WEST VIRGINIA", "WISCONSIN", "WYOMING",
+  "DISTRICT OF COLUMBIA", "PUERTO RICO", "GUAM", "AMERICAN SAMOA", "U.S. VIRGIN ISLANDS", "NORTHERN MARIANA ISLANDS"
 ];
 
 export default function EmailPreferences() {
@@ -48,6 +33,17 @@ export default function EmailPreferences() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [preferenceId, setPreferenceId] = useState<number | null>(null);
+  const [categories, setCategories] = useState<string[]>([]);
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      const { data, error } = await supabase.from("service_category_list").select("categories");
+      if (!error && data) {
+        setCategories(data.map((cat: { categories: string }) => cat.categories));
+      }
+    };
+    fetchCategories();
+  }, []);
 
   useEffect(() => {
     if (user?.email) {
@@ -120,7 +116,7 @@ export default function EmailPreferences() {
   };
 
   const selectAllCategories = () => {
-    setSelectedCategories(CATEGORIES);
+    setSelectedCategories(categories);
   };
 
   const deselectAllCategories = () => {
@@ -187,7 +183,7 @@ export default function EmailPreferences() {
                 <button onClick={selectAllCategories} className="bg-[#012C61] text-white px-4 py-2 rounded-md mb-4 hover:bg-[#023d85]">Select All</button>
                 <button onClick={deselectAllCategories} className="bg-gray-300 text-black px-4 py-2 rounded-md mb-4 ml-2 hover:bg-gray-400">Deselect All</button>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {CATEGORIES.map(category => (
+                  {Array.from(new Set(categories)).map(category => (
                     <label
                       key={category}
                       className="flex items-center space-x-3 py-2 px-3 rounded-lg hover:bg-blue-50 transition-colors duration-200 cursor-pointer"

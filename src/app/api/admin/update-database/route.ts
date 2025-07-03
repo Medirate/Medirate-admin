@@ -144,7 +144,12 @@ export async function POST(req: NextRequest) {
       log('Resetting is_new flags in bill_track_50...', 'info', 'reset');
       await supabase.from('bill_track_50').update({ is_new: 'no' }).neq('is_new', 'no');
       log('Resetting is_new flags in provider_alerts...', 'info', 'reset');
-      await supabase.from('provider_alerts').update({ is_new: 'no' }).neq('is_new', 'no');
+      const { error: resetError } = await supabase.from('provider_alerts').update({ is_new: 'no' }).neq('id', null);
+      if (resetError) {
+        log(`Error resetting is_new flags in provider_alerts: ${resetError.message}`, 'error', 'reset');
+      } else {
+        log(`Reset is_new flags in provider_alerts. Update attempted for all rows.`, 'success', 'reset');
+      }
       log('is_new flags reset in both tables.', 'success', 'reset');
 
       // 2. Fetch all rows from bill_track_50
@@ -183,7 +188,7 @@ export async function POST(req: NextRequest) {
       }
       log(`Inserted ${inserted.length} new entries.`, 'success', 'insert');
       // 4. Update changed entries
-      const updated = [];
+      const updated: any[] = [];
       for (const entry of filteredRows) {
         if (!entry.url || !dbByUrl.has(entry.url)) continue;
         const dbRow = dbByUrl.get(entry.url);
@@ -225,7 +230,12 @@ export async function POST(req: NextRequest) {
     if (type === 'provider_alerts') {
       // 1. Reset is_new flags in provider_alerts and bill_track_50
       log('Resetting is_new flags in provider_alerts...', 'info', 'reset');
-      await supabase.from('provider_alerts').update({ is_new: 'no' }).neq('is_new', 'no');
+      const { error: resetError } = await supabase.from('provider_alerts').update({ is_new: 'no' }).neq('id', null);
+      if (resetError) {
+        log(`Error resetting is_new flags in provider_alerts: ${resetError.message}`, 'error', 'reset');
+      } else {
+        log(`Reset is_new flags in provider_alerts. Update attempted for all rows.`, 'success', 'reset');
+      }
       log('Resetting is_new flags in bill_track_50...', 'info', 'reset');
       await supabase.from('bill_track_50').update({ is_new: 'no' }).neq('is_new', 'no');
       log('is_new flags reset in both tables.', 'success', 'reset');
@@ -263,29 +273,51 @@ export async function POST(req: NextRequest) {
       
       // Map Excel columns to DB columns for provider_alerts
       const providerColumnMap: Record<string, string> = {
-        'announcement_date': 'announcement_date',
-        'subject': 'subject',
+        'id': 'id',
+        'link': 'link',
         'state': 'state',
-        'links': 'links',
-        'summary': 'summary',
+        'subject': 'subject',
         'service_lines_impacted': 'service_lines_impacted',
         'service_lines_impacted_1': 'service_lines_impacted_1',
         'service_lines_impacted_2': 'service_lines_impacted_2',
-        'service_lines_impacted_3': 'service_lines_impacted_3'
+        'service_lines_impacted_3': 'service_lines_impacted_3',
+        'summary': 'summary',
+        'announcement date': 'announcement_date',
+        'announcement_date': 'announcement_date',
       };
       
       function mapProviderToDbColumns(obj: any) {
         const mapped: any = {};
-        for (const key in obj) {
-          if (providerColumnMap[key]) {
-            mapped[providerColumnMap[key]] = obj[key];
+        for (const excelKey in providerColumnMap) {
+          const dbKey = providerColumnMap[excelKey];
+          // Find the Excel key in obj (case-insensitive, trim)
+          const foundKey = Object.keys(obj).find(k => k.trim().toLowerCase() === excelKey);
+          if (foundKey !== undefined) {
+            mapped[dbKey] = obj[foundKey];
+          } else if (dbKey === 'service_lines_impacted_3') {
+            mapped[dbKey] = null;
           } else {
-            mapped[key] = obj[key];
+            mapped[dbKey] = "";
           }
         }
         return mapped;
       }
+      // Helper to clean out __empty and empty keys
+      function cleanRow(row: any) {
+        const cleaned: any = {};
+        Object.keys(row).forEach(key => {
+          if (
+            key &&
+            key.trim() !== '' &&
+            !key.toLowerCase().startsWith('__empty')
+          ) {
+            cleaned[key] = row[key];
+          }
+        });
+        return cleaned;
+      }
       const mappedProviderRows = providerRows.map(mapProviderToDbColumns);
+      const cleanedProviderRows = mappedProviderRows.map(cleanRow);
       log(`Parsed ${mappedProviderRows.length} rows from provider alerts sheet.`, 'success', 'parse');
 
       // 3. Fetch all rows from provider_alerts
@@ -296,72 +328,103 @@ export async function POST(req: NextRequest) {
         throw new Error(`Supabase fetch error: ${dbProviderError.message}`);
       }
       log(`Fetched ${dbProviderRows?.length || 0} rows from provider_alerts.`, 'success', 'fetch');
-      const dbProviderRowsClean = (dbProviderRows || []).map((row: any) => {
-        const newRow: any = {};
-        Object.keys(row).forEach(key => {
-          newRow[key.trim().toLowerCase()] = row[key];
-        });
-        return newRow;
-      });
       const dbById = new Map<string, any>();
-      dbProviderRowsClean.forEach(r => {
+      (dbProviderRows || []).forEach(r => {
+        // Use Excel ID as unique identifier
         if (r.id) dbById.set(r.id.toString(), r);
       });
-      // 4. Insert new entries
+      
+      // Debug logging
+      log(`Database has ${dbById.size} entries with IDs: ${Array.from(dbById.keys()).slice(0, 10).join(', ')}${dbById.size > 10 ? '...' : ''}`, 'info', 'debug');
+      
+      const excelIds = cleanedProviderRows.map(r => r.id).filter(id => id).slice(0, 10);
+      log(`Excel has ${cleanedProviderRows.length} entries, first 10 IDs: ${excelIds.join(', ')}`, 'info', 'debug');
+      
+      // 4. Insert new entries (BATCHED)
       const today = new Date().toISOString().slice(0, 10);
-      const newEntries = mappedProviderRows.filter(r => !r.id || !dbById.has(r.id.toString()));
+      // Only process entries that have valid, non-empty IDs
+      const validEntries = cleanedProviderRows.filter(r => r.id && r.id.toString().trim() !== '');
+      const newEntries = validEntries.filter(r => !dbById.has(r.id.toString()));
+      
+      log(`Found ${validEntries.length} entries with valid IDs out of ${cleanedProviderRows.length} total`, 'info', 'debug');
+      log(`Skipped ${cleanedProviderRows.length - validEntries.length} entries with empty/missing IDs`, 'warning', 'debug');
+      
+      log(`Found ${newEntries.length} entries that appear to be new out of ${cleanedProviderRows.length} total`, 'info', 'debug');
+      if (newEntries.length > 0) {
+        log(`First few 'new' entry IDs: ${newEntries.slice(0, 5).map(r => r.id).join(', ')}`, 'info', 'debug');
+      }
+      
+      // Check for duplicate IDs within the Excel file itself
+      const excelIdSet = new Set();
+      const duplicateIds = new Set();
+      cleanedProviderRows.forEach(r => {
+        if (r.id) {
+          const idStr = r.id.toString();
+          if (excelIdSet.has(idStr)) {
+            duplicateIds.add(idStr);
+          } else {
+            excelIdSet.add(idStr);
+          }
+        }
+      });
+      
+      if (duplicateIds.size > 0) {
+        log(`Warning: Found duplicate IDs in Excel file: ${Array.from(duplicateIds).join(', ')}`, 'warning', 'parse');
+      }
+      
+      // Remove entries with duplicate IDs from newEntries
+      const finalNewEntries = newEntries.filter(r => !duplicateIds.has(r.id?.toString()));
+      
+      if (finalNewEntries.length !== newEntries.length) {
+        log(`Removed ${newEntries.length - finalNewEntries.length} entries with duplicate IDs`, 'warning', 'insert');
+      }
+      
       let inserted = [];
-      for (const entry of newEntries) {
-        const insertObj = { ...entry, is_new: 'yes', date_extracted: today };
-        delete insertObj.id; // Remove id for new insertions
-        const { data, error } = await supabase.from('provider_alerts').insert([insertObj]);
+      if (finalNewEntries.length > 0) {
+        // Include all columns including id for new insertions
+        const batchToInsert = finalNewEntries.map((entry, index) => {
+          const obj = { ...entry, is_new: 'yes' };
+          return obj;
+        });
+        
+        // Log what we're about to insert
+        log(`Attempting to insert ${batchToInsert.length} new entries with IDs: ${batchToInsert.map(e => e.id).join(', ')}`, 'info', 'insert');
+        
+        const { data, error } = await supabase.from('provider_alerts').insert(batchToInsert);
         if (!error) {
-          inserted.push(insertObj);
-          log(`Inserted new entry: ${insertObj.url || insertObj.subject || 'Unknown'}`, 'success', 'insert');
+          inserted = batchToInsert;
+          batchToInsert.forEach(obj => {
+            log(`Inserted new entry: ${obj.subject || obj.link || 'Unknown'}`, 'success', 'insert');
+          });
         } else {
-          log(`Failed to insert: ${insertObj.url || insertObj.subject || 'Unknown'} - ${error.message}`, 'error', 'insert');
+          log(`Failed to batch insert: ${error.message}`, 'error', 'insert');
+          log(`Error details: ${JSON.stringify(error)}`, 'error', 'insert');
+          
+          // Try inserting one by one to identify the problematic entry
+          log(`Attempting individual inserts to identify problematic entry...`, 'info', 'insert');
+          for (const entry of batchToInsert) {
+            const { error: singleError } = await supabase.from('provider_alerts').insert([entry]);
+            if (singleError) {
+              log(`Failed to insert entry with ID ${entry.id}: ${singleError.message}`, 'error', 'insert');
+            } else {
+              inserted.push(entry);
+              log(`Successfully inserted entry with ID ${entry.id}`, 'success', 'insert');
+            }
+          }
         }
       }
       log(`Inserted ${inserted.length} new entries.`, 'success', 'insert');
-      // 5. Update changed entries
-      const updated = [];
-      const providerColumns = mappedProviderRows.length > 0 ? Object.keys(mappedProviderRows[0]) : [];
-      for (const entry of mappedProviderRows) {
-        if (!entry.id || !dbById.has(entry.id.toString())) continue;
-        const dbRow = dbById.get(entry.id.toString());
-        let changed = false;
-        const updateObj: any = {};
-        for (const col of providerColumns) {
-          if (col === 'id') continue; // Skip id column for updates
-          if ((entry[col] ?? "") !== (dbRow[col] ?? "")) {
-            updateObj[col] = entry[col];
-            changed = true;
-          }
-        }
-        if (changed) {
-          updateObj.is_new = 'yes';
-          updateObj.date_extracted = today;
-          const { data, error } = await supabase.from('provider_alerts').update(updateObj).eq('id', entry.id);
-          if (!error) {
-            updated.push({ id: entry.id, ...updateObj });
-            log(`Updated entry: ${entry.id}`, 'success', 'update');
-          } else {
-            log(`Failed to update: ${entry.id} - ${error.message}`, 'error', 'update');
-          }
-        }
-      }
-      log(`Updated ${updated.length} entries.`, 'success', 'update');
       return NextResponse.json({
         success: true,
         fileName: providerFileName,
         fileSize: providerBuffer.length,
         providerSheetName,
         insertedCount: inserted.length,
-        updatedCount: updated.length,
+        updatedCount: 0,
         insertedPreview: inserted.slice(0, 5),
-        updatedPreview: updated.slice(0, 5),
+        updatedPreview: [],
         logs,
-        message: `Updated provider_alerts: ${inserted.length} inserted, ${updated.length} updated.`
+        message: `Updated provider_alerts: ${inserted.length} inserted, 0 updated.`
       });
     }
 

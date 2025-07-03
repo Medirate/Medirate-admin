@@ -536,6 +536,43 @@ export default function RateDevelopments() {
     setShowPopup(true);
   };
 
+  // 1. Add a state to track previous data and changed cells
+  const [prevAlerts, setPrevAlerts] = useState<Alert[]>([]);
+  const [prevBills, setPrevBills] = useState<Bill[]>([]);
+  const [highlightedCells, setHighlightedCells] = useState<{ [rowKey: string]: string[] }>({});
+
+  // 2. When new data is fetched, compare to previous and highlight changed cells
+  useEffect(() => {
+    if (!loading) {
+      const newHighlights: { [rowKey: string]: string[] } = {};
+      // Provider Alerts
+      alerts.forEach((alert, idx) => {
+        const prev = prevAlerts[idx];
+        if (!prev) return;
+        Object.keys(alert).forEach(key => {
+          if ((alert as any)[key] !== (prev as any)[key]) {
+            if (!newHighlights[`alert-${idx}`]) newHighlights[`alert-${idx}`] = [];
+            newHighlights[`alert-${idx}`].push(key);
+          }
+        });
+      });
+      // Bills
+      bills.forEach((bill, idx) => {
+        const prev = prevBills[idx];
+        if (!prev) return;
+        Object.keys(bill).forEach(key => {
+          if ((bill as any)[key] !== (prev as any)[key]) {
+            if (!newHighlights[`bill-${idx}`]) newHighlights[`bill-${idx}`] = [];
+            newHighlights[`bill-${idx}`].push(key);
+          }
+        });
+      });
+      setHighlightedCells(newHighlights);
+      setPrevAlerts(alerts);
+      setPrevBills(bills);
+    }
+  }, [alerts, bills, loading]);
+
   if (isLoading || !isSubscriptionCheckComplete) {
     return (
       <div className="loader-overlay">

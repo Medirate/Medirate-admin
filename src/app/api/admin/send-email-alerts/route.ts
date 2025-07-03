@@ -255,6 +255,8 @@ export async function POST(req: NextRequest) {
         }
       }
       
+      logs.push(`👤 ${email} preferences: States = [${Array.from(userStates).join(', ')}], Categories = [${Array.from(userCategories).join(', ')}]`);
+      
       if (userStates.size === 0 || userCategories.size === 0) {
         logs.push(`⚠️ ${email}: No states or categories configured, skipping`);
         continue;
@@ -267,13 +269,36 @@ export async function POST(req: NextRequest) {
         return stateMatch && categoryMatch;
       });
       
+      // Detailed per-user alert log (relevant and not relevant)
+      let alertLog = `ℹ️ Alerts for ${email}:`;
+      for (const pa of processedAlerts) {
+        const alert = pa.alert;
+        const type = pa.source === 'bill' ? 'Bill' : 'Provider';
+        const state = getFullStateName(alert.state);
+        const title = pa.source === 'bill'
+          ? (alert.name || alert.bill_number || 'No Title')
+          : (alert.subject || 'No Title');
+        const categories = Array.from(pa.serviceLines).join(', ') || 'N/A';
+        const stateMatch = Array.from(pa.stateNorm).some(state => userStates.has(state));
+        const categoryMatch = Array.from(pa.serviceLines).some(category => userCategories.has(category));
+        if (stateMatch && categoryMatch) {
+          alertLog += `\n  ✅ [${type}] ${state}: ${title} (categories: ${categories}) — Relevant (matches user preferences)`;
+        } else {
+          let reason = [];
+          if (!stateMatch) reason.push('state does not match');
+          if (!categoryMatch) reason.push('category does not match');
+          alertLog += `\n  ❌ [${type}] ${state}: ${title} (categories: ${categories}) — Not relevant (${reason.join(' and ')})`;
+        }
+      }
+      logs.push(alertLog);
+      
       if (relevantAlerts.length === 0) {
         logs.push(`ℹ️ ${email}: No relevant alerts found`);
         continue;
       }
       
       usersWithAlerts++;
-      
+
       // Build email content using the HTML template
       const alertCards: string[] = [];
       for (const pa of relevantAlerts) {

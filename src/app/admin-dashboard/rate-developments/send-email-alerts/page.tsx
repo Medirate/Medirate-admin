@@ -126,26 +126,64 @@ export default function SendEmailAlertsPage() {
               📝 Processing Logs
               <span className="ml-2 text-sm text-gray-500">({logs.length} entries)</span>
             </h2>
-            
-            <div className="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto font-mono text-sm">
-              {logs.map((log, index) => {
-                const isError = log.includes('❌');
-                const isSuccess = log.includes('✅');
-                const isWarning = log.includes('⚠️');
-                const isInfo = log.includes('ℹ️');
-                
-                let textColor = 'text-gray-700';
-                if (isError) textColor = 'text-red-600 font-semibold';
-                else if (isSuccess) textColor = 'text-green-600 font-semibold';
-                else if (isWarning) textColor = 'text-yellow-600 font-semibold';
-                else if (isInfo) textColor = 'text-blue-600 font-semibold';
-                
-                return (
-                  <div key={index} className={`${textColor} mb-1`}>
-                    {log}
-                  </div>
-                );
-              })}
+            <div className="bg-gray-50 rounded-lg p-4 max-h-[600px] overflow-y-auto font-mono text-sm">
+              {/* Group logs by user (look for lines starting with '👤') */}
+              {(() => {
+                const userSections: { user: string; logs: string[] }[] = [];
+                let currentUser: string | null = null;
+                let currentLogs: string[] = [];
+                logs.forEach((log: string, idx: number) => {
+                  if (log.startsWith('👤')) {
+                    if (currentUser) {
+                      userSections.push({ user: currentUser, logs: currentLogs });
+                    }
+                    currentUser = log;
+                    currentLogs = [];
+                  } else if (currentUser) {
+                    currentLogs.push(log);
+                  }
+                });
+                if (currentUser) {
+                  userSections.push({ user: currentUser, logs: currentLogs });
+                }
+                if (userSections.length === 0) {
+                  // fallback: show all logs as before
+                  return logs.map((log: string, index: number) => <div key={index}>{log}</div>);
+                }
+                return userSections.map((section, idx) => (
+                  <details key={idx} className="mb-4 border-b border-gray-200" open={idx === 0}>
+                    <summary className="cursor-pointer font-semibold text-blue-900 py-2">
+                      {section.user.replace('👤', '').trim()}
+                    </summary>
+                    <div className="pl-4">
+                      {section.logs.map((log, i) => {
+                        if (log.startsWith('ℹ️ Alerts for')) {
+                          return <div key={i} className="mt-2 mb-1 text-blue-700 font-bold">{log.replace('ℹ️ ', '')}</div>;
+                        }
+                        if (log.startsWith('✅')) {
+                          return <div key={i} className="text-green-700 font-semibold">{log}</div>;
+                        }
+                        if (log.startsWith('❌')) {
+                          return <div key={i} className="text-red-700 font-semibold">{log}</div>;
+                        }
+                        if (log.includes('Relevant')) {
+                          return <div key={i} className="text-green-600 ml-2">{log}</div>;
+                        }
+                        if (log.includes('Not relevant')) {
+                          return <div key={i} className="text-gray-500 ml-2">{log}</div>;
+                        }
+                        if (log.startsWith('⚠️')) {
+                          return <div key={i} className="text-yellow-700 font-semibold">{log}</div>;
+                        }
+                        if (log.startsWith('ℹ️')) {
+                          return <div key={i} className="text-blue-700">{log}</div>;
+                        }
+                        return <div key={i} className="ml-2">{log}</div>;
+                      })}
+                    </div>
+                  </details>
+                ));
+              })()}
             </div>
           </div>
         )}

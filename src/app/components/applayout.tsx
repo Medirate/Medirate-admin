@@ -19,6 +19,9 @@ const AppLayout = ({ children, activeTab }: AppLayoutProps) => {
     return true;
   });
 
+  const [isClient, setIsClient] = useState(false);
+  useEffect(() => { setIsClient(true); }, []);
+
   const toggleSidebar = () => {
     setIsSidebarCollapsed((prev) => {
       const newState = !prev;
@@ -49,17 +52,19 @@ const AppLayout = ({ children, activeTab }: AppLayoutProps) => {
         />
 
         {/* Page Content */}
-        <main
-          className={`flex-grow transition-all duration-300 ease-in-out px-6 py-8 ${
-            isSidebarCollapsed ? "ml-16" : "ml-64"
-          }`} // Adjust margin dynamically based on sidebar state
-        >
-          <div
-            className="w-full max-w-[1400px] mx-auto" // Adjust width dynamically and center content
+        {isClient && (
+          <main
+            className={`flex-grow transition-all duration-300 ease-in-out px-6 py-8 ${
+              isSidebarCollapsed ? "ml-16" : "ml-64"
+            }`} // Adjust margin dynamically based on sidebar state
           >
-            {children}
-          </div>
-        </main>
+            <div
+              className="w-full max-w-[1400px] mx-auto" // Adjust width dynamically and center content
+            >
+              {children}
+            </div>
+          </main>
+        )}
       </div>
 
       {/* Code Definitions Icon */}

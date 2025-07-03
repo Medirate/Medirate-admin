@@ -12,11 +12,15 @@ import {
   CircleDollarSign,
   ChartNoAxesCombined,
   Megaphone,
-  Mail,
   ChartColumnStacked,
   ChartLine,
   Table2,
   Shield,
+  ChevronDown,
+  ChevronRight,
+  Pencil,
+  Database,
+  Mail,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -25,6 +29,13 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
+
+// Admin Rate Developments submenu links
+const adminRateDevLinks: { href: string; label: string; icon: React.ReactNode }[] = [
+  { href: "/admin-dashboard/rate-developments/edit", label: "Edit Rate Developments", icon: <Pencil size={16} className="mr-2" /> },
+  { href: "/admin-dashboard/rate-developments/update-database", label: "Update Database", icon: <Database size={16} className="mr-2" /> },
+  { href: "/admin-dashboard/rate-developments/send-email-alerts", label: "Send Email Alerts", icon: <Mail size={16} className="mr-2" /> },
+];
 
 interface SideNavProps {
   activeTab: string;
@@ -44,6 +55,8 @@ const SideNav = ({
   const { user } = useKindeBrowserClient();
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminCheckComplete, setAdminCheckComplete] = useState(false);
+  const [adminMenuOpen, setAdminMenuOpen] = useState(false);
+  const [rateDevMenuOpen, setRateDevMenuOpen] = useState(false);
 
   // Check admin access
   const checkAdminAccess = async () => {
@@ -114,165 +127,252 @@ const SideNav = ({
     setIsClientSide(true);
   }, []);
 
-  return (
-    <aside
-      className={`transition-all duration-500 ease-in-out shadow-lg ${
-        isSidebarCollapsed ? "w-16" : "w-64"
-      }`}
-      style={{
-        backgroundColor: "rgb(1, 44, 97)",
-        color: "white",
-        position: "fixed", // Keeps it fixed
-        top: "5.5rem", // Height of the Navbar
-        bottom: "0", // Extend to the bottom of the viewport
-        left: 0, // Aligns to the left of the viewport
-        height: "calc(100vh - 5.5rem)", // Full height minus navbar
-        zIndex: 50, // Ensures it stays above the content
-      }}
-    >
-      {/* Sidebar Toggle Button */}
-      <div className="flex justify-end p-4">
-        <button
-          onClick={toggleSidebar}
-          className="p-2 text-white hover:bg-gray-800 rounded-md"
-        >
-          {isClientSide ? (isSidebarCollapsed ? <Menu size={20} /> : <X size={20} />) : <Menu size={20} />}
-        </button>
-      </div>
+  // Auto-expand admin submenu if on an admin page
+  useEffect(() => {
+    if (pathname.startsWith("/admin-dashboard")) {
+      setAdminMenuOpen(true);
+    }
+    if (pathname.startsWith("/admin-dashboard/rate-developments")) {
+      setRateDevMenuOpen(true);
+    }
+  }, [pathname]);
 
-      {/* Navigation Links */}
-      <nav className="mt-6">
-        <ul className="space-y-2">
-          <li className="group">
-            <Link
-              href="/dashboard"
-              onClick={() => setActiveTab("dashboard")}
-              className={`flex items-center p-4 hover:bg-gray-200/20 transition-colors cursor-pointer ${
-                activeTab === "dashboard" ? "bg-gray-200/20" : ""
-              }`}
+  return (
+    <>
+      {/* Only render sidebar on client to avoid hydration mismatch */}
+      {isClientSide ? (
+        <aside
+          className={`transition-all duration-500 ease-in-out shadow-lg ${
+            isSidebarCollapsed ? "w-16" : "w-64"
+          }`}
+          style={{
+            backgroundColor: "rgb(1, 44, 97)",
+            color: "white",
+            position: "fixed", // Keeps it fixed
+            top: "5.5rem", // Height of the Navbar
+            bottom: "0", // Extend to the bottom of the viewport
+            left: 0, // Aligns to the left of the viewport
+            height: "calc(100vh - 5.5rem)", // Full height minus navbar
+            zIndex: 50, // Ensures it stays above the content
+          }}
+        >
+          {/* Sidebar Toggle Button */}
+          <div className="flex justify-end p-4">
+            <button
+              onClick={toggleSidebar}
+              className="p-2 text-white hover:bg-gray-800 rounded-md"
             >
-              <div className="flex items-center justify-center w-6 h-6">
-                <Table2 size={20} />
-              </div>
-              <span
-                className={`ml-4 font-semibold transition-opacity duration-300 ease-in-out flex-grow ${
-                  isSidebarCollapsed ? "opacity-0 invisible" : "opacity-100 visible"
-                }`}
-                style={{ whiteSpace: "nowrap" }}
-              >
-                Dashboard
-              </span>
-            </Link>
-          </li>
-          <li className="group">
-            <Link
-              href="/state-rate-comparison"
-              onClick={() => setActiveTab("stateRateComparison")}
-              className={`flex items-center p-4 hover:bg-gray-200/20 transition-colors cursor-pointer ${
-                activeTab === "stateRateComparison" ? "bg-gray-200/20" : ""
-              }`}
-            >
-              <div className="flex items-center justify-center w-6 h-6">
-                <ChartColumnStacked size={20} />
-              </div>
-              <span
-                className={`ml-4 font-semibold transition-opacity duration-300 ease-in-out flex-grow ${
-                  isSidebarCollapsed ? "opacity-0 invisible" : "opacity-100 visible"
-                }`}
-                style={{ whiteSpace: "nowrap" }}
-              >
-                State Rate Comparison
-              </span>
-            </Link>
-          </li>
-          <li className="group">
-            <Link
-              href="/historical-rates"
-              onClick={() => setActiveTab("historicalRates")}
-              className={`flex items-center p-4 hover:bg-gray-200/20 transition-colors cursor-pointer ${
-                activeTab === "historicalRates" ? "bg-gray-200/20" : ""
-              }`}
-            >
-              <div className="flex items-center justify-center w-6 h-6">
-                <ChartLine size={20} />
-              </div>
-              <span
-                className={`ml-4 font-semibold transition-opacity duration-300 ease-in-out flex-grow ${
-                  isSidebarCollapsed ? "opacity-0 invisible" : "opacity-100 visible"
-                }`}
-                style={{ whiteSpace: "nowrap" }}
-              >
-                Rate History
-              </span>
-            </Link>
-          </li>
-          {[
-            {
-              tab: "rateDevelopments",
-              icon: <Megaphone size={20} />,
-              label: "Rate Developments",
-              href: "/rate-developments",
-            },
-            {
-              tab: "settings",
-              icon: <Settings size={20} />,
-              label: "Settings",
-              href: "/settings",
-            },
-          ].map(({ tab, icon, label, href }) => (
-            <li key={tab} className="group">
-              <Link
-                href={href}
-                onClick={() => setActiveTab(tab)}
-                className={`flex items-center p-4 hover:bg-gray-200/20 transition-colors cursor-pointer ${
-                  activeTab === tab ? "bg-gray-200/20" : ""
-                }`}
-              >
-                {/* Icon Section */}
-                <div className="flex items-center justify-center w-6 h-6">{icon}</div>
-                {/* Label Section */}
-                <span
-                  className={`ml-4 font-semibold transition-opacity duration-300 ease-in-out flex-grow ${
-                    isSidebarCollapsed ? "opacity-0 invisible" : "opacity-100 visible"
+              {isClientSide ? (isSidebarCollapsed ? <Menu size={20} /> : <X size={20} />) : <Menu size={20} />}
+            </button>
+          </div>
+
+          {/* Navigation Links */}
+          <nav className="mt-6">
+            <ul className="space-y-2">
+              <li className="group">
+                <Link
+                  href="/dashboard"
+                  onClick={() => setActiveTab("dashboard")}
+                  className={`flex items-center p-4 hover:bg-gray-200/20 transition-colors cursor-pointer ${
+                    activeTab === "dashboard" ? "bg-gray-200/20" : ""
                   }`}
-                  style={{ whiteSpace: "nowrap" }} // Prevents wrapping of text
                 >
-                  {label}
-                </span>
-              </Link>
-            </li>
-          ))}
-          
-          {/* Admin Dashboard - Only show if user is admin */}
-          {(() => {
-            console.log("[Sidenav] Render: isAdmin=", isAdmin, "adminCheckComplete=", adminCheckComplete);
-            return adminCheckComplete && isAdmin;
-          })() && (
-            <li className="group">
-              <Link
-                href="/admin-dashboard"
-                onClick={() => setActiveTab("adminDashboard")}
-                className={`flex items-center p-4 hover:bg-gray-200/20 transition-colors cursor-pointer ${
-                  activeTab === "adminDashboard" ? "bg-gray-200/20" : ""
-                }`}
-              >
-                <div className="flex items-center justify-center w-6 h-6">
-                  <Shield size={20} />
-                </div>
-                <span
-                  className={`ml-4 font-semibold transition-opacity duration-300 ease-in-out flex-grow ${
-                    isSidebarCollapsed ? "opacity-0 invisible" : "opacity-100 visible"
+                  <div className="flex items-center justify-center w-6 h-6">
+                    <Table2 size={20} />
+                  </div>
+                  <span
+                    className={`ml-4 font-semibold transition-opacity duration-300 ease-in-out flex-grow ${
+                      isSidebarCollapsed ? "opacity-0 invisible" : "opacity-100 visible"
+                    }`}
+                    style={{ whiteSpace: "nowrap" }}
+                  >
+                    Dashboard
+                  </span>
+                </Link>
+              </li>
+              <li className="group">
+                <Link
+                  href="/state-rate-comparison"
+                  onClick={() => setActiveTab("stateRateComparison")}
+                  className={`flex items-center p-4 hover:bg-gray-200/20 transition-colors cursor-pointer ${
+                    activeTab === "stateRateComparison" ? "bg-gray-200/20" : ""
                   }`}
-                  style={{ whiteSpace: "nowrap" }}
                 >
-                  Admin Dashboard
-                </span>
-              </Link>
-            </li>
-          )}
-        </ul>
-      </nav>
-    </aside>
+                  <div className="flex items-center justify-center w-6 h-6">
+                    <ChartColumnStacked size={20} />
+                  </div>
+                  <span
+                    className={`ml-4 font-semibold transition-opacity duration-300 ease-in-out flex-grow ${
+                      isSidebarCollapsed ? "opacity-0 invisible" : "opacity-100 visible"
+                    }`}
+                    style={{ whiteSpace: "nowrap" }}
+                  >
+                    State Rate Comparison
+                  </span>
+                </Link>
+              </li>
+              <li className="group">
+                <Link
+                  href="/historical-rates"
+                  onClick={() => setActiveTab("historicalRates")}
+                  className={`flex items-center p-4 hover:bg-gray-200/20 transition-colors cursor-pointer ${
+                    activeTab === "historicalRates" ? "bg-gray-200/20" : ""
+                  }`}
+                >
+                  <div className="flex items-center justify-center w-6 h-6">
+                    <ChartLine size={20} />
+                  </div>
+                  <span
+                    className={`ml-4 font-semibold transition-opacity duration-300 ease-in-out flex-grow ${
+                      isSidebarCollapsed ? "opacity-0 invisible" : "opacity-100 visible"
+                    }`}
+                    style={{ whiteSpace: "nowrap" }}
+                  >
+                    Rate History
+                  </span>
+                </Link>
+              </li>
+              {[
+                {
+                  tab: "rateDevelopments",
+                  icon: <Megaphone size={20} />,
+                  label: "Rate Developments",
+                  href: "/rate-developments",
+                },
+                {
+                  tab: "settings",
+                  icon: <Settings size={20} />,
+                  label: "Settings",
+                  href: "/settings",
+                },
+              ].map(({ tab, icon, label, href }) => (
+                <li key={tab} className="group">
+                  <Link
+                    href={href}
+                    onClick={() => setActiveTab(tab)}
+                    className={`flex items-center p-4 hover:bg-gray-200/20 transition-colors cursor-pointer ${
+                      activeTab === tab ? "bg-gray-200/20" : ""
+                    }`}
+                  >
+                    {/* Icon Section */}
+                    <div className="flex items-center justify-center w-6 h-6">{icon}</div>
+                    {/* Label Section */}
+                    <span
+                      className={`ml-4 font-semibold transition-opacity duration-300 ease-in-out flex-grow ${
+                        isSidebarCollapsed ? "opacity-0 invisible" : "opacity-100 visible"
+                      }`}
+                      style={{ whiteSpace: "nowrap" }} // Prevents wrapping of text
+                    >
+                      {label}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+              
+              {/* Admin Dashboard - Only show if user is admin */}
+              {(() => {
+                console.log("[Sidenav] Render: isAdmin=", isAdmin, "adminCheckComplete=", adminCheckComplete);
+                return adminCheckComplete && isAdmin;
+              })() && (
+                <li className="group">
+                  <div className="flex items-center w-full p-4 hover:bg-gray-200/20 transition-colors cursor-pointer">
+                    {/* Shield icon and label as a link */}
+                    <Link
+                      href="/admin-dashboard"
+                      onClick={() => setActiveTab("adminDashboard")}
+                      className={`flex items-center flex-grow min-w-0 ${
+                        pathname === "/admin-dashboard" ? "font-bold text-white" : ""
+                      }`}
+                      style={{ textDecoration: "none" }}
+                    >
+                      <div className="flex items-center justify-center w-6 h-6">
+                        <Shield size={20} />
+                      </div>
+                      <span
+                        className={`ml-4 font-semibold transition-opacity duration-300 ease-in-out flex-grow truncate ${
+                          isSidebarCollapsed ? "opacity-0 invisible" : "opacity-100 visible"
+                        }`}
+                        style={{ whiteSpace: "nowrap" }}
+                      >
+                        Admin Dashboard
+                      </span>
+                    </Link>
+                    {/* Chevron toggles submenu */}
+                    <button
+                      type="button"
+                      onClick={() => setAdminMenuOpen((open) => !open)}
+                      className="ml-2 p-1 focus:outline-none bg-transparent text-white hover:text-blue-200"
+                      tabIndex={0}
+                      aria-label="Toggle Admin Dashboard submenu"
+                    >
+                      {adminMenuOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                    </button>
+                  </div>
+                  {/* Rate Developments Submenu */}
+                  {adminMenuOpen && !isSidebarCollapsed && (
+                    <ul className="ml-8 mt-1 space-y-1 bg-blue-900/80 rounded-lg py-2 shadow-lg">
+                      <li>
+                        <button
+                          type="button"
+                          onClick={() => setRateDevMenuOpen((open) => !open)}
+                          className={`flex items-center w-full px-4 py-2 rounded-md transition-all duration-200 focus:outline-none mb-1 ${
+                            pathname.startsWith("/admin-dashboard/rate-developments")
+                              ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold shadow"
+                              : "text-blue-100 hover:bg-blue-800/80 hover:text-white"
+                          }`}
+                        >
+                          <Megaphone size={18} className="mr-2" />
+                          <span className="ml-1">Rate Developments</span>
+                          <span className="ml-auto">
+                            {rateDevMenuOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                          </span>
+                        </button>
+                        {/* Third-level submenu */}
+                        {rateDevMenuOpen && (
+                          <ul className="ml-4 mt-1 space-y-1">
+                            {adminRateDevLinks.map((link) => (
+                              <li key={link.href}>
+                                <Link
+                                  href={link.href}
+                                  onClick={() => setActiveTab("adminDashboard")}
+                                  className={`flex items-center px-4 py-2 rounded-md transition-all duration-200 ml-2 text-sm ${
+                                    pathname === link.href
+                                      ? "bg-gradient-to-r from-purple-500 to-blue-500 text-white font-bold shadow"
+                                      : "text-blue-100 hover:bg-blue-800/80 hover:text-white"
+                                  }`}
+                                >
+                                  {link.icon}
+                                  <span className="ml-2">{link.label}</span>
+                                </Link>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </li>
+                    </ul>
+                  )}
+                </li>
+              )}
+            </ul>
+          </nav>
+        </aside>
+      ) : (
+        // Server-side placeholder to prevent layout shift
+        <aside
+          className="transition-all duration-500 ease-in-out shadow-lg w-64"
+          style={{
+            backgroundColor: "rgb(1, 44, 97)",
+            color: "white",
+            position: "fixed",
+            top: "5.5rem",
+            bottom: "0",
+            left: 0,
+            height: "calc(100vh - 5.5rem)",
+            zIndex: 50,
+          }}
+        />
+      )}
+    </>
   );
 };
 
