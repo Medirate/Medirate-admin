@@ -5,6 +5,7 @@ import SideNav from "@/app/components/sidenav";
 import Footer from "@/app/components/footer";
 import CodeDefinitionsIcon from "@/app/components/CodeDefinitionsIcon";
 import TermsModal from "@/app/components/TermsModal";
+import { Analytics } from "@vercel/analytics/next";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -77,6 +78,7 @@ const AppLayout = ({ children, activeTab }: AppLayoutProps) => {
       <Footer />
 
       <div id="datepicker-portal" style={{ zIndex: 3000 }} />
+      <Analytics />
     </div>
   );
 };
