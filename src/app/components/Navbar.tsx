@@ -106,6 +106,8 @@ const Navbar = () => {
     "/rate-developments",
     "/email-preferences",
     "/state-rate-comparison",
+    "/state-rate-comparison/all",
+    "/state-rate-comparison/individual",
     "/historical-rates",
     "/admin-dashboard",
     "/admin-dashboard/rate-developments",

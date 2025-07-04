@@ -57,6 +57,7 @@ const SideNav = ({
   const [adminCheckComplete, setAdminCheckComplete] = useState(false);
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
   const [rateDevMenuOpen, setRateDevMenuOpen] = useState(false);
+  const [rateComparisonMenuOpen, setRateComparisonMenuOpen] = useState(false);
 
   // Check admin access
   const checkAdminAccess = async () => {
@@ -137,6 +138,13 @@ const SideNav = ({
     }
   }, [pathname]);
 
+  // Auto-expand submenu if on a subpage
+  useEffect(() => {
+    if (pathname.startsWith("/state-rate-comparison/all") || pathname.startsWith("/state-rate-comparison/individual")) {
+      setRateComparisonMenuOpen(true);
+    }
+  }, [pathname]);
+
   return (
     <>
       {/* Only render sidebar on client to avoid hydration mismatch */}
@@ -190,13 +198,16 @@ const SideNav = ({
                   </span>
                 </Link>
               </li>
+              {/* State Rate Comparison with submenu */}
               <li className="group">
                 <Link
                   href="/state-rate-comparison"
-                  onClick={() => setActiveTab("stateRateComparison")}
-                  className={`flex items-center p-4 hover:bg-gray-200/20 transition-colors cursor-pointer ${
-                    activeTab === "stateRateComparison" ? "bg-gray-200/20" : ""
+                  onClick={() => setRateComparisonMenuOpen(open => !open)}
+                  className={`flex items-center w-full p-4 hover:bg-gray-200/20 transition-colors cursor-pointer focus:outline-none ${
+                    pathname.startsWith("/state-rate-comparison") ? "bg-gray-200/20" : ""
                   }`}
+                  aria-expanded={rateComparisonMenuOpen}
+                  aria-controls="state-rate-comparison-submenu"
                 >
                   <div className="flex items-center justify-center w-6 h-6">
                     <ChartColumnStacked size={20} />
@@ -209,7 +220,40 @@ const SideNav = ({
                   >
                     State Rate Comparison
                   </span>
+                  <span className="ml-auto">
+                    {rateComparisonMenuOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                  </span>
                 </Link>
+                {rateComparisonMenuOpen && !isSidebarCollapsed && (
+                  <ul id="state-rate-comparison-submenu" className="ml-8 mt-1 space-y-1 bg-blue-900/80 rounded-lg py-2 shadow-lg">
+                    <li>
+                      <Link
+                        href="/state-rate-comparison/all"
+                        onClick={() => setActiveTab("stateRateComparison")}
+                        className={`flex items-center px-4 py-2 rounded-md transition-all duration-200 text-sm ${
+                          pathname === "/state-rate-comparison/all"
+                            ? "bg-gradient-to-r from-blue-500 to-blue-700 text-white font-bold shadow"
+                            : "text-blue-100 hover:bg-blue-800/80 hover:text-white"
+                        }`}
+                      >
+                        Compare All States
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        href="/state-rate-comparison/individual"
+                        onClick={() => setActiveTab("stateRateComparison")}
+                        className={`flex items-center px-4 py-2 rounded-md transition-all duration-200 text-sm ${
+                          pathname === "/state-rate-comparison/individual"
+                            ? "bg-gradient-to-r from-blue-500 to-blue-700 text-white font-bold shadow"
+                            : "text-blue-100 hover:bg-blue-800/80 hover:text-white"
+                        }`}
+                      >
+                        Compare Individual States
+                      </Link>
+                    </li>
+                  </ul>
+                )}
               </li>
               <li className="group">
                 <Link
