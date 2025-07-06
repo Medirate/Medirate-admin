@@ -146,10 +146,10 @@ export const DataTable = ({
 
       return (
         <div key={filterIndex} className="mb-8 overflow-hidden rounded-lg shadow-lg">
-          {!hideStateHeading &&
-            Object.keys(groupedByState).length === 1 &&
+          {/* Only show the state heading above the table if there is exactly one state */}
+          {!hideStateHeading && Object.keys(groupedByState).length === 1 && (
             <div className="font-lemonMilkRegular text-lg text-[#012C61] mb-2 mt-4">{Object.keys(groupedByState)[0]}</div>
-          }
+          )}
           {!hideNumberBadge && Object.keys(groupedByState).length > 0 && (
             <div className="bg-[#012C61] text-white px-6 py-3 flex items-center">
               <div className="bg-white text-[#012C61] rounded-full w-6 h-6 flex items-center justify-center font-bold">
@@ -159,7 +159,8 @@ export const DataTable = ({
           )}
           {Object.entries(groupedByState).map(([state, items]) => (
             <div key={state} className="mb-8">
-              {!hideStateHeading && (
+              {/* Only show the state heading above each group if there are multiple states */}
+              {!hideStateHeading && Object.keys(groupedByState).length > 1 && (
                 <div className="font-lemonMilkRegular text-lg text-[#012C61] mb-2 mt-4">{state}</div>
               )}
               <div className="overflow-x-auto max-h-[500px] overflow-y-auto">

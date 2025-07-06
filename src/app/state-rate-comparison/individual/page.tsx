@@ -1132,11 +1132,39 @@ export default function StatePaymentComparison() {
         const stateKey = state.trim().toUpperCase();
         const selected = allStatesSelectedRows[stateKey];
         if (selected && selected.row && selected.row.rate) {
-          return { value: parseFloat((selected.row.rate || '').replace(/[^\d.-]/g, '')), color: 'green' };
+          return { 
+            state: state,
+            value: parseFloat((selected.row.rate || '').replace(/[^\d.-]/g, '')), 
+            color: 'green' 
+          };
         }
         const avg = avgMap.get(stateKey);
-        return typeof avg === 'number' && !isNaN(avg) ? { value: avg, color: '#36A2EB' } : { value: undefined, color: '#36A2EB' };
+        return { 
+          state: state,
+          value: typeof avg === 'number' && !isNaN(avg) ? avg : undefined, 
+          color: '#36A2EB' 
+        };
       });
+
+      // Sort the data based on sortOrder
+      let sortedChartData = [...chartData];
+      if (sortOrder === 'asc') {
+        sortedChartData.sort((a, b) => {
+          const aValue = a.value || 0;
+          const bValue = b.value || 0;
+          return aValue - bValue;
+        });
+      } else if (sortOrder === 'desc') {
+        sortedChartData.sort((a, b) => {
+          const aValue = a.value || 0;
+          const bValue = b.value || 0;
+          return bValue - aValue;
+        });
+      }
+
+      const sortedStatesList = sortedChartData.map(item => item.state);
+      const sortedValues = sortedChartData.map(item => item.value);
+      const sortedColors = sortedChartData.map(item => item.color);
       return {
         legend: { show: false },
         barCategoryGap: '50%', // More gap between bars
@@ -1177,7 +1205,7 @@ export default function StatePaymentComparison() {
         },
         xAxis: {
           type: 'category',
-          data: statesList,
+          data: sortedStatesList,
           axisLabel: { rotate: 45, fontSize: 10 }
         },
         yAxis: {
@@ -1192,9 +1220,9 @@ export default function StatePaymentComparison() {
           barWidth: 24, // Fixed pixel width for bars
           barGap: '30%', // More gap between each bar
           itemStyle: {
-            color: (params: any) => chartData[params.dataIndex]?.color || '#36A2EB'
+            color: (params: any) => sortedColors[params.dataIndex] || '#36A2EB'
           },
-          data: chartData.map(d => d.value),
+          data: sortedValues,
           label: {
             show: true,
             position: 'top',
@@ -1224,64 +1252,88 @@ export default function StatePaymentComparison() {
       };
     }
     // Multi-select/table-driven chart logic
-    const states = Object.keys(selectedEntries);
-    if (states.length === 0) {
-      return {
-        legend: { show: false },
-        tooltip: { show: false },
-        xAxis: { type: 'category', data: [] },
-        yAxis: { type: 'value', name: showRatePerHour ? 'Rate ($ per hour)' : 'Rate ($ per base unit)' },
-        series: [],
-        grid: { containLabel: true }
-      };
-    }
-    // Get all unique modifier keys across all states
-    const allModifierKeys = new Set<string>();
-    states.forEach(state => {
-      selectedEntries[state].forEach(item => {
-        const modifierKey = [
-          item.modifier_1?.trim().toUpperCase() || '',
-          item.modifier_2?.trim().toUpperCase() || '',
-          item.modifier_3?.trim().toUpperCase() || '',
-          item.modifier_4?.trim().toUpperCase() || '',
-          item.program?.trim().toUpperCase() || '',
-          item.location_region?.trim().toUpperCase() || ''
-        ].join('|');
-        allModifierKeys.add(modifierKey);
-      });
-    });
-    const modifierKeys = Array.from(allModifierKeys);
-    const xAxisData: string[] = states;
-    const series = modifierKeys.map((modifierKey, index) => {
-      const data = xAxisData.map(state => {
-        const stateEntries = selectedEntries[state] || [];
-        const matchingEntry = stateEntries.find(item => {
-          const itemModifierKey = [
-            item.modifier_1?.trim().toUpperCase() || '',
-            item.modifier_2?.trim().toUpperCase() || '',
-            item.modifier_3?.trim().toUpperCase() || '',
-            item.modifier_4?.trim().toUpperCase() || '',
-            item.program?.trim().toUpperCase() || '',
-            item.location_region?.trim().toUpperCase() || ''
-          ].join('|');
-          return itemModifierKey === modifierKey;
-        });
-        if (!matchingEntry) return 0; // Always return 0 for missing
-        let rateValue = parseFloat(matchingEntry.rate?.replace('$', '') || '0');
-        const durationUnit = matchingEntry.duration_unit?.toUpperCase();
+    const allSelectedEntries: { label: string; value: number; color: string; entry: ServiceData }[] = [];
+    Object.entries(selectedEntries).forEach(([state, entries]) => {
+      entries.forEach((item, idx) => {
+        let rateValue = parseFloat(item.rate?.replace('$', '') || '0');
+        const durationUnit = item.duration_unit?.toUpperCase();
         if (showRatePerHour) {
           if (durationUnit === '15 MINUTES') rateValue *= 4;
           else if (durationUnit === '30 MINUTES') rateValue *= 2;
           else if (durationUnit !== 'PER HOUR') rateValue = 0;
         }
-        return Math.round(rateValue * 100) / 100;
+        // Label: State - Service Code - Modifiers (customize as needed)
+        const label = [
+          item.state_name,
+          item.service_code,
+          item.modifier_1,
+          item.modifier_2,
+          item.modifier_3,
+          item.modifier_4,
+          item.program,
+          item.location_region
+        ].filter(Boolean).join(' | ');
+        allSelectedEntries.push({
+          label,
+          value: Math.round(rateValue * 100) / 100,
+          color: chartJsColors[idx % chartJsColors.length],
+          entry: item
+        });
       });
-      return {
-        name: modifierKey || 'No Modifiers',
+    });
+    // Sort all bars by rate if needed
+    let sortedEntries = [...allSelectedEntries];
+    if (sortOrder === 'asc') {
+      sortedEntries.sort((a, b) => a.value - b.value);
+    } else if (sortOrder === 'desc') {
+      sortedEntries.sort((a, b) => b.value - a.value);
+    }
+    // Chart config
+    return {
+      legend: { show: false },
+      tooltip: {
+        trigger: 'item',
+        formatter: (params: any) => {
+          const entry = sortedEntries[params.dataIndex]?.entry;
+          if (!entry) return '';
+          let result = `<strong>State:</strong> ${entry.state_name}<br/>`;
+          result += `<strong>Service Code:</strong> ${entry.service_code}<br/>`;
+          result += `<strong>Rate:</strong> $${params.value.toFixed(2)}<br/>`;
+          if (entry.service_description) result += `<strong>Description:</strong> ${entry.service_description}<br/>`;
+          if (entry.program) result += `<strong>Program:</strong> ${entry.program}<br/>`;
+          if (entry.location_region) result += `<strong>Region:</strong> ${entry.location_region}<br/>`;
+          if (entry.provider_type) result += `<strong>Provider:</strong> ${entry.provider_type}<br/>`;
+          if (entry.duration_unit) result += `<strong>Unit:</strong> ${entry.duration_unit}<br/>`;
+          if (entry.rate_effective_date) result += `<strong>Effective:</strong> ${new Date(entry.rate_effective_date).toLocaleDateString()}<br/>`;
+          const modifiers = [];
+          if (entry.modifier_1) modifiers.push(`Mod 1: ${entry.modifier_1}${entry.modifier_1_details ? ` (${entry.modifier_1_details})` : ''}`);
+          if (entry.modifier_2) modifiers.push(`Mod 2: ${entry.modifier_2}${entry.modifier_2_details ? ` (${entry.modifier_2_details})` : ''}`);
+          if (entry.modifier_3) modifiers.push(`Mod 3: ${entry.modifier_3}${entry.modifier_3_details ? ` (${entry.modifier_3_details})` : ''}`);
+          if (entry.modifier_4) modifiers.push(`Mod 4: ${entry.modifier_4}${entry.modifier_4_details ? ` (${entry.modifier_4_details})` : ''}`);
+          if (modifiers.length > 0) result += `<strong>Modifiers:</strong><br/>${modifiers.join('<br/>')}`;
+          return result;
+        }
+      },
+      xAxis: {
+        type: 'category',
+        data: sortedEntries.map(e => e.label),
+        axisLabel: { rotate: 45, fontSize: 10 },
+        axisTick: { show: false }
+      },
+      yAxis: {
+        type: 'value',
+        name: showRatePerHour ? 'Rate ($ per hour)' : 'Rate ($ per base unit)',
+        nameLocation: 'middle',
+        nameGap: 30
+      },
+      series: [{
+        name: 'Rate',
         type: 'bar',
         barGap: '0%',
-        data: data,
-        itemStyle: { color: chartJsColors[index % chartJsColors.length] },
+        data: sortedEntries.map(e => e.value),
+        itemStyle: {
+          color: (params: any) => sortedEntries[params.dataIndex]?.color || '#36A2EB'
+        },
         label: {
           show: true,
           position: 'top',
@@ -1293,84 +1345,7 @@ export default function StatePaymentComparison() {
         emphasis: {
           focus: 'series'
         }
-      };
-    });
-    return {
-      legend: { show: false },
-      tooltip: {
-        trigger: 'item',
-        formatter: (params: any) => {
-          const state = params.name;
-          const seriesName = params.seriesName;
-          const value = params.value;
-          if (value <= 0) return '';
-          const stateEntries = selectedEntries[state] || [];
-          const matchingEntry = stateEntries.find(item => {
-            const itemModifierKey = [
-              item.modifier_1?.trim().toUpperCase() || '',
-              item.modifier_2?.trim().toUpperCase() || '',
-              item.modifier_3?.trim().toUpperCase() || '',
-              item.modifier_4?.trim().toUpperCase() || '',
-              item.program?.trim().toUpperCase() || '',
-              item.location_region?.trim().toUpperCase() || ''
-            ].join('|');
-            return itemModifierKey === seriesName;
-          });
-          let result = `<strong>State:</strong> ${state}<br/>`;
-          result += `<strong>Series:</strong> ${seriesName}<br/>`;
-          result += `<strong>Rate:</strong> $${value.toFixed(2)}<br/>`;
-          if (matchingEntry) {
-            if (matchingEntry.service_description) {
-              result += `<strong>Description:</strong> ${matchingEntry.service_description}<br/>`;
-            }
-            if (matchingEntry.program) {
-              result += `<strong>Program:</strong> ${matchingEntry.program}<br/>`;
-            }
-            if (matchingEntry.location_region) {
-              result += `<strong>Region:</strong> ${matchingEntry.location_region}<br/>`;
-            }
-            if (matchingEntry.provider_type) {
-              result += `<strong>Provider:</strong> ${matchingEntry.provider_type}<br/>`;
-            }
-            if (matchingEntry.duration_unit) {
-              result += `<strong>Unit:</strong> ${matchingEntry.duration_unit}<br/>`;
-            }
-            if (matchingEntry.rate_effective_date) {
-              result += `<strong>Effective:</strong> ${new Date(matchingEntry.rate_effective_date).toLocaleDateString()}<br/>`;
-            }
-            const modifiers = [];
-            if (matchingEntry.modifier_1) {
-              modifiers.push(`Mod 1: ${matchingEntry.modifier_1}${matchingEntry.modifier_1_details ? ` (${matchingEntry.modifier_1_details})` : ''}`);
-            }
-            if (matchingEntry.modifier_2) {
-              modifiers.push(`Mod 2: ${matchingEntry.modifier_2}${matchingEntry.modifier_2_details ? ` (${matchingEntry.modifier_2_details})` : ''}`);
-            }
-            if (matchingEntry.modifier_3) {
-              modifiers.push(`Mod 3: ${matchingEntry.modifier_3}${matchingEntry.modifier_3_details ? ` (${matchingEntry.modifier_3_details})` : ''}`);
-            }
-            if (matchingEntry.modifier_4) {
-              modifiers.push(`Mod 4: ${matchingEntry.modifier_4}${matchingEntry.modifier_4_details ? ` (${matchingEntry.modifier_4_details})` : ''}`);
-            }
-            if (modifiers.length > 0) {
-              result += `<strong>Modifiers:</strong><br/>${modifiers.join('<br/>')}`;
-            }
-          }
-          return result;
-        }
-      },
-      xAxis: {
-        type: 'category',
-        data: xAxisData,
-        axisLabel: { rotate: 45, fontSize: 10 },
-        axisTick: { show: false }
-      },
-      yAxis: {
-        type: 'value',
-        name: showRatePerHour ? 'Rate ($ per hour)' : 'Rate ($ per base unit)',
-        nameLocation: 'middle',
-        nameGap: 30
-      },
-      series: series,
+      }],
       barCategoryGap: '10%',
       grid: {
         containLabel: true,
@@ -1380,7 +1355,7 @@ export default function StatePaymentComparison() {
         top: '15%'
       }
     };
-  }, [selectedEntries, showRatePerHour, isAllStatesSelected, filterSets, allStatesAverages, filterOptions.states, allStatesSelectedRows]);
+  }, [selectedEntries, showRatePerHour, isAllStatesSelected, filterSets, allStatesAverages, filterOptions.states, allStatesSelectedRows, sortOrder]);
 
   const ChartWithErrorBoundary = () => {
     try {
@@ -2286,9 +2261,57 @@ export default function StatePaymentComparison() {
                         ))}
           </div>
         )}
+                    
+                    {/* Chart Sorting Controls */}
+                    <div className="mb-4 flex items-center justify-between bg-white p-4 rounded-lg shadow-sm border">
+                      <div className="text-xs text-gray-500">
+                        {sortOrder === 'default' && 'Original order'}
+                        {sortOrder === 'asc' && 'Sorted by rate (lowest first)'}
+                        {sortOrder === 'desc' && 'Sorted by rate (highest first)'}
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-sm font-medium text-gray-700">Sort Chart:</span>
+                        <div className="flex items-center bg-gray-100 rounded-full p-1 transition-all" style={{ minWidth: 220 }}>
+                          <button
+                            onClick={() => setSortOrder('default')}
+                            className={`px-4 py-1 rounded-full text-sm font-semibold focus:outline-none transition-all duration-150 ${
+                              sortOrder === 'default'
+                                ? 'bg-white text-blue-600 shadow font-bold'
+                                : 'bg-transparent text-gray-600 hover:text-blue-600'
+                            }`}
+                            style={{ minWidth: 80 }}
+                          >
+                            Default
+                          </button>
+                          <button
+                            onClick={() => setSortOrder('asc')}
+                            className={`px-4 py-1 rounded-full text-sm font-semibold focus:outline-none transition-all duration-150 ${
+                              sortOrder === 'asc'
+                                ? 'bg-white text-green-600 shadow font-bold'
+                                : 'bg-transparent text-gray-600 hover:text-green-600'
+                            }`}
+                            style={{ minWidth: 80 }}
+                          >
+                            Low → High
+                          </button>
+                          <button
+                            onClick={() => setSortOrder('desc')}
+                            className={`px-4 py-1 rounded-full text-sm font-semibold focus:outline-none transition-all duration-150 ${
+                              sortOrder === 'desc'
+                                ? 'bg-white text-red-600 shadow font-bold'
+                                : 'bg-transparent text-gray-600 hover:text-red-600'
+                            }`}
+                            style={{ minWidth: 80 }}
+                          >
+                            High → Low
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    
                     {/* Chart component */}
             <ReactECharts
-                      key={`${isAllStatesSelected ? 'all-states-' : 'selected-'}${JSON.stringify(Object.keys(selectedEntries).sort())}-${chartRefreshKey}-${allStatesAverages ? allStatesAverages.length : 0}`}
+                      key={`${isAllStatesSelected ? 'all-states-' : 'selected-'}${JSON.stringify(Object.keys(selectedEntries).sort())}-${chartRefreshKey}-${allStatesAverages ? allStatesAverages.length : 0}-${sortOrder}`}
                       option={echartOptions}
               style={{ height: '400px', width: '100%' }}
             />

@@ -11,6 +11,11 @@ interface DataTableProps {
   selectedEntries: { [state: string]: ServiceData[] };
   hideNumberBadge?: boolean;
   hideStateHeading?: boolean;
+  // New props for average calculation
+  stateAverageEntries?: ServiceData[];
+  stateSelectedForAverage?: Set<string>;
+  onAverageEntrySelection?: (item: ServiceData) => void;
+  isAverageCalculationMode?: boolean;
 }
 
 const ITEMS_PER_PAGE = 25;
@@ -24,7 +29,12 @@ export const DataTable = ({
   formatText,
   selectedEntries,
   hideNumberBadge = false,
-  hideStateHeading = false
+  hideStateHeading = false,
+  // New props for average calculation
+  stateAverageEntries = [],
+  stateSelectedForAverage = new Set(),
+  onAverageEntrySelection,
+  isAverageCalculationMode = false
 }: DataTableProps) => {
   // Track current page for each filter set
   const [currentPages, setCurrentPages] = useState<{ [filterIndex: number]: number }>({});
@@ -159,9 +169,21 @@ export const DataTable = ({
           )}
           {Object.entries(groupedByState).map(([state, items]) => (
             <div key={state} className="mb-8">
-              {!hideStateHeading && (
-                <div className="font-lemonMilkRegular text-lg text-[#012C61] mb-2 mt-4">{state}</div>
-              )}
+                        {!hideStateHeading && (
+            <div className="font-lemonMilkRegular text-lg text-[#012C61] mb-2 mt-4">{state}</div>
+          )}
+          {isAverageCalculationMode && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+              <div className="flex items-center">
+                <svg className="w-5 h-5 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                <span className="text-blue-700 font-medium">
+                  Average Calculation Mode: Click entries to include/exclude them from the state's average calculation
+                </span>
+              </div>
+            </div>
+          )}
               <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
                 <table className="min-w-full bg-white">
                   <thead className="bg-white sticky top-0 z-10 shadow">
@@ -216,25 +238,40 @@ export const DataTable = ({
                       const rowKey = getRowKey(item);
                       const selectedArr = selectedEntries[state] || [];
                       const isSelected = selectedArr.some(i => getRowKey(i) === rowKey);
+                      
+                      // For average calculation mode, check if this entry is selected for average
+                      const isSelectedForAverage = isAverageCalculationMode && stateSelectedForAverage.has(rowKey);
+                      
                       return (
                         <tr 
                           key={index} 
                           className={`group relative transition-all duration-200 ease-in-out cursor-pointer ${
-                            isSelected 
+                            isSelected || isSelectedForAverage
                               ? 'bg-blue-50 shadow-[0_0_0_1px_rgba(59,130,246,0.2)]' 
                               : 'hover:bg-gray-50 hover:shadow-[0_2px_4px_rgba(0,0,0,0.05)] hover:scale-[1.01] hover:z-10'
                           }`}
                           onClick={() => {
-                            onRowSelection(item.state_name?.trim(), item);
+                            if (isAverageCalculationMode && onAverageEntrySelection) {
+                              onAverageEntrySelection(item);
+                            } else {
+                              onRowSelection(item.state_name?.trim(), item);
+                            }
                           }}
                         >
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center space-x-2">
-                              {isSelected && (
+                              {(isSelected || isSelectedForAverage) && (
                                 <button
-                                  onClick={e => { e.stopPropagation(); onRowSelection(item.state_name?.trim(), item); }}
+                                  onClick={e => { 
+                                    e.stopPropagation(); 
+                                    if (isAverageCalculationMode && onAverageEntrySelection) {
+                                      onAverageEntrySelection(item);
+                                    } else {
+                                      onRowSelection(item.state_name?.trim(), item);
+                                    }
+                                  }}
                                   className="mr-1 p-0.5 rounded-full hover:bg-red-100 focus:outline-none"
-                                  title="Deselect"
+                                  title={isAverageCalculationMode ? "Remove from average calculation" : "Deselect"}
                                   style={{ lineHeight: 0 }}
                                 >
                                   <svg className="w-3 h-3 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -243,11 +280,11 @@ export const DataTable = ({
                                 </button>
                               )}
                               <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${
-                                isSelected 
+                                isSelected || isSelectedForAverage
                                   ? 'border-blue-500 bg-blue-500 shadow-[0_0_0_3px_rgba(59,130,246,0.2)]' 
                                   : 'border-gray-300 group-hover:border-blue-300 group-hover:shadow-[0_0_0_2px_rgba(59,130,246,0.1)]'
                               }`}>
-                                {isSelected && (
+                                {(isSelected || isSelectedForAverage) && (
                                   <svg 
                                     className="w-3 h-3 text-white transition-transform duration-200" 
                                     fill="none" 
@@ -354,7 +391,7 @@ export const DataTable = ({
         </div>
       );
     });
-  }, [filterSets, latestRates, selectedEntries, currentPages, onRowSelection, formatText]);
+  }, [filterSets, latestRates, selectedEntries, currentPages, onRowSelection, formatText, isAverageCalculationMode, stateSelectedForAverage, onAverageEntrySelection]);
 
   return tableContent;
 };

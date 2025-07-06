@@ -514,6 +514,10 @@ export default function StatePaymentComparison() {
   // Add state to track per-state pagination and per-state selected entry
   const [allStatesTablePages, setAllStatesTablePages] = useState<{ [state: string]: number }>({});
   const [allStatesSelectedRows, setAllStatesSelectedRows] = useState<{ [state: string]: any | null }>({});
+  // Add new state to track which entries contribute to each state's average
+  const [stateAverageEntries, setStateAverageEntries] = useState<{ [state: string]: ServiceData[] }>({});
+  // Add state to track which entries are selected for average calculation
+  const [stateSelectedForAverage, setStateSelectedForAverage] = useState<{ [state: string]: Set<string> }>({});
   const [pendingSearch, setPendingSearch] = useState(false);
   const [hasSearchedOnce, setHasSearchedOnce] = useState(false);
 
@@ -949,6 +953,56 @@ export default function StatePaymentComparison() {
       if (!res.ok) throw new Error('Failed to fetch state averages');
       const data = await res.json();
       setAllStatesAverages(data.stateAverages || []);
+      
+      // Also fetch the individual entries that contribute to each state's average
+      const entriesParams = new URLSearchParams();
+      entriesParams.append('serviceCategory', serviceCategory);
+      entriesParams.append('serviceCode', serviceCode);
+      entriesParams.append('itemsPerPage', '1000'); // Get all entries
+      
+      // Add all filter parameters from the first filter set
+      if (filterSets[0]) {
+        const filterSet = filterSets[0];
+        if (filterSet.program) entriesParams.append('program', filterSet.program);
+        if (filterSet.locationRegion) entriesParams.append('locationRegion', filterSet.locationRegion);
+        if (filterSet.providerType) entriesParams.append('providerType', filterSet.providerType);
+        if (filterSet.modifier) entriesParams.append('modifier', filterSet.modifier);
+        if (filterSet.serviceDescription) entriesParams.append('serviceDescription', filterSet.serviceDescription);
+        if (filterSet.durationUnit) entriesParams.append('durationUnit', filterSet.durationUnit);
+      }
+      
+      const entriesRes = await fetch(`/api/state-payment-comparison?${entriesParams.toString()}`);
+      if (entriesRes.ok) {
+        const entriesData = await entriesRes.json();
+        const entries = entriesData.data || [];
+        
+        // Group entries by state and find the latest entry for each state
+        const stateEntries: { [state: string]: ServiceData[] } = {};
+        const latestEntries: { [state: string]: ServiceData } = {};
+        
+        entries.forEach((entry: ServiceData) => {
+          const state = entry.state_name;
+          if (!stateEntries[state]) {
+            stateEntries[state] = [];
+          }
+          stateEntries[state].push(entry);
+          
+          // Track the latest entry for each state
+          if (!latestEntries[state] || new Date(entry.rate_effective_date) > new Date(latestEntries[state].rate_effective_date)) {
+            latestEntries[state] = entry;
+          }
+        });
+        
+        // Set the entries that contribute to each state's average
+        setStateAverageEntries(stateEntries);
+        
+        // Initialize selected entries for average calculation (all entries are selected by default)
+        const initialSelected: { [state: string]: Set<string> } = {};
+        Object.keys(stateEntries).forEach(state => {
+          initialSelected[state] = new Set(stateEntries[state].map(entry => getRowKey(entry)));
+        });
+        setStateSelectedForAverage(initialSelected);
+      }
     } catch (err) {
       setAllStatesAverages([]);
       console.error('Error fetching state averages:', err);
@@ -1103,6 +1157,42 @@ export default function StatePaymentComparison() {
     states.length,
   ]);
 
+  // Function to calculate average for a state based on selected entries
+  const calculateStateAverage = useCallback((state: string): number => {
+    const stateEntries = stateAverageEntries[state] || [];
+    const selectedKeys = stateSelectedForAverage[state] || new Set();
+    
+    if (stateEntries.length === 0 || selectedKeys.size === 0) {
+      return 0;
+    }
+    
+    const selectedEntries = stateEntries.filter(entry => selectedKeys.has(getRowKey(entry)));
+    if (selectedEntries.length === 0) {
+      return 0;
+    }
+    
+    const rates = selectedEntries.map(entry => {
+      let rateValue = parseFloat(entry.rate?.replace('$', '') || '0');
+      const durationUnit = entry.duration_unit?.toUpperCase();
+      
+      if (showRatePerHour) {
+        if (durationUnit === '15 MINUTES') {
+          rateValue *= 4;
+        } else if (durationUnit !== 'PER HOUR') {
+          rateValue = 0;
+        }
+      }
+      
+      return rateValue;
+    }).filter(rate => rate > 0);
+    
+    if (rates.length === 0) {
+      return 0;
+    }
+    
+    return rates.reduce((sum, rate) => sum + rate, 0) / rates.length;
+  }, [stateAverageEntries, stateSelectedForAverage, showRatePerHour]);
+
   // Add dynamic filtering logic (like dashboard) - moved here to fix declaration order
   function getAvailableOptionsForFilter(filterKey: keyof Selections) {
     if (!filterOptionsData || !filterOptionsData.combinations) return [];
@@ -1139,37 +1229,61 @@ export default function StatePaymentComparison() {
       const code = filterSets[0].serviceCode;
       // Only include states with a value (bar)
       const statesWithData = filterOptions.states.filter((state: any, idx: number) => {
-        const avgMap = new Map(
-          allStatesAverages.map(row => [row.state_name.trim().toUpperCase(), Number(row.avg_rate)])
-        );
-        const stateKey = state.trim().toUpperCase();
-        const avg = avgMap.get(stateKey);
+        const avg = calculateStateAverage(state);
         return typeof avg === 'number' && !isNaN(avg) && avg > 0;
       });
-      const avgMap = new Map(
-        allStatesAverages.map(row => [row.state_name.trim().toUpperCase(), Number(row.avg_rate)])
-      );
       const chartData = statesWithData.map((state: any) => {
         const stateKey = state.trim().toUpperCase();
         const selected = allStatesSelectedRows[stateKey];
-        if (selected && selected.row && selected.row.rate) {
-          return { value: parseFloat((selected.row.rate || '').replace(/[^\d.-]/g, '')), color: 'green' };
+        const avg = calculateStateAverage(state);
+        // Determine selection status
+        const allEntries = stateAverageEntries[state] || [];
+        const allKeys = allEntries.map(getRowKey);
+        const selectedSet = stateSelectedForAverage[state] || new Set();
+        const total = allKeys.length;
+        // Count how many of the ALL keys are in the selected set
+        let selectedCount = 0;
+        for (const key of allKeys) {
+          if (selectedSet.has(key)) selectedCount++;
         }
-        const avg = avgMap.get(stateKey);
-        return typeof avg === 'number' && !isNaN(avg) ? { value: avg, color: '#36A2EB' } : { value: undefined, color: '#36A2EB' };
+        let barColor = '#36A2EB'; // default blue
+        let selectionStatus = 'all';
+        if (selected && selected.row && selected.row.rate) {
+          barColor = 'green';
+          selectionStatus = 'custom';
+        } else if (selectedCount === 0) {
+          barColor = '#A0AEC0'; // gray for none
+          selectionStatus = 'none';
+        } else if (selectedCount > 0 && selectedCount < total) {
+          barColor = '#FFB347'; // muted orange for partial
+          selectionStatus = 'partial';
+        } else if (selectedCount === total) {
+          barColor = '#36A2EB'; // blue for all
+          selectionStatus = 'all';
+        }
+        return {
+          name: state, // Unique name for animation
+          value: selected && selected.row && selected.row.rate
+            ? parseFloat((selected.row.rate || '').replace(/[^\d.-]/g, ''))
+            : (typeof avg === 'number' && !isNaN(avg) ? avg : undefined),
+          itemStyle: { color: barColor },
+          selectionStatus,
+          selectedCount,
+          total
+        };
       });
       let sortedStatesWithData = [...statesWithData];
       let sortedChartData = [...chartData];
       if (sortOrder === 'asc') {
-        const zipped = sortedStatesWithData.map((state, i) => ({ state, value: sortedChartData[i].value, color: sortedChartData[i].color }));
+        const zipped = sortedStatesWithData.map((state, i) => ({ state, ...sortedChartData[i] }));
         zipped.sort((a, b) => (a.value ?? 0) - (b.value ?? 0));
         sortedStatesWithData = zipped.map(z => z.state);
-        sortedChartData = zipped.map(z => ({ value: z.value, color: z.color }));
+        sortedChartData = zipped.map(z => ({ name: z.state, value: z.value, itemStyle: z.itemStyle, selectionStatus: z.selectionStatus, selectedCount: z.selectedCount, total: z.total }));
       } else if (sortOrder === 'desc') {
-        const zipped = sortedStatesWithData.map((state, i) => ({ state, value: sortedChartData[i].value, color: sortedChartData[i].color }));
+        const zipped = sortedStatesWithData.map((state, i) => ({ state, ...sortedChartData[i] }));
         zipped.sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
         sortedStatesWithData = zipped.map(z => z.state);
-        sortedChartData = zipped.map(z => ({ value: z.value, color: z.color }));
+        sortedChartData = zipped.map(z => ({ name: z.state, value: z.value, itemStyle: z.itemStyle, selectionStatus: z.selectionStatus, selectedCount: z.selectedCount, total: z.total }));
       }
       return {
         legend: { show: false },
@@ -1211,10 +1325,14 @@ export default function StatePaymentComparison() {
             tooltipContent += `<strong>Rate:</strong> $${value?.toFixed(2)}<br/>`;
             tooltipContent += `<strong>Service Category:</strong> ${filterSets[0].serviceCategory}<br/>`;
             tooltipContent += `<strong>Service Code:</strong> ${code}<br/>`;
-            if (allStatesSelectedRows[state.trim().toUpperCase()] && allStatesSelectedRows[state.trim().toUpperCase()].row) {
+            if (params.data && params.data.selectionStatus === 'partial') {
+              tooltipContent += `<span style='color:#FFB347'><strong>Partial selection (${params.data.selectedCount} of ${params.data.total})</strong></span><br/>`;
+            } else if (params.data && params.data.selectionStatus === 'none') {
+              tooltipContent += `<span style='color:#A0AEC0'><strong>None selected</strong></span><br/>`;
+            } else if (params.data && params.data.selectionStatus === 'all') {
+              tooltipContent += `<span style='color:#36A2EB'><strong>All selected</strong></span><br/>`;
+            } else if (allStatesSelectedRows[state.trim().toUpperCase()] && allStatesSelectedRows[state.trim().toUpperCase()].row) {
               tooltipContent += `<span style='color:green'><strong>Selected Entry</strong></span><br/>`;
-            } else {
-              tooltipContent += `<span style='color:#36A2EB'><strong>Average</strong></span><br/>`;
             }
             return tooltipContent;
           }
@@ -1268,10 +1386,7 @@ export default function StatePaymentComparison() {
           type: 'bar',
           barWidth: 40, // Make bars thicker
           barGap: '2%', // Reduce gap between bars
-          itemStyle: {
-            color: (params: any) => sortedChartData[params.dataIndex]?.color || '#36A2EB'
-          },
-          data: sortedChartData.map(d => d.value),
+          data: sortedChartData,
           label: {
             show: true,
             position: 'top',
@@ -1286,7 +1401,9 @@ export default function StatePaymentComparison() {
           },
           animation: true,
           animationDuration: 1200,
-          animationEasing: 'elasticOut'
+          animationEasing: 'elasticOut',
+          animationDurationUpdate: 800,
+          animationEasingUpdate: 'cubicOut',
         }],
         grid: {
           containLabel: true,
@@ -1502,7 +1619,7 @@ export default function StatePaymentComparison() {
         top: '15%'
       }
     };
-  }, [selectedEntries, showRatePerHour, isAllStatesSelected, filterSets, allStatesAverages, filterOptions.states, allStatesSelectedRows, sortOrder]);
+  }, [selectedEntries, showRatePerHour, isAllStatesSelected, filterSets, allStatesAverages, filterOptions.states, allStatesSelectedRows, sortOrder, calculateStateAverage]);
 
   const ChartWithErrorBoundary = () => {
     try {
@@ -1569,11 +1686,8 @@ export default function StatePaymentComparison() {
     if (isAllStatesSelected && filterSets[0]?.serviceCode && allStatesAverages) {
       // Use the chartData for metrics (matches the bars shown)
       const statesList = filterOptions.states;
-      const avgMap = new Map(
-        allStatesAverages.map(row => [row.state_name.trim().toUpperCase(), Number(row.avg_rate)])
-      );
       const chartData = statesList.map((state: any) => {
-        const avg = avgMap.get(state.trim().toUpperCase());
+        const avg = calculateStateAverage(state);
         return typeof avg === 'number' && !isNaN(avg) ? avg : undefined;
       });
       return chartData.filter((rate: any): rate is number => typeof rate === 'number' && !isNaN(rate));
@@ -1592,7 +1706,7 @@ export default function StatePaymentComparison() {
         return rateValue;
       })
       .filter(rate => rate > 0);
-  }, [selectedEntries, showRatePerHour, isAllStatesSelected, filterSets, allStatesAverages, filterOptions.states]);
+  }, [selectedEntries, showRatePerHour, isAllStatesSelected, filterSets, allStatesAverages, filterOptions.states, calculateStateAverage]);
 
   const filteredRates = useMemo(
     () => selectedRates.filter((rate: any): rate is number => typeof rate === 'number' && !isNaN(rate)),
@@ -1914,6 +2028,29 @@ export default function StatePaymentComparison() {
     }));
   };
 
+  // Handler for average calculation entry selection/deselection
+  const handleAverageEntrySelection = (state: string, item: ServiceData) => {
+    const rowKey = getRowKey(item);
+    setStateSelectedForAverage(prev => {
+      const currentSelected = prev[state] || new Set();
+      const newSelected = new Set(currentSelected);
+      
+      if (newSelected.has(rowKey)) {
+        newSelected.delete(rowKey);
+      } else {
+        newSelected.add(rowKey);
+      }
+      
+      return {
+        ...prev,
+        [state]: newSelected
+      };
+    });
+    
+    // Force chart refresh to update the average
+    setChartRefreshKey(k => k + 1);
+  };
+
   // On any filter change, set pendingSearch to true
   const handleFilterChange = (handler: (...args: any[]) => void) => (...args: any[]) => {
     setPendingSearch(true);
@@ -1988,12 +2125,8 @@ export default function StatePaymentComparison() {
   // Add before the return statement in the component:
   let statesWithData: string[] = [];
   if (isAllStatesSelected && filterOptions.states && allStatesAverages) {
-    const avgMap = new Map(
-      allStatesAverages.map(row => [row.state_name.trim().toUpperCase(), Number(row.avg_rate)])
-    );
     statesWithData = filterOptions.states.filter((state: any) => {
-      const stateKey = state.trim().toUpperCase();
-      const avg = avgMap.get(stateKey);
+      const avg = calculateStateAverage(state);
       return typeof avg === 'number' && !isNaN(avg) && avg > 0;
     });
   }
@@ -2061,10 +2194,11 @@ export default function StatePaymentComparison() {
             <div className="mb-6 sm:mb-8">
               {filterSets.map((filterSet, index) => (
                 <div key={index} className="p-4 sm:p-6 bg-white rounded-xl shadow-lg mb-4 relative">
-                  {/* Filter Set Number Badge */}
-                  <div className="absolute -top-3 -left-3 bg-[#012C61] text-white rounded-full w-8 h-8 flex items-center justify-center font-bold shadow-lg">
+                  {/* Remove the filter set number badge for All States */}
+                  {/* <div className="absolute -top-3 -left-3 bg-[#012C61] text-white rounded-full w-8 h-8 flex items-center justify-center font-bold shadow-lg">
                     {index + 1}
-                  </div>
+                  </div> */}
+                  {/* Remove or comment out the above badge */}
                   {/* Remove button for extra filter sets */}
                   {index > 0 && (
                     <button
@@ -2452,7 +2586,7 @@ export default function StatePaymentComparison() {
             <div style={{ overflowX: 'auto', width: '100%' }}>
               <ReactECharts
                 ref={chartRef}
-                key={`${isAllStatesSelected ? 'all-states-' : 'selected-'}${JSON.stringify(Object.keys(selectedEntries).sort())}-${chartRefreshKey}-${allStatesAverages ? allStatesAverages.length : 0}`}
+                key={`all-states-${filterSets[0]?.serviceCategory || ''}-${filterSets[0]?.serviceCode || ''}`}
                 option={echartOptions}
                 style={{ height: '400px', width: '100%', minWidth: (statesWithData.length || 1) * 74 }}
                 onEvents={{
@@ -2560,6 +2694,11 @@ export default function StatePaymentComparison() {
                             selectedEntries={allStatesSelectedRows[stateKey]?.row ? { [stateKey]: [allStatesSelectedRows[stateKey].row] } : {}}
                             hideNumberBadge={true}
                             hideStateHeading={true}
+                            // Add new props for average calculation
+                            stateAverageEntries={stateAverageEntries[state] || []}
+                            stateSelectedForAverage={stateSelectedForAverage[state] || new Set()}
+                            onAverageEntrySelection={(item) => handleAverageEntrySelection(state, item)}
+                            isAverageCalculationMode={true}
                           />
                           {/* Pagination controls */}
                           {totalPages > 1 && (
