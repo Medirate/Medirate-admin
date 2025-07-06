@@ -248,6 +248,34 @@ const getAlertServiceLines = (alert: Alert) => {
     .join(", ");
 };
 
+// Utility: Convert Excel serial date or string to MM/DD/YYYY
+function formatExcelOrStringDate(val: any): string {
+  if (val == null || val === "") return "";
+  // If it's a number or a string that looks like a number (Excel serial)
+  const serial = typeof val === "number" ? val : (typeof val === "string" && /^\d{5,6}$/.test(val.trim()) ? parseInt(val, 10) : null);
+  if (serial && serial > 20000 && serial < 90000) { // Excel serial range
+    // Excel's epoch starts at 1899-12-31, but there is a bug for 1900 leap year, so add 1
+    const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+    const date = new Date(excelEpoch.getTime() + serial * 86400000);
+    // If the date is within 2 years of today, it's probably correct
+    const now = new Date();
+    if (Math.abs(date.getTime() - now.getTime()) < 2 * 365 * 86400000) {
+      return date.toLocaleDateString("en-US", { year: "numeric", month: "2-digit", day: "2-digit" });
+    }
+  }
+  // Try parsing as a date string (prefer US format)
+  let d = new Date(val);
+  if (!isNaN(d.getTime())) {
+    // If the date is within 2 years of today, it's probably correct
+    const now = new Date();
+    if (Math.abs(d.getTime() - now.getTime()) < 2 * 365 * 86400000) {
+      return d.toLocaleDateString("en-US", { year: "numeric", month: "2-digit", day: "2-digit" });
+    }
+  }
+  // Fallback: just return as string
+  return String(val);
+}
+
 export default function RateDevelopments() {
   const { isAuthenticated, isLoading, user } = useKindeBrowserClient();
   const router = useRouter();
@@ -760,7 +788,7 @@ export default function RateDevelopments() {
                         {alert.state || ""}
                       </td>
                       <td className="p-4 text-sm text-gray-700 border-b">
-                        {alert.announcement_date || ""}
+                        {formatExcelOrStringDate(alert.announcement_date)}
                       </td>
                       <td className="p-4 text-sm text-gray-700 border-b">
                         <div className="flex items-center">
@@ -843,7 +871,7 @@ export default function RateDevelopments() {
                         {reverseStateMap[bill.state] || bill.state}
                       </td>
                       <td className="p-4 text-sm text-gray-700 border-b">
-                        {bill.action_date ? new Date(bill.action_date).toLocaleDateString() : ""}
+                        {formatExcelOrStringDate(bill.action_date)}
                       </td>
                       <td className="p-4 text-sm text-blue-500 border-b">
                         <a
@@ -925,7 +953,7 @@ export default function RateDevelopments() {
                         {alert.state || ""}
                       </td>
                       <td className="p-4 text-sm text-gray-700 border-b">
-                        {alert.announcement_date || ""}
+                        {formatExcelOrStringDate(alert.announcement_date)}
                       </td>
                       <td className="p-4 text-sm text-gray-700 border-b">
                         <div className="flex items-center">
@@ -1003,7 +1031,7 @@ export default function RateDevelopments() {
                         {reverseStateMap[bill.state] || bill.state}
                       </td>
                       <td className="p-4 text-sm text-gray-700 border-b">
-                        {bill.action_date ? new Date(bill.action_date).toLocaleDateString() : ""}
+                        {formatExcelOrStringDate(bill.action_date)}
                       </td>
                       <td className="p-4 text-sm text-blue-500 border-b">
                         <a

@@ -436,6 +436,34 @@ const isNew = (val: any) => {
   return v === "yes" || v === "true" || v === "1" || v === "y" || v === "new";
 };
 
+// Utility: Convert Excel serial date or string to MM/DD/YYYY
+function formatExcelOrStringDate(val: any): string {
+  if (val == null || val === "") return "";
+  // If it's a number or a string that looks like a number (Excel serial)
+  const serial = typeof val === "number" ? val : (typeof val === "string" && /^\d{5,6}$/.test(val.trim()) ? parseInt(val, 10) : null);
+  if (serial && serial > 20000 && serial < 90000) { // Excel serial range
+    // Excel's epoch starts at 1899-12-31, but there is a bug for 1900 leap year, so add 1
+    const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+    const date = new Date(excelEpoch.getTime() + serial * 86400000);
+    // If the date is within 2 years of today, it's probably correct
+    const now = new Date();
+    if (Math.abs(date.getTime() - now.getTime()) < 2 * 365 * 86400000) {
+      return date.toLocaleDateString("en-US", { year: "numeric", month: "2-digit", day: "2-digit" });
+    }
+  }
+  // Try parsing as a date string (prefer US format)
+  let d = new Date(val);
+  if (!isNaN(d.getTime())) {
+    // If the date is within 2 years of today, it's probably correct
+    const now = new Date();
+    if (Math.abs(d.getTime() - now.getTime()) < 2 * 365 * 86400000) {
+      return d.toLocaleDateString("en-US", { year: "numeric", month: "2-digit", day: "2-digit" });
+    }
+  }
+  // Fallback: just return as string
+  return String(val);
+}
+
 export default function RateDevelopments() {
   const { isAuthenticated, isLoading, user } = useKindeBrowserClient();
   const router = useRouter();
@@ -1069,7 +1097,7 @@ export default function RateDevelopments() {
                     ) : (
                       <tr key={alert.id} className={`${isNew(alert.is_new) ? 'bg-green-100' : (idx % 2 === 0 ? 'bg-white' : 'bg-gray-50')} border-b hover:bg-blue-50 transition-colors`}>
                         <td className="p-3 align-middle">{alert.state}</td>
-                        <td className="p-3 align-middle">{alert.announcement_date}</td>
+                        <td className="p-3 align-middle">{formatExcelOrStringDate(alert.announcement_date)}</td>
                         <td className="p-3 align-middle">{alert.subject}</td>
                         <td className="p-3 align-middle">{getAlertServiceLines(alert)}</td>
                         <td className="p-3 align-middle text-center">{String(alert.is_new).trim()}</td>
@@ -1187,7 +1215,7 @@ export default function RateDevelopments() {
                     ) : (
                       <tr key={bill.url} className={`${isNew(bill.is_new) ? 'bg-green-100' : (idx % 2 === 0 ? 'bg-white' : 'bg-gray-50')} border-b hover:bg-blue-50 transition-colors`}>
                         <td>{reverseStateMap[bill.state] || bill.state}</td>
-                        <td>{bill.action_date}</td>
+                        <td>{formatExcelOrStringDate(bill.action_date)}</td>
                         <td>{bill.bill_number}</td>
                         <td>{bill.name}</td>
                         <td>{bill.last_action}</td>
@@ -1284,7 +1312,7 @@ export default function RateDevelopments() {
                     ) : (
                       <tr key={alert.id} className={`${isNew(alert.is_new) ? 'bg-green-100' : (idx % 2 === 0 ? 'bg-white' : 'bg-gray-50')} border-b hover:bg-blue-50 transition-colors`}>
                         <td className="p-3 align-middle">{alert.state}</td>
-                        <td className="p-3 align-middle">{alert.announcement_date}</td>
+                        <td className="p-3 align-middle">{formatExcelOrStringDate(alert.announcement_date)}</td>
                         <td className="p-3 align-middle">{alert.subject}</td>
                         <td className="p-3 align-middle">{getAlertServiceLines(alert)}</td>
                         <td className="p-3 align-middle text-center">{String(alert.is_new).trim()}</td>
@@ -1372,7 +1400,7 @@ export default function RateDevelopments() {
                     ) : (
                       <tr key={bill.url} className={`${isNew(bill.is_new) ? 'bg-green-100' : (idx % 2 === 0 ? 'bg-white' : 'bg-gray-50')} border-b hover:bg-blue-50 transition-colors`}>
                         <td className="p-3 align-middle">{reverseStateMap[bill.state] || bill.state}</td>
-                        <td className="p-3 align-middle">{bill.action_date}</td>
+                        <td className="p-3 align-middle">{formatExcelOrStringDate(bill.action_date)}</td>
                         <td className="p-3 align-middle">{bill.bill_number}</td>
                         <td className="p-3 align-middle">{bill.name}</td>
                         <td className="p-3 align-middle">{bill.last_action}</td>
