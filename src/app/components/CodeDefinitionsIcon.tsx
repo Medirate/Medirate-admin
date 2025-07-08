@@ -67,14 +67,12 @@ const CodeDefinitionsIcon = () => {
       setLoading(true);
       setError(null);
       
-      console.log('Fetching code definitions...');
       const response = await fetch('/api/code-definations');
       if (!response.ok) {
         throw new Error(`Failed to fetch data: ${response.status} ${response.statusText}`);
       }
       
       const result = await response.json();
-      console.log('Received data:', result?.length || 0, 'items');
       
       // Ensure the data is an array and not empty
       if (Array.isArray(result) && result.length > 0) {
@@ -82,13 +80,11 @@ const CodeDefinitionsIcon = () => {
         const uniqueData = result.filter((item, index, self) =>
           index === self.findIndex((t) => t.service_code === item.service_code)
         );
-        console.log('Unique items:', uniqueData.length);
         setData(uniqueData);
       } else {
         throw new Error('No data received from API');
       }
     } catch (error) {
-      console.error('Error fetching data:', error);
       setError(error instanceof Error ? error.message : 'Failed to load code definitions. Please try again later.');
       setData([]); // Reset data to empty array
     } finally {

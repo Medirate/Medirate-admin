@@ -31,7 +31,7 @@ export default function OurSolution() {
           priority
         />
         <div className="absolute inset-0 flex items-center justify-center">
-          <h1 className="text-4xl md:text-5xl text-white font-lemonMilkRegular uppercase tracking-wide">
+          <h1 className="text-4xl md:text-5xl text-[#012C61] font-lemonMilkRegular uppercase tracking-wide">
             The MediRate Platform
           </h1>
         </div>
@@ -256,33 +256,27 @@ export default function OurSolution() {
                   <tr className="bg-gray-200">
                     <th className="p-2 font-bold border">Service Line/Provider Type</th>
                     <th className="p-2 font-bold border">MediRate</th>
-                    <th className="p-2 font-bold border">Coming Soon</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
                     <td className="p-2 border">Applied Behavioral Analysis (ABA) and Early Intervention (EI) Services</td>
                     <td className="p-2 border flex justify-center"><Check className="text-green-600" /></td>
-                    <td className="p-2 border"></td>
                   </tr>
                   <tr>
                     <td className="p-2 border">Home and Community Based Services including Personal Care</td>
                     <td className="p-2 border flex justify-center"><Check className="text-green-600" /></td>
-                    <td className="p-2 border"></td>
                   </tr>
                   <tr>
                     <td className="p-2 border">Behavioral Health services</td>
                     <td className="p-2 border flex justify-center"><Check className="text-green-600" /></td>
-                    <td className="p-2 border"></td>
                   </tr>
                   <tr>
                     <td className="p-2 border">Substance Use Disorder services</td>
                     <td className="p-2 border flex justify-center"><Check className="text-green-600" /></td>
-                    <td className="p-2 border"></td>
                   </tr>
                   <tr>
                     <td className="p-2 border">Services for Individuals Living with Intellectual and Developmental Disabilities</td>
-                    <td className="p-2 border"></td>
                     <td className="p-2 border flex justify-center"><Check className="text-green-600" /></td>
                   </tr>
                 </tbody>

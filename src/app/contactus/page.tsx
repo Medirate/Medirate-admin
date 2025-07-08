@@ -27,8 +27,6 @@ const ContactUs = () => {
     const newErrors: Record<string, string> = {};
     if (!formData.firstName) newErrors.firstName = 'First name is required.';
     if (!formData.lastName) newErrors.lastName = 'Last name is required.';
-    if (!formData.company) newErrors.company = 'Company is required.';
-    if (!formData.title) newErrors.title = 'Title is required.';
     if (!formData.email) {
       newErrors.email = 'Email is required.';
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
@@ -96,7 +94,7 @@ const ContactUs = () => {
               Submit your questions and/or feedback. A customer service representative will follow up with you shortly.
             </p>
             <p className="text-gray-700 leading-relaxed">
-              MediRate strives to serve a broad array of Medicaid stakeholders. If there’s any information you’d like to see us add to our database,
+              MediRate strives to serve a broad array of Medicaid stakeholders. If there's any information you'd like to see us add to our database,
               including service lines that are not currently captured, please share it with us.
             </p>
           </div>

@@ -34,7 +34,7 @@ const Footer = () => {
 
         {/* Copyright Text */}
         <p className="text-lg text-gray-300 cursor-pointer">
-          CPT Copyright © 2024 American Medical Association. All rights reserved.
+          CPT Copyright © 2025 American Medical Association. All rights reserved.
         </p>
       </div>
 

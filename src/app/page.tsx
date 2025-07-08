@@ -128,7 +128,7 @@ export default function Home() {
             {/* Image Section */}
             <div className="lg:w-1/2 lg:flex lg:justify-start">
               <Image
-                src="/images/HISTORICAL_RATES_1.png"
+                src="/images/Historical_rates_2.png"
                 alt="Doctor working on laptop"
                 width={1000}
                 height={750}

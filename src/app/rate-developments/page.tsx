@@ -330,31 +330,23 @@ export default function RateDevelopments() {
   const checkSubscriptionAndSubUser = async () => {
     const userEmail = user?.email ?? "";
     const kindeUserId = user?.id ?? "";
-    console.log('🔍 Checking subscription for:', { userEmail, kindeUserId });
     
     if (!userEmail || !kindeUserId) {
-      console.log('❌ Missing user email or ID');
       return;
     }
 
     try {
       // Check if the user is a sub-user
-      console.log('🔍 Checking if user is a sub-user...');
       const { data: subUserData, error: subUserError } = await supabase
         .from("subscription_users")
         .select("sub_users")
         .contains("sub_users", JSON.stringify([userEmail]));
 
       if (subUserError) {
-        console.error("❌ Error checking sub-user:", subUserError);
-        console.error("Full error object:", JSON.stringify(subUserError, null, 2));
         return;
       }
 
-      console.log('📊 Sub-user check result:', { subUserData });
-
       if (subUserData && subUserData.length > 0) {
-        console.log('✅ User is a sub-user, checking User table...');
         // Check if the user already exists in the User table
         const { data: existingUser, error: fetchError } = await supabase
           .from("User")
@@ -363,14 +355,10 @@ export default function RateDevelopments() {
           .single();
 
         if (fetchError && fetchError.code !== "PGRST116") { // Ignore "no rows found" error
-          console.error("❌ Error fetching user:", fetchError);
           return;
         }
 
-        console.log('📊 Existing user check result:', { existingUser });
-
         if (existingUser) {
-          console.log('🔄 Updating existing user role to sub-user...');
           // User exists, update their role to "sub-user"
           const { error: updateError } = await supabase
             .from("User")
@@ -378,12 +366,9 @@ export default function RateDevelopments() {
             .eq("Email", userEmail);
 
           if (updateError) {
-            console.error("❌ Error updating user role:", updateError);
           } else {
-            console.log("✅ User role updated to sub-user:", userEmail);
           }
         } else {
-          console.log('➕ Inserting new sub-user...');
           // User does not exist, insert them as a sub-user
           const { error: insertError } = await supabase
             .from("User")
@@ -395,21 +380,17 @@ export default function RateDevelopments() {
             });
 
           if (insertError) {
-            console.error("❌ Error inserting sub-user:", insertError);
           } else {
-            console.log("✅ Sub-user inserted successfully:", userEmail);
           }
         }
 
         // Allow sub-user to access the dashboard
-        console.log('✅ Sub-user access granted');
         setIsSubscriptionCheckComplete(true);
         fetchData(); // Fetch data after successful check
         return;
       }
 
       // If not a sub-user, check for an active subscription
-      console.log('🔍 Checking for active subscription...');
       const response = await fetch("/api/stripe/subscription", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -417,19 +398,14 @@ export default function RateDevelopments() {
       });
 
       const data = await response.json();
-      console.log('📊 Subscription check result:', data);
 
       if (data.error || data.status === 'no_customer' || data.status === 'no_subscription' || data.status === 'no_items') {
-        console.log('❌ No active subscription, redirecting to subscribe page');
         router.push("/subscribe");
       } else {
-        console.log('✅ Active subscription found');
         setIsSubscriptionCheckComplete(true);
         fetchData(); // Fetch data after successful check
       }
     } catch (error) {
-      console.error("❌ Error in subscription check:", error);
-      console.log('❌ Redirecting to subscribe page due to error');
       router.push("/subscribe");
     }
   };
@@ -442,7 +418,6 @@ export default function RateDevelopments() {
       .select("*")
       .order("announcement_date", { ascending: false });
     if (providerError) {
-      console.error("Error fetching provider alerts from Supabase:", providerError);
       setAlerts([]);
     } else {
       setAlerts(providerAlerts || []);
@@ -453,7 +428,6 @@ export default function RateDevelopments() {
       .from("bill_track_50")
       .select("*");
     if (billsError) {
-      console.error("Error fetching legislative updates from Supabase:", billsError);
       setBills([]);
     } else {
       setBills(billsData || []);

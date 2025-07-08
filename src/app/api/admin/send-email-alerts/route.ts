@@ -182,7 +182,7 @@ export async function POST(req: NextRequest) {
       // Check service line columns (same as Python: [4,5,6,7] indices)
       for (const col of ['service_lines_impacted', 'service_lines_impacted_1', 'service_lines_impacted_2', 'service_lines_impacted_3']) {
         const val = bill[col];
-        if (val && String(val).trim()) {
+        if (val && String(val).trim() && String(val).trim().toUpperCase() !== 'NULL') {
           serviceLines.add(String(val).trim().toUpperCase());
         }
       }
@@ -205,7 +205,7 @@ export async function POST(req: NextRequest) {
       // Check service line columns (same as Python: [4,5,6,7] indices)
       for (const col of ['service_lines_impacted', 'service_lines_impacted_1', 'service_lines_impacted_2', 'service_lines_impacted_3']) {
         const val = alert[col];
-        if (val && String(val).trim()) {
+        if (val && String(val).trim() && String(val).trim().toUpperCase() !== 'NULL') {
           serviceLines.add(String(val).trim().toUpperCase());
         }
       }
@@ -307,7 +307,7 @@ export async function POST(req: NextRequest) {
         const state = getFullStateName(alert.state);
         const url = alert.url || "#";
         
-        const serviceLines = Array.from(pa.serviceLines).join(', ') || "N/A";
+        const serviceLines = pa.serviceLines.size > 0 ? Array.from(pa.serviceLines).join(', ') : "N/A";
         
         if (source === 'bill') {
           const title = alert.name || alert.bill_number || "No Title";

@@ -39,27 +39,12 @@ export const DataTable = ({
   // Track current page for each filter set
   const [currentPages, setCurrentPages] = useState<{ [filterIndex: number]: number }>({});
 
-  // Debug logging
-  console.log('DataTable props:', {
-    filterSets,
-    latestRatesLength: latestRates?.length,
-    isAllStatesSelected
-  });
-
   const handlePageChange = (filterIndex: number, page: number) => {
     setCurrentPages(prev => ({ ...prev, [filterIndex]: page }));
   };
 
   const tableContent = useMemo(() => {
-    console.log('DataTable tableContent calculation:', {
-      isAllStatesSelected,
-      filterSetsLength: filterSets?.length,
-      latestRatesLength: latestRates?.length
-    });
-    
     return filterSets.map((filterSet, filterIndex) => {
-      console.log(`DataTable: Processing filterSet ${filterIndex}:`, filterSet);
-      
       const grouped: { [key: string]: ServiceData[] } = {};
       latestRates.forEach(item => {
         if (
@@ -95,8 +80,6 @@ export const DataTable = ({
         }
       });
       
-      console.log(`DataTable: FilterSet ${filterIndex} grouped data:`, Object.keys(grouped).length);
-      
       // Only keep the latest entry for each group
       const filteredDataForSet = Object.values(grouped).map(entries => {
         return entries.reduce((latest, current) => {
@@ -105,8 +88,6 @@ export const DataTable = ({
           return currentDate > latestDate ? current : latest;
         });
       });
-
-      console.log(`DataTable: FilterSet ${filterIndex} filtered data:`, filteredDataForSet.length);
 
       // Pagination logic
       const totalCount = filteredDataForSet.length;
@@ -351,7 +332,7 @@ export const DataTable = ({
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(item.duration_unit)}</td>
                           )}
                           {visibleColumns.rate_effective_date && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(item.rate_effective_date)}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatDate(item.rate_effective_date)}</td>
                           )}
                           {visibleColumns.provider_type && (
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(item.provider_type)}</td>
@@ -489,4 +470,12 @@ const formatRate = (rate: string | undefined) => {
   const numericRate = parseFloat(rate.replace(/[^0-9.-]/g, ''));
   if (isNaN(numericRate)) return rate; // Return original if not a valid number
   return `$${numericRate.toFixed(2)}`;
-}; 
+};
+
+// Add a formatDate helper at the top
+function formatDate(dateString: string | undefined): string {
+  if (!dateString) return '-';
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return dateString;
+  return `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}/${date.getFullYear()}`;
+} 

@@ -472,6 +472,14 @@ type Selections = {
 };
 // --- END NEW ---
 
+// Add this helper near the top (after imports)
+function formatDate(dateString: string | undefined): string {
+  if (!dateString) return '-';
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return dateString;
+  return `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}/${date.getFullYear()}`;
+}
+
 export default function HistoricalRates() {
   const { isAuthenticated, isLoading, user } = useKindeBrowserClient();
   const router = useRouter();
@@ -1044,44 +1052,44 @@ export default function HistoricalRates() {
       let value = rateValue;
       let displayValue: string | null = null;
 
-        if (showRatePerHour) {
-          if (durationUnit === '15 MINUTES') {
+      if (showRatePerHour) {
+        if (durationUnit === '15 MINUTES') {
           value = rateValue * 4;
-          } else if (durationUnit === '30 MINUTES') {
+        } else if (durationUnit === '30 MINUTES') {
           value = rateValue * 2;
-          } else if (durationUnit !== 'PER HOUR') {
+        } else if (durationUnit !== 'PER HOUR') {
           displayValue = 'N/A';
-          }
         }
+      }
 
-        return {
+      return {
         value: displayValue ? null : value,
         displayValue,
-          state: entry.state_name,
-          serviceCode: entry.service_code,
-          program: entry.program,
-          locationRegion: entry.location_region,
+        state: entry.state_name,
+        serviceCode: entry.service_code,
+        program: entry.program,
+        locationRegion: entry.location_region,
         durationUnit: entry.duration_unit,
         date: entry.rate_effective_date,
-          modifier1: entry.modifier_1,
-          modifier1Details: entry.modifier_1_details,
-          modifier2: entry.modifier_2,
-          modifier2Details: entry.modifier_2_details,
-          modifier3: entry.modifier_3,
-          modifier3Details: entry.modifier_3_details,
-          modifier4: entry.modifier_4,
+        modifier1: entry.modifier_1,
+        modifier1Details: entry.modifier_1_details,
+        modifier2: entry.modifier_2,
+        modifier2Details: entry.modifier_2_details,
+        modifier3: entry.modifier_3,
+        modifier3Details: entry.modifier_3_details,
+        modifier4: entry.modifier_4,
         modifier4Details: entry.modifier_4_details
       };
     });
 
-    // Add a point for today if latest date < today
+    // Add a point for today if latest date is not today (ignore time)
     if (series.length > 0) {
       const latestDate = parseDateString(xAxis[xAxis.length - 1]);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      // Only add if latestDate is before today (not the same day)
-      if (latestDate < today) {
-        const todayStr = `${today.getMonth() + 1}/${today.getDate()}/${today.getFullYear()}`;
+      const todayStr = `${today.getMonth() + 1}/${today.getDate()}/${today.getFullYear()}`;
+      // Only add if the latest date string is not today's string (MM/DD/YYYY)
+      if (formatDate(xAxis[xAxis.length - 1]) !== todayStr) {
         xAxis = [...xAxis, todayStr];
         const last = series[series.length - 1];
         series = [...series, { ...last, date: todayStr }];
@@ -1224,7 +1232,7 @@ export default function HistoricalRates() {
 
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 sm:mb-8">
           <h1 className="text-3xl sm:text-5xl md:text-6xl text-[#012C61] font-lemonMilkRegular uppercase mb-3 sm:mb-0">
-            Historical Rates
+            Rate History
           </h1>
         </div>
 
@@ -1403,7 +1411,14 @@ export default function HistoricalRates() {
                       <label className="text-sm font-medium text-gray-700">Modifier</label>
                       <Select
                         instanceId="modifier_1_select"
-                        options={availableModifiers.map((o: string) => ({ value: o, label: o }))}
+                        options={availableModifiers.map((o: string) => {
+                          const def =
+                            filterOptionsData?.combinations?.find((c: any) => c.modifier_1 === o)?.modifier_1_details ||
+                            filterOptionsData?.combinations?.find((c: any) => c.modifier_2 === o)?.modifier_2_details ||
+                            filterOptionsData?.combinations?.find((c: any) => c.modifier_3 === o)?.modifier_3_details ||
+                            filterOptionsData?.combinations?.find((c: any) => c.modifier_4 === o)?.modifier_4_details;
+                          return { value: o, label: def ? `${o} - ${def}` : o };
+                        })}
                         value={selections.modifier_1 ? { value: selections.modifier_1, label: selections.modifier_1 } : null}
                         onChange={option => handleSelectionChange('modifier_1', option?.value || null)}
                         placeholder="Select Modifier"
@@ -1473,7 +1488,7 @@ export default function HistoricalRates() {
                               <b>Location/Region:</b> ${data.locationRegion || '-'}<br>
                               <b>${showRatePerHour ? 'Hourly Equivalent Rate' : 'Rate Per Base Unit'}:</b> ${rate}<br>
                               <b>Duration Unit:</b> ${data.durationUnit || '-'}<br>
-                              <b>Effective Date:</b> ${data.date || '-'}<br>
+                              <b>Effective Date:</b> ${formatDate(data.date) || '-'}<br>
                               ${modifiers ? `<b>Modifiers:</b><br>${modifiers}` : ''}
                             `;
                           }
@@ -1485,7 +1500,7 @@ export default function HistoricalRates() {
                           nameLocation: 'middle',
                           nameGap: 30,
                           axisLabel: {
-                            formatter: (value: string) => value
+                            formatter: (value: string) => formatDate(value)
                           }
                         },
                         yAxis: {
@@ -1754,7 +1769,7 @@ export default function HistoricalRates() {
                           )}
                           {getVisibleColumns.rate_effective_date && (
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {entry.rate_effective_date ? new Date(entry.rate_effective_date).toLocaleDateString() : '-'}
+                                {formatDate(entry.rate_effective_date)}
                             </td>
                           )}
                           {getVisibleColumns.program && (

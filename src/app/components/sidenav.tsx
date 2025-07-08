@@ -62,7 +62,6 @@ const SideNav = ({
   // Check admin access
   const checkAdminAccess = async () => {
     const userEmail = user?.email ?? "";
-    console.log("[Sidenav] Checking admin for email (from session):", userEmail);
     if (!userEmail) return;
 
     try {
@@ -72,31 +71,23 @@ const SideNav = ({
         .eq("email", userEmail)
         .single();
 
-      console.log("[Sidenav] Supabase query result:", adminData, "error:", adminError);
       if (adminData) {
-        console.log("[Sidenav] Email from admin_users table:", adminData.email);
       }
 
       if (adminError && adminError.code !== "PGRST116") {
-        console.error("[Sidenav] Error checking admin access:", adminError);
       } else if (adminData) {
         setIsAdmin(true);
-        console.log("[Sidenav] User is admin:", adminData);
       } else {
         setIsAdmin(false);
-        console.log("[Sidenav] User is NOT admin");
       }
     } catch (error) {
-      console.error("[Sidenav] Error in admin check:", error);
     } finally {
       setAdminCheckComplete(true);
-      console.log("[Sidenav] adminCheckComplete set to true");
     }
   };
 
   // Check admin access when user changes
   useEffect(() => {
-    console.log("[Sidenav] useEffect user:", user);
     if (user?.email) {
       checkAdminAccess();
     }
@@ -315,7 +306,6 @@ const SideNav = ({
               
               {/* Admin Dashboard - Only show if user is admin */}
               {(() => {
-                console.log("[Sidenav] Render: isAdmin=", isAdmin, "adminCheckComplete=", adminCheckComplete);
                 return adminCheckComplete && isAdmin;
               })() && (
                 <li className="group">
@@ -397,6 +387,28 @@ const SideNav = ({
                   )}
                 </li>
               )}
+              {/* Add Support Page Link */}
+              <li className="group">
+                <Link
+                  href="/support"
+                  onClick={() => setActiveTab("support")}
+                  className={`flex items-center p-4 hover:bg-gray-200/20 transition-colors cursor-pointer ${
+                    activeTab === "support" ? "bg-gray-200/20" : ""
+                  }`}
+                >
+                  <div className="flex items-center justify-center w-6 h-6">
+                    <Mail size={20} />
+                  </div>
+                  <span
+                    className={`ml-4 font-semibold transition-opacity duration-300 ease-in-out flex-grow ${
+                      isSidebarCollapsed ? "opacity-0 invisible" : "opacity-100 visible"
+                    }`}
+                    style={{ whiteSpace: "nowrap" }}
+                  >
+                    Support
+                  </span>
+                </Link>
+              </li>
             </ul>
           </nav>
         </aside>

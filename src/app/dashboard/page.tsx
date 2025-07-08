@@ -86,7 +86,7 @@ interface ServiceData {
   modifier_4?: string;
   modifier_4_details?: string;
   rate: string;
-  rate_effective_date: string;
+  rate_effective_date?: string;
   program: string;
   location_region: string;
   rate_per_hour?: string;
@@ -868,59 +868,27 @@ export default function Dashboard() {
     if (!data || data.length === 0 || sortConfig.length === 0) {
       return data;
     }
-
     return [...data].sort((a, b) => {
       for (const sort of sortConfig) {
         const { key, direction } = sort;
         let aValue: any = a[key];
         let bValue: any = b[key];
-
-        // Handle special cases for sorting
         if (key === 'rate') {
-          // Extract numeric value from rate strings (e.g., "$123.45" -> 123.45)
           aValue = parseFloat((aValue || '0').replace(/[^0-9.-]/g, ''));
           bValue = parseFloat((bValue || '0').replace(/[^0-9.-]/g, ''));
         } else if (key === 'rate_effective_date') {
-          // Convert date strings to Date objects for proper comparison
-          // Handle MM/DD/YYYY format and other common formats
-          const parseDate = (dateStr: string): number => {
-            if (!dateStr) return 0;
-            
-            // Try parsing as MM/DD/YYYY first
-            const mmddyyyyMatch = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-            if (mmddyyyyMatch) {
-              const [, month, day, year] = mmddyyyyMatch;
-              return new Date(parseInt(year), parseInt(month) - 1, parseInt(day)).getTime();
-            }
-            
-            // Try parsing as YYYY-MM-DD
-            const yyyymmddMatch = dateStr.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-            if (yyyymmddMatch) {
-              const [, year, month, day] = yyyymmddMatch;
-              return new Date(parseInt(year), parseInt(month) - 1, parseInt(day)).getTime();
-            }
-            
-            // Fallback to native Date parsing
-            const parsed = new Date(dateStr);
-            return isNaN(parsed.getTime()) ? 0 : parsed.getTime();
-          };
-          
-          aValue = parseDate(aValue);
-          bValue = parseDate(bValue);
+          aValue = aValue ? new Date(aValue).getTime() : 0;
+          bValue = bValue ? new Date(bValue).getTime() : 0;
         } else {
-          // For text fields, ensure we have strings and handle null/undefined
           aValue = (aValue || '').toString().toLowerCase();
           bValue = (bValue || '').toString().toLowerCase();
         }
-
-        // Compare values
         if (aValue < bValue) {
           return direction === 'asc' ? -1 : 1;
         }
         if (aValue > bValue) {
           return direction === 'asc' ? 1 : -1;
         }
-        // If equal, continue to next sort level
       }
       return 0;
     });
@@ -1069,7 +1037,8 @@ export default function Dashboard() {
 
   // Update the availableDates calculation to use the new helper function
   const availableDates: string[] = useMemo(() => {
-    return getAvailableOptionsForFilter('fee_schedule_date');
+    const dates = getAvailableOptionsForFilter('fee_schedule_date');
+    return dates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
   }, [filterOptionsData, selections]);
 
   // Cleaner debug logs for Fee Schedule Date dropdown
@@ -1203,9 +1172,11 @@ export default function Dashboard() {
     );
   }
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | undefined) => {
+    if (!dateString) return '-';
     const date = new Date(dateString);
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    if (isNaN(date.getTime())) return dateString; // Return original if invalid
+    return `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}/${date.getFullYear()}`;
   };
 
   // Helper function to format rates with 2 decimal points
@@ -1299,6 +1270,8 @@ export default function Dashboard() {
   // 4. Table rendering: just use sortedData (which is the current page's data)
   // ... existing code ...
 
+
+
   return (
     <AppLayout activeTab="dashboard">
       <div className="p-4 sm:p-8 bg-gradient-to-br from-gray-50 to-blue-50 min-h-screen">
@@ -1365,8 +1338,8 @@ export default function Dashboard() {
               <label className="block text-sm font-bold text-[#012C61] mb-1">Fee Schedule Date</label>
               <Select
                 instanceId="fee_schedule_date_select"
-                options={availableDates.map(date => ({ value: date, label: date }))}
-                value={selections.fee_schedule_date ? { value: selections.fee_schedule_date, label: selections.fee_schedule_date } : null}
+                options={availableDates.map(date => ({ value: date, label: formatDate(date) }))}
+                value={selections.fee_schedule_date ? { value: selections.fee_schedule_date, label: formatDate(selections.fee_schedule_date) } : null}
                 onChange={(option) => handleSelectionChange('fee_schedule_date', option?.value || null)}
                 placeholder="Select Fee Schedule Date"
                 isClearable
@@ -1795,7 +1768,7 @@ export default function Dashboard() {
                     <td className="px-6 py-4 text-sm text-gray-900 max-w-[220px] truncate" title={item.service_description || '-'}>{item.service_description || '-'}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.duration_unit || '-'}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatRate(item.rate)}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.rate_effective_date || '-'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatDate(item.rate_effective_date)}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.modifier_1 ? (item.modifier_1_details ? `${item.modifier_1} - ${item.modifier_1_details}` : item.modifier_1) : '-'}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.modifier_2 ? (item.modifier_2_details ? `${item.modifier_2} - ${item.modifier_2_details}` : item.modifier_2) : '-'}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.modifier_3 ? (item.modifier_3_details ? `${item.modifier_3} - ${item.modifier_3_details}` : item.modifier_3) : '-'}</td>

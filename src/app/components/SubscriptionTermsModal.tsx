@@ -12,11 +12,6 @@ interface SubscriptionTermsModalProps {
 export default function SubscriptionTermsModal({ isOpen, onClose }: SubscriptionTermsModalProps) {
   const { isAuthenticated, isLoading } = useKindeBrowserClient();
 
-  // Debugging: Log when the modal is rendered
-  useEffect(() => {
-    console.log("SubscriptionTermsModal rendered, isOpen:", isOpen);
-  }, [isOpen]);
-
   const handleAccept = () => {
     sessionStorage.setItem('subscriptionTermsAccepted', 'true');
     onClose();

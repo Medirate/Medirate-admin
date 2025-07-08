@@ -51,7 +51,7 @@ export async function GET(request: Request) {
 
       // Build the query for state averages
       let query = supabase
-        .from('master_data')
+        .from('master_data_july_7')
         .select('state_name, rate, duration_unit, rate_effective_date')
         .eq('service_category', serviceCategory)
         .eq('service_code', serviceCode);
@@ -84,25 +84,40 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
 
-      // Find the latest rate per state
-      const latestRates: { [state: string]: { rate: number, rate_effective_date: string } } = {};
+      // Group by state and unique combination, then pick latest per combo
+      const stateCombos: { [state: string]: { [combo: string]: any } } = {};
       data?.forEach((item: any) => {
         const state = item.state_name;
-        const rate = parseRate(item.rate);
-        const date = item.rate_effective_date;
-        if (rate > 0) {
-          if (!latestRates[state] || new Date(date) > new Date(latestRates[state].rate_effective_date)) {
-            latestRates[state] = { rate, rate_effective_date: date };
-          }
+        // Build a unique key for the combination (excluding date and rate)
+        const comboKey = [
+          item.service_code,
+          item.program,
+          item.location_region,
+          item.provider_type,
+          item.duration_unit,
+          item.service_description,
+          item.modifier_1,
+          item.modifier_2,
+          item.modifier_3,
+          item.modifier_4
+        ].map(x => x ?? '').join('|');
+        if (!stateCombos[state]) stateCombos[state] = {};
+        const existing = stateCombos[state][comboKey];
+        if (!existing || new Date(item.rate_effective_date) > new Date(existing.rate_effective_date)) {
+          stateCombos[state][comboKey] = item;
         }
       });
 
-      // Calculate averages for each state (just the latest rate)
-      const stateAverages = Object.entries(latestRates).map(([state, obj]) => ({
-        state_name: state,
-        avg_rate: obj.rate,
-        rate_effective_date: obj.rate_effective_date
-      }));
+      // For each state, average the latest rates for all combos
+      const stateAverages = Object.entries(stateCombos).map(([state, combos]) => {
+        const rates = Object.values(combos).map((item: any) => parseRate(item.rate)).filter((r: number) => r > 0);
+        const avg = rates.length > 0 ? rates.reduce((a, b) => a + b, 0) / rates.length : 0;
+        return {
+          state_name: state,
+          avg_rate: avg,
+          count: rates.length
+        };
+      });
 
       return NextResponse.json({
         stateAverages,
@@ -128,7 +143,7 @@ export async function GET(request: Request) {
     const sortParam = getParam("sort");
 
     // Build Supabase query
-    let query = supabase.from('master_data').select('*', { count: 'exact' });
+    let query = supabase.from('master_data_july_7').select('*', { count: 'exact' });
     if (serviceCategory) query = query.eq('service_category', serviceCategory);
     if (state) query = query.eq('state_name', state);
     if (serviceCode) query = query.eq('service_code', serviceCode);

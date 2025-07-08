@@ -68,11 +68,8 @@ async function fetchAndSyncUsers(nextToken?: string) {
 
     // Handle pagination if there's a next_token
     if (next_token) {
-      console.log("Fetching next page with token:", next_token);
       await fetchAndSyncUsers(next_token);
     }
-
-    console.log("User synchronization completed successfully.");
   } catch (error) {
     if (error instanceof Error) {
       console.error("Error syncing users:", error.message);

@@ -129,9 +129,9 @@ interface FilterSet {
   program?: string;
   locationRegion?: string;
   modifier?: string;
-  serviceDescription?: string;
+  serviceDescription: string; // Changed from optional to required
   providerType?: string;
-  durationUnit?: string;
+  durationUnits: string[]; // Changed from durationUnit?: string to durationUnits: string[]
 }
 
 const darkenColor = (color: string, amount: number): string => {
@@ -202,6 +202,14 @@ function getRowKey(item: ServiceData) {
 
 // Add at the top of the component, after useState imports
 const ITEMS_PER_STATE_PAGE = 50;
+
+// Add this helper near the top (after imports)
+function formatDate(dateString: string | undefined): string {
+  if (!dateString) return '-';
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return dateString;
+  return `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}/${date.getFullYear()}`;
+}
 
 export default function StatePaymentComparison() {
   const { isAuthenticated, isLoading, user } = useKindeBrowserClient();
@@ -307,7 +315,9 @@ export default function StatePaymentComparison() {
       states: ["ALL_STATES"], // Default to "All States"
       serviceCode: "", 
       stateOptions: [], 
-      serviceCodeOptions: [] 
+      serviceCodeOptions: [],
+      durationUnits: [], // Initialize with empty array
+      serviceDescription: "" // Initialize with empty string
     }
   ]);
 
@@ -316,7 +326,9 @@ export default function StatePaymentComparison() {
     filterSets.every(filterSet => 
       filterSet.states.length > 0 && 
       filterSet.serviceCategory && 
-      filterSet.serviceCode
+      filterSet.durationUnits.length > 0 && // Require at least one duration unit
+      // Either service code OR service description must be selected (but not necessarily both)
+      (filterSet.serviceCode || filterSet.serviceDescription)
     ), 
     [filterSets]
   );
@@ -917,15 +929,17 @@ export default function StatePaymentComparison() {
     }
   };
 
-  const handleDurationUnitChange = async (index: number, durationUnit: string) => {
+  const handleDurationUnitChange = async (index: number, durationUnits: string[]) => {
     const newFilters = [...filterSets];
     newFilters[index] = {
       ...newFilters[index],
-      durationUnit: durationUnit
+      durationUnits: durationUnits
     };
     setFilterSets(newFilters);
     if (index === 0) {
-      handleSelectionChange('duration_unit', durationUnit);
+      // For multiple duration units, we'll handle this differently
+      // For now, just set the first one for backward compatibility
+      handleSelectionChange('duration_unit', durationUnits.length > 0 ? durationUnits[0] : null);
     }
   };
 
@@ -946,7 +960,9 @@ export default function StatePaymentComparison() {
         if (filterSet.providerType) params.append('providerType', filterSet.providerType);
         if (filterSet.modifier) params.append('modifier', filterSet.modifier);
         if (filterSet.serviceDescription) params.append('serviceDescription', filterSet.serviceDescription);
-        if (filterSet.durationUnit) params.append('durationUnit', filterSet.durationUnit);
+        if (filterSet.durationUnits && filterSet.durationUnits.length > 0) {
+          filterSet.durationUnits.forEach(unit => params.append('durationUnit', unit));
+        }
       }
       
       const res = await fetch(`/api/state-payment-comparison?${params.toString()}`);
@@ -968,7 +984,9 @@ export default function StatePaymentComparison() {
         if (filterSet.providerType) entriesParams.append('providerType', filterSet.providerType);
         if (filterSet.modifier) entriesParams.append('modifier', filterSet.modifier);
         if (filterSet.serviceDescription) entriesParams.append('serviceDescription', filterSet.serviceDescription);
-        if (filterSet.durationUnit) entriesParams.append('durationUnit', filterSet.durationUnit);
+        if (filterSet.durationUnits && filterSet.durationUnits.length > 0) {
+          filterSet.durationUnits.forEach(unit => entriesParams.append('durationUnit', unit));
+        }
       }
       
       const entriesRes = await fetch(`/api/state-payment-comparison?${entriesParams.toString()}`);
@@ -996,12 +1014,62 @@ export default function StatePaymentComparison() {
         // Set the entries that contribute to each state's average
         setStateAverageEntries(stateEntries);
         
+        console.log('📊 State Average Entries populated:', {
+          totalStates: Object.keys(stateEntries).length,
+          entriesPerState: Object.entries(stateEntries).map(([state, entries]) => ({
+            state,
+            count: entries.length,
+            sampleEntries: entries.slice(0, 3).map(entry => ({
+              rate: entry.rate,
+              program: entry.program,
+              location_region: entry.location_region
+            }))
+          }))
+        });
+        
         // Initialize selected entries for average calculation (all entries are selected by default)
         const initialSelected: { [state: string]: Set<string> } = {};
         Object.keys(stateEntries).forEach(state => {
-          initialSelected[state] = new Set(stateEntries[state].map(entry => getRowKey(entry)));
+          // Apply the same deduplication logic as DataTable
+          const grouped: { [key: string]: ServiceData[] } = {};
+          stateEntries[state].forEach(item => {
+            const key = JSON.stringify({
+              state_name: item.state_name,
+              service_category: item.service_category,
+              service_code: item.service_code,
+              service_description: item.service_description,
+              program: item.program,
+              location_region: item.location_region,
+              modifier_1: item.modifier_1,
+              modifier_1_details: item.modifier_1_details,
+              modifier_2: item.modifier_2,
+              modifier_2_details: item.modifier_2_details,
+              modifier_3: item.modifier_3,
+              modifier_3_details: item.modifier_3_details,
+              modifier_4: item.modifier_4,
+              modifier_4_details: item.modifier_4_details,
+              duration_unit: item.duration_unit,
+              provider_type: item.provider_type
+            });
+            if (!grouped[key]) grouped[key] = [];
+            grouped[key].push(item);
+          });
+          
+          // Only keep the latest entry for each group (same as DataTable)
+          const deduplicatedEntries = Object.values(grouped).map(entries => {
+            return entries.reduce((latest, current) => {
+              const latestDate = new Date(latest.rate_effective_date);
+              const currentDate = new Date(current.rate_effective_date);
+              return currentDate > latestDate ? current : latest;
+            });
+          });
+          
+          // Select all deduplicated entries by default
+          initialSelected[state] = new Set(deduplicatedEntries.map(entry => getRowKey(entry)));
         });
         setStateSelectedForAverage(initialSelected);
+        
+        console.log('✅ Initial selections set for all states (using deduplicated entries)');
       }
     } catch (err) {
       setAllStatesAverages([]);
@@ -1073,7 +1141,7 @@ export default function StatePaymentComparison() {
         (!filterSet.modifier || [item.modifier_1, item.modifier_2, item.modifier_3, item.modifier_4].includes(filterSet.modifier)) &&
         (!filterSet.serviceDescription || item.service_description === filterSet.serviceDescription) &&
         (!filterSet.providerType || item.provider_type === filterSet.providerType) &&
-        (!filterSet.durationUnit || item.duration_unit === filterSet.durationUnit)
+        (!filterSet.durationUnits || filterSet.durationUnits.length === 0 || (item.duration_unit && filterSet.durationUnits.includes(item.duration_unit)))
       ));
 
       // If "All States" is selected, calculate the average rate for each state
@@ -1106,6 +1174,14 @@ export default function StatePaymentComparison() {
           newProcessedData[state] = {
             'average': averageRate
           };
+          
+          // Log average calculation details
+          console.log(`📊 Average calculation for ${state}:`, {
+            totalEntries: rates.length,
+            rates: rates,
+            average: averageRate,
+            showRatePerHour: showRatePerHour
+          });
         });
       } else {
         // Otherwise, process data as usual
@@ -1159,17 +1235,90 @@ export default function StatePaymentComparison() {
 
   // Function to calculate average for a state based on selected entries
   const calculateStateAverage = useCallback((state: string): number => {
+    // Use the same deduplication logic as the DataTable
     const stateEntries = stateAverageEntries[state] || [];
     const selectedKeys = stateSelectedForAverage[state] || new Set();
     
+    // Get the latest entries (what's shown in the table) for comparison
+    const latestEntriesForState = latestRates.filter(item => item.state_name === state);
+    
+    console.log(`🔍 Calculating average for ${state}:`, {
+      totalEntries: stateEntries.length,
+      latestEntriesInTable: latestEntriesForState.length,
+      selectedKeys: Array.from(selectedKeys),
+      selectedEntriesCount: selectedKeys.size,
+      allStateEntries: stateEntries.map(entry => ({
+        key: getRowKey(entry),
+        state: entry.state_name,
+        rate: entry.rate,
+        program: entry.program,
+        location_region: entry.location_region
+      })),
+      tableEntries: latestEntriesForState.map(entry => ({
+        key: getRowKey(entry),
+        state: entry.state_name,
+        rate: entry.rate,
+        program: entry.program,
+        location_region: entry.location_region
+      }))
+    });
+    
     if (stateEntries.length === 0 || selectedKeys.size === 0) {
+      console.log(`❌ No entries or selections for ${state}`);
       return 0;
     }
     
-    const selectedEntries = stateEntries.filter(entry => selectedKeys.has(getRowKey(entry)));
+    // Apply the same deduplication logic as DataTable
+    const grouped: { [key: string]: ServiceData[] } = {};
+    stateEntries.forEach(item => {
+      const key = JSON.stringify({
+        state_name: item.state_name,
+        service_category: item.service_category,
+        service_code: item.service_code,
+        service_description: item.service_description,
+        program: item.program,
+        location_region: item.location_region,
+        modifier_1: item.modifier_1,
+        modifier_1_details: item.modifier_1_details,
+        modifier_2: item.modifier_2,
+        modifier_2_details: item.modifier_2_details,
+        modifier_3: item.modifier_3,
+        modifier_3_details: item.modifier_3_details,
+        modifier_4: item.modifier_4,
+        modifier_4_details: item.modifier_4_details,
+        duration_unit: item.duration_unit,
+        provider_type: item.provider_type
+      });
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(item);
+    });
+    
+    // Only keep the latest entry for each group (same as DataTable)
+    const deduplicatedEntries = Object.values(grouped).map(entries => {
+      return entries.reduce((latest, current) => {
+        const latestDate = new Date(latest.rate_effective_date);
+        const currentDate = new Date(current.rate_effective_date);
+        return currentDate > latestDate ? current : latest;
+      });
+    });
+    
+    // Filter to only selected entries
+    const selectedEntries = deduplicatedEntries.filter(entry => selectedKeys.has(getRowKey(entry)));
+    
     if (selectedEntries.length === 0) {
+      console.log(`❌ No selected entries found for ${state} after deduplication`);
       return 0;
     }
+    
+    console.log(`📋 Selected entries for ${state} (after deduplication):`, selectedEntries.map(entry => ({
+      state: entry.state_name,
+      rate: entry.rate,
+      duration_unit: entry.duration_unit,
+      modifier_1: entry.modifier_1,
+      program: entry.program,
+      location_region: entry.location_region,
+      rowKey: getRowKey(entry)
+    })));
     
     const rates = selectedEntries.map(entry => {
       let rateValue = parseFloat(entry.rate?.replace('$', '') || '0');
@@ -1187,11 +1336,22 @@ export default function StatePaymentComparison() {
     }).filter(rate => rate > 0);
     
     if (rates.length === 0) {
+      console.log(`❌ No valid rates found for ${state}`);
       return 0;
     }
     
-    return rates.reduce((sum, rate) => sum + rate, 0) / rates.length;
-  }, [stateAverageEntries, stateSelectedForAverage, showRatePerHour]);
+    const average = rates.reduce((sum, rate) => sum + rate, 0) / rates.length;
+    console.log(`✅ Final average for ${state}:`, {
+      rates: rates,
+      average: average,
+      showRatePerHour: showRatePerHour,
+      selectedEntriesCount: selectedEntries.length,
+      totalStateEntries: stateEntries.length,
+      deduplicatedEntriesCount: deduplicatedEntries.length
+    });
+    
+    return average;
+  }, [stateAverageEntries, stateSelectedForAverage, showRatePerHour, latestRates]);
 
   // Add dynamic filtering logic (like dashboard) - moved here to fix declaration order
   function getAvailableOptionsForFilter(filterKey: keyof Selections) {
@@ -1285,6 +1445,9 @@ export default function StatePaymentComparison() {
         sortedStatesWithData = zipped.map(z => z.state);
         sortedChartData = zipped.map(z => ({ name: z.state, value: z.value, itemStyle: z.itemStyle, selectionStatus: z.selectionStatus, selectedCount: z.selectedCount, total: z.total }));
       }
+      const numBars = sortedStatesWithData.length || 1;
+      // Calculate a dynamic barWidth so all bars fit in the chart area (e.g., 80% of grid width)
+      const dynamicBarWidth = Math.max(10, Math.min(60, Math.floor(800 / numBars)));
       return {
         legend: { show: false },
         title: {
@@ -1384,8 +1547,8 @@ export default function StatePaymentComparison() {
         series: [{
           name: 'Rate',
           type: 'bar',
-          barWidth: 40, // Make bars thicker
-          barGap: '2%', // Reduce gap between bars
+          barWidth: dynamicBarWidth, // Use dynamic bar width
+          barGap: '2%',
           data: sortedChartData,
           label: {
             show: true,
@@ -1395,6 +1558,7 @@ export default function StatePaymentComparison() {
             fontWeight: 'bold',
             fontFamily: 'Lemon Milk, sans-serif',
             distance: 8,
+            rotate: 45, // Make the value labels diagonal
             formatter: (params: any) => (params.value > 0 ? `$${Number(params.value).toFixed(2)}` : ''),
             shadowColor: '#fff',
             shadowBlur: 4
@@ -1410,7 +1574,8 @@ export default function StatePaymentComparison() {
           left: '3%',
           right: '3%',
           bottom: '16%',
-          top: '5%'
+          top: '5%',
+          width: '94%', // Ensure grid takes full width
         }
       };
     }
@@ -1527,7 +1692,7 @@ export default function StatePaymentComparison() {
               result += `<strong>Unit:</strong> ${matchingEntry.duration_unit}<br/>`;
             }
             if (matchingEntry.rate_effective_date) {
-              result += `<strong>Effective:</strong> ${new Date(matchingEntry.rate_effective_date).toLocaleDateString()}<br/>`;
+              result += `<strong>Effective:</strong> ${formatDate(matchingEntry.rate_effective_date)}<br/>`;
             }
             const modifiers = [];
             if (matchingEntry.modifier_1) {
@@ -1664,7 +1829,9 @@ export default function StatePaymentComparison() {
       states: ["ALL_STATES"], // Default to "All States"
       serviceCode: "", 
       stateOptions: [], 
-      serviceCodeOptions: [] 
+      serviceCodeOptions: [],
+      durationUnits: [], // Initialize with empty array
+      serviceDescription: "" // Initialize with empty string
     }]);
 
     // Reset other filter-related states
@@ -1678,6 +1845,7 @@ export default function StatePaymentComparison() {
     setSortOrder('default');
     setSelectedStateDetails(null);
     setSelectedEntries({});         // <-- Clear selected entries
+    setClickedStates([]);          // <-- Clear clicked states
     setChartRefreshKey(k => k + 1); // <-- Force chart to re-render/reset
   };
 
@@ -1813,7 +1981,7 @@ export default function StatePaymentComparison() {
                         : parseFloat(entry.rate?.replace("$", "") || "0").toFixed(2)}
                     </td>
                     <td className="px-4 py-2">
-                      {new Date(entry.rate_effective_date).toLocaleDateString()}
+                      {formatDate(entry.rate_effective_date)}
                     </td>
                   </tr>
                 ))}
@@ -1868,25 +2036,8 @@ export default function StatePaymentComparison() {
     return columns;
   }, [filteredData]);
 
-  // Debug: Log filterOptions and data when they change
-  useEffect(() => {
-    console.log('filterOptions:', filterOptions);
-    console.log('data:', data);
-    console.log('latestRates:', latestRates);
-    console.log('filterSets:', filterSets);
-    console.log('isAllStatesSelected:', isAllStatesSelected);
-    console.log('areFiltersComplete:', areFiltersComplete);
-  }, [filterOptions, data, latestRates, filterSets, isAllStatesSelected, areFiltersComplete]);
-
-  // Debug: Log when refreshData and refreshFilters are called
-  useEffect(() => {
-    console.log('Calling refreshFilters on mount');
-  }, []);
-
   // Add useEffect to update filter options when service category or state changes
   useEffect(() => {
-    // Log the params being sent to refreshFilters
-    console.log('Calling refreshFilters with:', selectedServiceCategory, selectedState);
     if (selectedServiceCategory && selectedState) {
       refreshFilters(selectedServiceCategory, selectedState);
     } else if (selectedServiceCategory) {
@@ -2031,14 +2182,29 @@ export default function StatePaymentComparison() {
   // Handler for average calculation entry selection/deselection
   const handleAverageEntrySelection = (state: string, item: ServiceData) => {
     const rowKey = getRowKey(item);
+    console.log(`🔄 Toggling entry selection for ${state}:`, {
+      item: {
+        state: item.state_name,
+        rate: item.rate,
+        duration_unit: item.duration_unit,
+        modifier_1: item.modifier_1,
+        program: item.program,
+        location_region: item.location_region
+      },
+      rowKey: rowKey,
+      action: 'toggle'
+    });
+    
     setStateSelectedForAverage(prev => {
       const currentSelected = prev[state] || new Set();
       const newSelected = new Set(currentSelected);
       
       if (newSelected.has(rowKey)) {
         newSelected.delete(rowKey);
+        console.log(`❌ Removed entry from ${state} selection`);
       } else {
         newSelected.add(rowKey);
+        console.log(`✅ Added entry to ${state} selection`);
       }
       
       return {
@@ -2057,6 +2223,17 @@ export default function StatePaymentComparison() {
     handler(...args);
   };
 
+  // Check if search is ready (all required fields are filled)
+  const isSearchReady = useMemo(() => {
+    return filterSets.every(filterSet => 
+      filterSet.serviceCategory && 
+      filterSet.states.length > 0 && 
+      filterSet.durationUnits.length > 0 &&
+      // Either service code OR service description must be selected (but not necessarily both)
+      (filterSet.serviceCode || filterSet.serviceDescription)
+    );
+  }, [filterSets]);
+
   // Wrap all filter handlers
   const wrappedHandleServiceCategoryChange = handleFilterChange(handleServiceCategoryChange);
   const wrappedHandleStateChange = handleFilterChange(handleStateChange);
@@ -2070,7 +2247,9 @@ export default function StatePaymentComparison() {
 
   // Only fetch data when Search is clicked
   const handleSearch = async () => {
+    console.log('🔍 Search button clicked - fetching data...');
     setPendingSearch(false);
+    setClickedStates([]); // Clear clicked states when starting a new search
     let success = false;
     // Now trigger the actual data fetching
     try {
@@ -2078,8 +2257,16 @@ export default function StatePaymentComparison() {
       // For each filter set, fetch the appropriate data
       for (let index = 0; index < filterSets.length; index++) {
         const filterSet = filterSets[index];
+        console.log(`📊 Processing filter set ${index}:`, {
+          serviceCategory: filterSet.serviceCategory,
+          states: filterSet.states,
+          serviceCode: filterSet.serviceCode,
+          isAllStatesSelected: isAllStatesSelected
+        });
+        
         if (filterSet.serviceCategory && filterSet.states.length > 0 && filterSet.serviceCode) {
           if (isAllStatesSelected && index === 0) {
+            console.log('🌍 Fetching all states averages...');
             await fetchAllStatesAverages(filterSet.serviceCategory, filterSet.serviceCode);
             const result = await refreshData({
               serviceCategory: filterSet.serviceCategory,
@@ -2087,6 +2274,10 @@ export default function StatePaymentComparison() {
               itemsPerPage: '1000'
             });
             if (result) {
+              console.log(`✅ All states data fetched:`, {
+                dataLength: result.data.length,
+                sampleEntries: result.data.slice(0, 3)
+              });
               setFilterSetData(prev => ({ ...prev, [index]: result.data }));
               success = true;
             }
@@ -2098,6 +2289,11 @@ export default function StatePaymentComparison() {
               itemsPerPage: '1000'
             });
             if (result) {
+              console.log(`✅ Individual state data fetched:`, {
+                state: filterSet.states[0],
+                dataLength: result.data.length,
+                sampleEntries: result.data.slice(0, 3)
+              });
               setFilterSetData(prev => ({ ...prev, [index]: result.data }));
               success = true;
             }
@@ -2130,6 +2326,12 @@ export default function StatePaymentComparison() {
       return typeof avg === 'number' && !isNaN(avg) && avg > 0;
     });
   }
+
+  // Show loading state while initial data is being fetched
+  const isInitialLoading = isLoadingFilters || (filterLoading && !hasSearchedOnce);
+  
+  // Don't render chart until we have filter options loaded
+  const shouldRenderChart = !isInitialLoading && filterOptionsData && (hasSearchedOnce || !isAllStatesSelected);
 
   return (
     <AppLayout activeTab="stateRateComparison">
@@ -2250,7 +2452,12 @@ export default function StatePaymentComparison() {
                     {/* Service Code Selector - Third */}
                     {filterSet.serviceCategory ? (
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-gray-700">Service Code</label>
+                        <label className="text-sm font-medium text-gray-700">
+                          Service Code
+                          {filterSet.serviceDescription && (
+                            <span className="text-xs text-gray-500 ml-2">(Choose either Service Code OR Service Description)</span>
+                          )}
+                        </label>
                         <Select
                           instanceId={`service-code-select-${index}`}
                           options={
@@ -2259,8 +2466,20 @@ export default function StatePaymentComparison() {
                               : []
                           }
                           value={filterSet.serviceCode ? { value: filterSet.serviceCode, label: filterSet.serviceCode } : null}
-                          onChange={(option) => wrappedHandleServiceCodeChange(index, option?.value || "")}
-                          placeholder="Select Service Code"
+                          onChange={(option) => {
+                            const newValue = option?.value || "";
+                            // If user selects service code, clear service description
+                            if (newValue && filterSet.serviceDescription) {
+                              const newFilters = [...filterSets];
+                              newFilters[index] = {
+                                ...newFilters[index],
+                                serviceDescription: ""
+                              };
+                              setFilterSets(newFilters);
+                            }
+                            wrappedHandleServiceCodeChange(index, newValue);
+                          }}
+                          placeholder="Select Service Code (Required if no Service Description)"
                           isSearchable
                           filterOption={customFilterOption}
                           className="react-select-container"
@@ -2408,67 +2627,86 @@ export default function StatePaymentComparison() {
                       </div>
                     )}
 
-                    {/* Duration Unit Selector */}
-                    {filterSet.serviceCategory && filterSet.states.length > 0 && (
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-gray-700">Duration Unit</label>
-                        <Select
-                          instanceId={`duration-unit-select-${index}`}
-                          options={
-                            (availableDurationUnits && availableDurationUnits.length > 0)
-                              ? [{ value: '-', label: '-' }, ...availableDurationUnits.map((unit: any) => ({ value: unit, label: unit }))]
-                              : []
-                          }
-                          value={filterSet.durationUnit ? { value: filterSet.durationUnit, label: filterSet.durationUnit } : null}
-                          onChange={(option) => wrappedHandleDurationUnitChange(index, option?.value || "")}
-                          placeholder="Select Duration Unit"
-                          isSearchable
-                          filterOption={customFilterOption}
-                          isDisabled={(availableDurationUnits || []).length === 0}
-                          className={`react-select-container ${(availableDurationUnits || []).length === 0 ? 'opacity-50' : ''}`}
-                          classNamePrefix="react-select"
-                        />
-                        {filterSet.durationUnit && (
-                          <button
-                            onClick={() => wrappedHandleDurationUnitChange(index, "")}
-                            className="text-xs text-blue-500 hover:underline mt-1"
-                          >
-                            Clear
-                          </button>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Service Description Selector */}
-                    {filterSet.serviceCategory && filterSet.states.length > 0 && (
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-gray-700">Service Description</label>
-                        <Select
-                          instanceId={`service-description-select-${index}`}
-                          options={
-                            (availableServiceDescriptions && availableServiceDescriptions.length > 0)
-                              ? [{ value: '-', label: '-' }, ...availableServiceDescriptions.map((desc: any) => ({ value: desc, label: desc }))]
-                              : []
-                          }
-                          value={filterSet.serviceDescription ? { value: filterSet.serviceDescription, label: filterSet.serviceDescription } : null}
-                          onChange={(option) => wrappedHandleServiceDescriptionChange(index, option?.value || "")}
-                          placeholder="Select Service Description"
-                          isSearchable
-                          filterOption={customFilterOption}
-                          isDisabled={(availableServiceDescriptions || []).length === 0}
-                          className={`react-select-container ${(availableServiceDescriptions || []).length === 0 ? 'opacity-50' : ''}`}
-                          classNamePrefix="react-select"
-                        />
-                        {filterSet.serviceDescription && (
-                          <button
-                            onClick={() => wrappedHandleServiceDescriptionChange(index, "")}
-                            className="text-xs text-blue-500 hover:underline mt-1"
-                          >
-                            Clear
-                          </button>
-                        )}
+                    {/* Duration Unit Selector - Mandatory */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">
+                        Duration Unit <span className="text-red-500">*</span>
+                      </label>
+                      <Select
+                        instanceId={`duration-unit-select-${index}`}
+                        options={
+                          (availableDurationUnits && availableDurationUnits.length > 0)
+                            ? availableDurationUnits.map((unit: any) => ({ value: unit, label: unit }))
+                            : []
+                        }
+                        value={filterSet.durationUnits.map(unit => ({ value: unit, label: unit }))}
+                        onChange={(options) => {
+                          const selectedValues = options ? options.map(opt => opt.value) : [];
+                          wrappedHandleDurationUnitChange(index, selectedValues);
+                        }}
+                        placeholder="Select Duration Units (Required)"
+                        isSearchable
+                        isMulti
+                        filterOption={customFilterOption}
+                        isDisabled={(availableDurationUnits || []).length === 0}
+                        className={`react-select-container ${(availableDurationUnits || []).length === 0 ? 'opacity-50' : ''}`}
+                        classNamePrefix="react-select"
+                      />
+                      {filterSet.durationUnits.length > 0 && (
+                        <button
+                          onClick={() => wrappedHandleDurationUnitChange(index, [])}
+                          className="text-xs text-blue-500 hover:underline mt-1"
+                        >
+                          Clear All
+                        </button>
+                      )}
                     </div>
-                  )}
+
+                    {/* Service Description Selector - Mandatory */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">
+                        Service Description <span className="text-red-500">*</span>
+                        {filterSet.serviceCode && (
+                          <span className="text-xs text-gray-500 ml-2">(Choose either Service Code OR Service Description)</span>
+                        )}
+                      </label>
+                      <Select
+                        instanceId={`service-description-select-${index}`}
+                        options={
+                          (availableServiceDescriptions && availableServiceDescriptions.length > 0)
+                            ? availableServiceDescriptions.map((desc: any) => ({ value: desc, label: desc }))
+                            : []
+                        }
+                        value={filterSet.serviceDescription ? { value: filterSet.serviceDescription, label: filterSet.serviceDescription } : null}
+                        onChange={(option) => {
+                          const newValue = option?.value || "";
+                          // If user selects service description, clear service code
+                          if (newValue && filterSet.serviceCode) {
+                            const newFilters = [...filterSets];
+                            newFilters[index] = {
+                              ...newFilters[index],
+                              serviceCode: ""
+                            };
+                            setFilterSets(newFilters);
+                          }
+                          wrappedHandleServiceDescriptionChange(index, newValue);
+                        }}
+                        placeholder="Select Service Description (Required if no Service Code)"
+                        isSearchable
+                        filterOption={customFilterOption}
+                        isDisabled={(availableServiceDescriptions || []).length === 0}
+                        className={`react-select-container ${(availableServiceDescriptions || []).length === 0 ? 'opacity-50' : ''}`}
+                        classNamePrefix="react-select"
+                      />
+                      {filterSet.serviceDescription && (
+                        <button
+                          onClick={() => wrappedHandleServiceDescriptionChange(index, "")}
+                          className="text-xs text-blue-500 hover:underline mt-1"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -2476,7 +2714,7 @@ export default function StatePaymentComparison() {
               {!isAllStatesSelected && (
                 <div className="mt-2">
                   <button
-                    onClick={() => setFilterSets([...filterSets, { serviceCategory: "", states: [], serviceCode: "", stateOptions: [], serviceCodeOptions: [] }])}
+                    onClick={() => setFilterSets([...filterSets, { serviceCategory: "", states: [], serviceCode: "", stateOptions: [], serviceCodeOptions: [], durationUnits: [], serviceDescription: "" }])}
                     className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
                   >
                     Add State to Compare Rate
@@ -2488,7 +2726,7 @@ export default function StatePaymentComparison() {
                 <button
                   onClick={handleSearch}
                   className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold shadow"
-                  disabled={!pendingSearch}
+                  disabled={!pendingSearch || !isSearchReady}
                 >
                   Search
                 </button>
@@ -2497,7 +2735,14 @@ export default function StatePaymentComparison() {
             {/* Show message or results based on pendingSearch and hasSearchedOnce */}
             {pendingSearch && !hasSearchedOnce ? (
               <div className="text-center text-gray-500 text-lg py-12">
-                Adjust filters and click <span className="font-semibold text-blue-600">Search</span> to see results.
+                <p>Please select all required filters:</p>
+                <ul className="text-sm mt-2 space-y-1">
+                  <li>• Service Category</li>
+                  <li>• State(s)</li>
+                  <li>• <span className="text-red-500 font-semibold">Service Code OR Service Description - Required</span></li>
+                  <li>• <span className="text-red-500 font-semibold">Duration Unit(s) - Required</span></li>
+                </ul>
+                <p className="mt-4">Then click <span className="font-semibold text-blue-600">Search</span> to see results.</p>
               </div>
             ) : (
               <>
@@ -2527,27 +2772,17 @@ export default function StatePaymentComparison() {
                 )}
 
                 {/* Graph Component */}
-                {(isAllStatesSelected && filterSets[0]?.serviceCode && echartOptions) || (Object.values(selectedEntries).length > 0 && echartOptions) ? (
+                {isInitialLoading ? (
+                  <div className="flex items-center justify-center h-64">
+                    <div className="flex flex-col items-center space-y-4">
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                      <p className="text-gray-600">Loading filter options...</p>
+                    </div>
+                  </div>
+                ) : shouldRenderChart ? (
                   <>
-                    {/* Display the comment above the graph */}
-                    {comments.length > 0 && (
-                      <div className="space-y-4 mb-4">
-                        {comments.map(({ state, comment }, index) => (
-                          <div key={index} className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                            <p className="text-sm text-blue-700">
-                              <strong>Comment for {state}:</strong> {comment}
-                            </p>
-            </div>
-                        ))}
-          </div>
-        )}
-                    {/* Sort Toggle Switch - Only show in All States mode */}
                     {isAllStatesSelected && (
                       <div className="flex justify-end mb-4">
-                        {/* Debug info */}
-                        <div className="mr-4 text-sm text-gray-600">
-                          Clicked States: {clickedStates.length > 0 ? clickedStates.join(', ') : 'None'}
-                        </div>
                         <div className="bg-gray-100 rounded-full p-1 flex items-center shadow-inner">
                           <button
                             onClick={() => setSortOrder('default')}
@@ -2582,39 +2817,49 @@ export default function StatePaymentComparison() {
                         </div>
                       </div>
                     )}
-                    {/* Chart component */}
-            <div style={{ overflowX: 'auto', width: '100%' }}>
-              <ReactECharts
-                ref={chartRef}
-                key={`all-states-${filterSets[0]?.serviceCategory || ''}-${filterSets[0]?.serviceCode || ''}`}
-                option={echartOptions}
-                style={{ height: '400px', width: '100%', minWidth: (statesWithData.length || 1) * 74 }}
-                onEvents={{
-                  click: (params: any) => {
-                    console.log('Chart click event:', params);
-                    console.log('isAllStatesSelected:', isAllStatesSelected);
-                    console.log('clickedStates before:', clickedStates);
-                    
-                    // Try to handle all click events first
-                    if (params.componentType === 'series' && params.seriesType === 'bar') {
-                      const stateName = params.name;
-                      console.log('Bar clicked for state:', stateName);
-                      
-                      // Toggle the state in the array
-                      setClickedStates(prev => {
-                        if (prev.includes(stateName)) {
-                          return prev.filter(s => s !== stateName);
-                        } else {
-                          return [...prev, stateName];
-                        }
-                      });
-                    }
-                  }
-                }}
-              />
-            </div>
+                    <div style={{ overflowX: 'auto', width: '100%' }}>
+                      <ReactECharts
+                        ref={chartRef}
+                        key={`all-states-${filterSets[0]?.serviceCategory || ''}-${filterSets[0]?.serviceCode || ''}`}
+                        option={echartOptions}
+                        style={{ height: '400px', width: '100%' }}
+                        onEvents={{
+                          click: (params: any) => {
+                            console.log('Chart click event:', params);
+                            console.log('isAllStatesSelected:', isAllStatesSelected);
+                            console.log('clickedStates before:', clickedStates);
+                            // Try to handle all click events first
+                            if (params.componentType === 'series' && params.seriesType === 'bar') {
+                              const stateName = params.name;
+                              console.log('Bar clicked for state:', stateName);
+                              // Toggle the state in the array
+                              setClickedStates(prev => {
+                                if (prev.includes(stateName)) {
+                                  return prev.filter(s => s !== stateName);
+                                } else {
+                                  return [...prev, stateName];
+                                }
+                              });
+                            }
+                          }
+                        }}
+                      />
+                    </div>
                   </>
-                ) : null}
+                ) : (
+                  <div className="flex items-center justify-center h-64">
+                    <div className="text-center">
+                      <p className="text-gray-600 mb-4">Select filters and click Search to view the chart</p>
+                      <button
+                        onClick={handleSearch}
+                        disabled={!isSearchReady}
+                        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                      >
+                        Search
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Empty State */}
                 {shouldShowEmptyState && (

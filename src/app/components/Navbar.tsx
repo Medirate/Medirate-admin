@@ -70,8 +70,6 @@ const Navbar = () => {
       const data = await response.json();
       if (data.error) {
         console.error("❌ Error syncing user:", data.error);
-      } else {
-        console.log("✅ User synced successfully:", data);
       }
     } catch (err) {
       console.error("❌ Sync error:", err);
@@ -115,6 +113,7 @@ const Navbar = () => {
     "/admin-dashboard/rate-developments/update-database",
     "/admin-dashboard/rate-developments/send-email-alerts",
     "/rate-developments/email-alerts",
+    "/support",
   ];
 
   if (isLoading) {

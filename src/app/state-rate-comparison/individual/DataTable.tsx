@@ -11,6 +11,7 @@ interface DataTableProps {
   selectedEntries: { [state: string]: ServiceData[] };
   hideNumberBadge?: boolean;
   hideStateHeading?: boolean;
+  stateColorMap?: { [state: string]: string };
 }
 
 const ITEMS_PER_PAGE = 25;
@@ -24,32 +25,18 @@ export const DataTable = ({
   formatText,
   selectedEntries,
   hideNumberBadge = false,
-  hideStateHeading = false
+  hideStateHeading = false,
+  stateColorMap = {}
 }: DataTableProps) => {
   // Track current page for each filter set
   const [currentPages, setCurrentPages] = useState<{ [filterIndex: number]: number }>({});
-
-  // Debug logging
-  console.log('DataTable props:', {
-    filterSets,
-    latestRatesLength: latestRates?.length,
-    isAllStatesSelected
-  });
 
   const handlePageChange = (filterIndex: number, page: number) => {
     setCurrentPages(prev => ({ ...prev, [filterIndex]: page }));
   };
 
   const tableContent = useMemo(() => {
-    console.log('DataTable tableContent calculation:', {
-      isAllStatesSelected,
-      filterSetsLength: filterSets?.length,
-      latestRatesLength: latestRates?.length
-    });
-    
     return filterSets.map((filterSet, filterIndex) => {
-      console.log(`DataTable: Processing filterSet ${filterIndex}:`, filterSet);
-      
       const grouped: { [key: string]: ServiceData[] } = {};
       latestRates.forEach(item => {
         if (
@@ -85,8 +72,6 @@ export const DataTable = ({
         }
       });
       
-      console.log(`DataTable: FilterSet ${filterIndex} grouped data:`, Object.keys(grouped).length);
-      
       // Only keep the latest entry for each group
       const filteredDataForSet = Object.values(grouped).map(entries => {
         return entries.reduce((latest, current) => {
@@ -95,8 +80,6 @@ export const DataTable = ({
           return currentDate > latestDate ? current : latest;
         });
       });
-
-      console.log(`DataTable: FilterSet ${filterIndex} filtered data:`, filteredDataForSet.length);
 
       // Pagination logic
       const totalCount = filteredDataForSet.length;
@@ -145,7 +128,11 @@ export const DataTable = ({
       const visibleColumns = calculateVisibleColumns(paginatedData);
 
       return (
-        <div key={filterIndex} className="mb-8 overflow-hidden rounded-lg shadow-lg">
+        <div key={filterIndex} className="mb-8 overflow-hidden rounded-lg shadow-lg" style={
+          Object.keys(groupedByState).length === 1 && stateColorMap && stateColorMap[Object.keys(groupedByState)[0]]
+            ? { boxShadow: `0 0 0 3px ${stateColorMap[Object.keys(groupedByState)[0]]}55` }
+            : { boxShadow: '0 0 0 2px #e5e7eb' }
+        }>
           {/* Only show the state heading above the table if there is exactly one state */}
           {!hideStateHeading && Object.keys(groupedByState).length === 1 && (
             <div className="font-lemonMilkRegular text-lg text-[#012C61] mb-2 mt-4">{Object.keys(groupedByState)[0]}</div>
@@ -220,11 +207,14 @@ export const DataTable = ({
                       return (
                         <tr 
                           key={index} 
-                          className={`group relative transition-all duration-200 ease-in-out cursor-pointer ${
-                            isSelected 
-                              ? 'bg-blue-50 shadow-[0_0_0_1px_rgba(59,130,246,0.2)]' 
-                              : 'hover:bg-gray-50 hover:shadow-[0_2px_4px_rgba(0,0,0,0.05)] hover:scale-[1.01] hover:z-10'
+                          className={`group cursor-pointer hover:bg-gray-50 transition-colors duration-150 ${
+                            isSelected ? 'bg-blue-50' : ''
                           }`}
+                          style={{
+                            borderLeft: Object.keys(groupedByState).length > 1 && stateColorMap[item.state_name] 
+                              ? `4px solid ${stateColorMap[item.state_name]}` 
+                              : undefined
+                          }}
                           onClick={() => {
                             onRowSelection(item.state_name?.trim(), item);
                           }}
@@ -315,7 +305,7 @@ export const DataTable = ({
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(item.duration_unit)}</td>
                           )}
                           {visibleColumns.rate_effective_date && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(item.rate_effective_date)}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatDate(item.rate_effective_date)}</td>
                           )}
                           {visibleColumns.provider_type && (
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(item.provider_type)}</td>
@@ -355,7 +345,7 @@ export const DataTable = ({
         </div>
       );
     });
-  }, [filterSets, latestRates, selectedEntries, currentPages, onRowSelection, formatText]);
+  }, [filterSets, latestRates, selectedEntries, currentPages, onRowSelection, formatText, stateColorMap]);
 
   return tableContent;
 };
@@ -453,4 +443,12 @@ const formatRate = (rate: string | undefined) => {
   const numericRate = parseFloat(rate.replace(/[^0-9.-]/g, ''));
   if (isNaN(numericRate)) return rate; // Return original if not a valid number
   return `$${numericRate.toFixed(2)}`;
-}; 
+};
+
+// Add a formatDate helper to display dates as MM/DD/YYYY
+function formatDate(dateString: string | undefined): string {
+  if (!dateString) return '-';
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return dateString;
+  return `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}/${date.getFullYear()}`;
+} 
