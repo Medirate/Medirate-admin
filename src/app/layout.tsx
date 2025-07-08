@@ -4,6 +4,14 @@ import Navbar from "./components/Navbar";
 import "./globals.css";
 import { cn } from "./lib/utils";
 
+// Suppress all console output in production
+if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'development') {
+  for (const method of ['log', 'warn', 'error', 'info', 'debug']) {
+    // @ts-ignore
+    console[method] = () => {};
+  }
+}
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],

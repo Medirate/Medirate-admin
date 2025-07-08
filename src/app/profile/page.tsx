@@ -21,24 +21,18 @@ export default function Profile() {
   const [loading, setLoading] = useState(true);
   const [isTermsModalOpen, setIsTermsModalOpen] = useState(false);
 
-  // Debugging: Log when the modal state changes
-  useEffect(() => {
-    console.log("Terms Modal State:", isTermsModalOpen);
-  }, [isTermsModalOpen]);
+
 
   // ✅ Fetch user profile when the page loads
   useEffect(() => {
     if (user?.email) {
       fetchUserProfile(user.email);
-    } else {
-      console.warn("⚠️ No email found for user.");
     }
   }, [user]);
 
   // ✅ Fetch user profile from Supabase
   const fetchUserProfile = async (userEmail: string | null) => {
     if (!userEmail) {
-      console.error("❌ Cannot fetch profile: Email is null.");
       return;
     }
 
@@ -50,7 +44,7 @@ export default function Profile() {
       .single();
 
     if (error) {
-      console.error("❌ Error fetching user data:", error);
+      // Error handling
     } else {
       setFirstName(data.FirstName || "");
       setLastName(data.LastName || "");
@@ -63,7 +57,6 @@ export default function Profile() {
   // ✅ Handle profile updates
   const handleSave = async () => {
     if (!user?.email) {
-      console.error("❌ Cannot save profile: Email is null.");
       return;
     }
 
@@ -78,7 +71,6 @@ export default function Profile() {
       .eq("Email", user.email);
 
     if (error) {
-      console.error("❌ Error updating profile:", error);
       alert("Failed to update profile.");
     } else {
       alert("✅ Profile updated successfully!");
@@ -120,7 +112,6 @@ export default function Profile() {
         });
 
       if (uploadError) {
-        console.error("Upload Error:", uploadError);
         alert(`Failed to upload image: ${uploadError.message}`);
         return;
       }
@@ -143,7 +134,6 @@ export default function Profile() {
       }
 
     } catch (err) {
-      console.error("Upload failed:", err);
       alert("An error occurred during upload.");
     }
   };
@@ -215,7 +205,6 @@ export default function Profile() {
       <div className="mt-6 text-center">
         <button 
           onClick={() => {
-            console.log("Terms and Conditions button clicked"); // Debugging: Log button click
             setIsTermsModalOpen(true);
           }} 
           className="text-blue-600 underline"
@@ -228,7 +217,6 @@ export default function Profile() {
       <SubscriptionTermsModal 
         isOpen={isTermsModalOpen} 
         onClose={() => {
-          console.log("Closing Terms Modal"); // Debugging: Log modal close
           setIsTermsModalOpen(false);
         }} 
       />

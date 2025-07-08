@@ -52,14 +52,10 @@ export default function SubscriptionPage() {
           .contains("sub_users", JSON.stringify([userEmail]));
 
         if (subUserError) {
-          console.error("❌ Error checking sub-user:", subUserError);
-          console.error("Full error object:", JSON.stringify(subUserError, null, 2));
           setError("Failed to check sub-user status.");
           setLoading(false);
           return;
         }
-
-        console.log("Sub-user data:", subUserData); // Log the data returned by Supabase
 
         if (subUserData && subUserData.length > 0) {
           setIsSubUser(true);
@@ -70,7 +66,6 @@ export default function SubscriptionPage() {
           fetchSubscription(userEmail);
         }
       } catch (err) {
-        console.error("❌ Error checking sub-user:", err);
         setError("Something went wrong while checking sub-user status.");
         setLoading(false);
       }
@@ -78,10 +73,6 @@ export default function SubscriptionPage() {
 
     checkSubUser();
   }, [userEmail]);
-
-  useEffect(() => {
-    console.log("Slots State Updated:", slots);
-  }, [slots]);
 
   useEffect(() => {
     if (!userEmail) return;
@@ -106,7 +97,6 @@ export default function SubscriptionPage() {
         // Initialize slotEmails with the fetched sub-users
         setSlotEmails(subUsers);
       } catch (err) {
-        console.error("Error fetching sub-users:", err);
         toast.error("Failed to fetch sub-users.");
       }
     };
@@ -152,7 +142,6 @@ export default function SubscriptionPage() {
       window.location.href = data.url; // Redirects to Stripe Checkout
     } catch (error) {
       alert("Something went wrong with payment.");
-      console.error("❌ Payment Error:", error);
     }
   };
 
@@ -219,7 +208,6 @@ export default function SubscriptionPage() {
       setAddedUsers(updatedAddedUsers);
       toast.success("Sub-user saved successfully!");
     } catch (err) {
-      console.error("Unexpected error during sub-user save:", err);
       toast.error("Failed to save sub-user.");
     }
   };
@@ -234,7 +222,6 @@ export default function SubscriptionPage() {
   };
 
   const fetchSubscription = async (email: string) => {
-    console.log("🔵 Fetching subscription for:", email);
     try {
       const response = await fetch("/api/stripe/subscription", {
         method: "POST",
@@ -244,19 +231,16 @@ export default function SubscriptionPage() {
 
       const data = await response.json();
       if (data.error) {
-        console.error("❌ Subscription Error:", data.error);
         setSubscription(null);
         setError("No active subscription found.");
       } else {
         setSubscription(data);
-        console.log("Plan:", data.plan);
 
         // Set slots based on the subscription plan
         const slotsForPlan = getSlotsForPlan(data.plan);
         setSlots(slotsForPlan);
       }
     } catch (err) {
-      console.error("❌ Fetch error:", err);
       setError("Failed to load subscription.");
     } finally {
       setLoading(false);

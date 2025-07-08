@@ -71,16 +71,7 @@ async function fetchAndSyncUsers(nextToken?: string) {
       await fetchAndSyncUsers(next_token);
     }
   } catch (error) {
-    if (error instanceof Error) {
-      console.error("Error syncing users:", error.message);
-    } else {
-      console.error("Unknown error:", error);
-    }
-
-    // Log the detailed error response if available
-    if (axios.isAxiosError(error) && error.response) {
-      console.error("API Response Error:", error.response.data);
-    }
+    // Error handling
   } finally {
     await prisma.$disconnect();
   }

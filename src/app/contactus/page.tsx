@@ -70,7 +70,6 @@ const ContactUs = () => {
         setStatus(`Error: ${data.error || 'Failed to send email'}`);
       }
     } catch (error) {
-      console.error('Error submitting form:', error);
       setStatus('Error: Failed to send email');
     } finally {
       setLoading(false);

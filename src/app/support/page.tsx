@@ -83,7 +83,6 @@ const Support = () => {
         setStatus(`Error: ${data.error || 'Failed to send support request'}`);
       }
     } catch (error) {
-      console.error('Error submitting form:', error);
       setStatus('Error: Failed to send support request');
     } finally {
       setLoading(false);

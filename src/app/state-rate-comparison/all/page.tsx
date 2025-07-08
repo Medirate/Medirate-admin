@@ -305,7 +305,6 @@ export default function StatePaymentComparison() {
   // Add refreshFilters function
   const refreshFilters = async (serviceCategory?: string, state?: string, serviceCode?: string) => {
     // This function is not needed for the new structure, but keeping for compatibility
-    console.log('refreshFilters called with:', { serviceCategory, state, serviceCode });
     return null;
   };
 
@@ -342,12 +341,11 @@ export default function StatePaymentComparison() {
         // Make a lightweight authenticated request to verify the session is still valid
         const response = await fetch('/api/auth-check');
         if (response.status === 401) {
-          console.warn('🔄 Session expired, redirecting to login...');
           setAuthError('Your session has expired. Please sign in again.');
       router.push("/api/auth/login");
         }
       } catch (error) {
-        console.error('Error checking auth status:', error);
+        // Error handling
       }
     };
 
@@ -361,7 +359,6 @@ export default function StatePaymentComparison() {
         
         // Refresh data if filters are complete
         if (areFiltersComplete) {
-          console.log('🔄 Tab became visible, refreshing data...');
           // Trigger a data refresh for all filter sets
           setChartRefreshKey(prev => prev + 1);
         }
@@ -380,28 +377,23 @@ export default function StatePaymentComparison() {
   const checkSubscriptionAndSubUser = async () => {
     const userEmail = user?.email ?? "";
     const kindeUserId = user?.id ?? "";
-    console.log('🔍 Checking subscription for:', { userEmail, kindeUserId });
     
     if (!userEmail || !kindeUserId) {
-      console.log('❌ Missing user email or ID');
       return;
     }
 
     try {
       // Check if the user is a sub-user
-      console.log('🔍 Checking if user is a sub-user...');
       const { data: subUserData, error: subUserError } = await supabase
         .from("subscription_users")
         .select("sub_users")
         .contains("sub_users", JSON.stringify([userEmail]));
 
       if (subUserError) {
-        console.error("❌ Error checking sub-user:", subUserError);
         return;
       }
 
       if (subUserData && subUserData.length > 0) {
-        console.log('✅ User is a sub-user, checking User table...');
         // Check if the user already exists in the User table
         const { data: existingUser, error: fetchError } = await supabase
           .from("User")
@@ -410,24 +402,19 @@ export default function StatePaymentComparison() {
           .single();
 
         if (fetchError && fetchError.code !== "PGRST116") {
-          console.error("❌ Error fetching user:", fetchError);
           return;
         }
 
         if (existingUser) {
-          console.log('🔄 Updating existing user role to sub-user...');
           const { error: updateError } = await supabase
             .from("User")
             .update({ Role: "sub-user", UpdatedAt: new Date().toISOString() })
             .eq("Email", userEmail);
 
           if (updateError) {
-            console.error("❌ Error updating user role:", updateError);
-          } else {
-            console.log("✅ User role updated to sub-user:", userEmail);
+            // Error handling
           }
         } else {
-          console.log('➕ Inserting new sub-user...');
           const { error: insertError } = await supabase
             .from("User")
             .insert({
@@ -438,19 +425,15 @@ export default function StatePaymentComparison() {
             });
 
           if (insertError) {
-            console.error("❌ Error inserting sub-user:", insertError);
-          } else {
-            console.log("✅ Sub-user inserted successfully:", userEmail);
+            // Error handling
           }
         }
 
-        console.log('✅ Sub-user access granted');
         setIsSubscriptionCheckComplete(true);
         return;
       }
 
       // If not a sub-user, check for an active subscription
-      console.log('🔍 Checking for active subscription...');
       const response = await fetch("/api/stripe/subscription", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -458,18 +441,13 @@ export default function StatePaymentComparison() {
       });
 
       const data = await response.json();
-      console.log('📊 Subscription check result:', data);
 
       if (data.error || data.status === 'no_customer' || data.status === 'no_subscription' || data.status === 'no_items') {
-        console.log('❌ No active subscription, redirecting to subscribe page');
         router.push("/subscribe");
       } else {
-        console.log('✅ Active subscription found');
         setIsSubscriptionCheckComplete(true);
       }
     } catch (error) {
-      console.error("❌ Error in subscription check:", error);
-      console.log('❌ Redirecting to subscribe page due to error');
       router.push("/subscribe");
     }
   };
@@ -649,7 +627,6 @@ export default function StatePaymentComparison() {
           extractFilters(result.data);
         }
       } catch (error) {
-        console.error("Error loading data:", error);
         setFetchError("Failed to load data. Please try again.");
     } finally {
         setFilterLoading(false);
@@ -684,7 +661,7 @@ export default function StatePaymentComparison() {
       };
       
       // Use dynamic filtering to get available options
-      if (filterOptionsData) {
+        if (filterOptionsData) {
         // Update selections for dynamic filtering
         if (index === 0) {
           handleSelectionChange('service_category', category);
@@ -707,7 +684,6 @@ export default function StatePaymentComparison() {
         setServiceDescriptions([]);
       }
     } catch (error) {
-      console.error("Error updating filters:", error);
       setFilterError("Failed to update filters. Please try again.");
     } finally {
       setFilterLoading(false);
@@ -782,7 +758,6 @@ export default function StatePaymentComparison() {
         if (index === 0) setSelectedState(selectedState);
       }
     } catch (error) {
-      console.error("Error updating state filters:", error);
       setFilterError("Failed to update state filters. Please try again.");
     } finally {
       setFilterLoading(false);
@@ -820,7 +795,6 @@ export default function StatePaymentComparison() {
         setAllStatesAverages(null); // Clear averages if not in All States mode
       }
     } catch (error) {
-      console.error("Error updating service code filters:", error);
       setFilterError("Failed to update service code filters. Please try again.");
     } finally {
       setFilterLoading(false);
@@ -2749,14 +2723,14 @@ export default function StatePaymentComparison() {
                     )}
 
                     {/* Duration Unit Selector - Mandatory */}
-                    <div className="space-y-2">
+                      <div className="space-y-2">
                       <label className="text-sm font-medium text-gray-700">
                         Duration Unit <span className="text-red-500">*</span>
                       </label>
-                      <Select
-                        instanceId={`duration-unit-select-${index}`}
-                        options={
-                          (availableDurationUnits && availableDurationUnits.length > 0)
+                        <Select
+                          instanceId={`duration-unit-select-${index}`}
+                          options={
+                            (availableDurationUnits && availableDurationUnits.length > 0)
                             ? availableDurationUnits.map((unit: any) => ({ value: unit, label: unit }))
                             : []
                         }
@@ -2766,39 +2740,39 @@ export default function StatePaymentComparison() {
                           wrappedHandleDurationUnitChange(index, selectedValues);
                         }}
                         placeholder="Select Duration Units (Required)"
-                        isSearchable
+                          isSearchable
                         isMulti
-                        filterOption={customFilterOption}
-                        isDisabled={(availableDurationUnits || []).length === 0}
-                        className={`react-select-container ${(availableDurationUnits || []).length === 0 ? 'opacity-50' : ''}`}
-                        classNamePrefix="react-select"
-                      />
+                          filterOption={customFilterOption}
+                          isDisabled={(availableDurationUnits || []).length === 0}
+                          className={`react-select-container ${(availableDurationUnits || []).length === 0 ? 'opacity-50' : ''}`}
+                          classNamePrefix="react-select"
+                        />
                       {filterSet.durationUnits.length > 0 && (
-                        <button
+                          <button
                           onClick={() => wrappedHandleDurationUnitChange(index, [])}
-                          className="text-xs text-blue-500 hover:underline mt-1"
-                        >
+                            className="text-xs text-blue-500 hover:underline mt-1"
+                          >
                           Clear All
-                        </button>
-                      )}
-                    </div>
+                          </button>
+                        )}
+                      </div>
 
                     {/* Service Description Selector - Mandatory */}
-                    <div className="space-y-2">
+                      <div className="space-y-2">
                       <label className="text-sm font-medium text-gray-700">
                         Service Description <span className="text-red-500">*</span>
                         {filterSet.serviceCode && (
                           <span className="text-xs text-gray-500 ml-2">(Choose either Service Code OR Service Description)</span>
                         )}
                       </label>
-                      <Select
-                        instanceId={`service-description-select-${index}`}
-                        options={
-                          (availableServiceDescriptions && availableServiceDescriptions.length > 0)
+                        <Select
+                          instanceId={`service-description-select-${index}`}
+                          options={
+                            (availableServiceDescriptions && availableServiceDescriptions.length > 0)
                             ? availableServiceDescriptions.map((desc: any) => ({ value: desc, label: desc }))
-                            : []
-                        }
-                        value={filterSet.serviceDescription ? { value: filterSet.serviceDescription, label: filterSet.serviceDescription } : null}
+                              : []
+                          }
+                          value={filterSet.serviceDescription ? { value: filterSet.serviceDescription, label: filterSet.serviceDescription } : null}
                         onChange={(option) => {
                           const newValue = option?.value || "";
                           // If user selects service description, clear service code
@@ -2813,20 +2787,20 @@ export default function StatePaymentComparison() {
                           wrappedHandleServiceDescriptionChange(index, newValue);
                         }}
                         placeholder="Select Service Description (Required if no Service Code)"
-                        isSearchable
-                        filterOption={customFilterOption}
-                        isDisabled={(availableServiceDescriptions || []).length === 0}
-                        className={`react-select-container ${(availableServiceDescriptions || []).length === 0 ? 'opacity-50' : ''}`}
-                        classNamePrefix="react-select"
-                      />
-                      {filterSet.serviceDescription && (
-                        <button
-                          onClick={() => wrappedHandleServiceDescriptionChange(index, "")}
-                          className="text-xs text-blue-500 hover:underline mt-1"
-                        >
-                          Clear
-                        </button>
-                      )}
+                          isSearchable
+                          filterOption={customFilterOption}
+                          isDisabled={(availableServiceDescriptions || []).length === 0}
+                          className={`react-select-container ${(availableServiceDescriptions || []).length === 0 ? 'opacity-50' : ''}`}
+                          classNamePrefix="react-select"
+                        />
+                        {filterSet.serviceDescription && (
+                          <button
+                            onClick={() => wrappedHandleServiceDescriptionChange(index, "")}
+                            className="text-xs text-blue-500 hover:underline mt-1"
+                          >
+                            Clear
+                          </button>
+                        )}
                     </div>
                   </div>
                 </div>
@@ -2898,8 +2872,8 @@ export default function StatePaymentComparison() {
                     <div className="flex flex-col items-center space-y-4">
                       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
                       <p className="text-gray-600">Loading filter options...</p>
-                    </div>
-                  </div>
+            </div>
+          </div>
                 ) : shouldRenderChart ? (
                   <>
                     {isAllStatesSelected && (
@@ -2938,34 +2912,34 @@ export default function StatePaymentComparison() {
                         </div>
                       </div>
                     )}
-                    <div style={{ overflowX: 'auto', width: '100%' }}>
-                      <ReactECharts
-                        ref={chartRef}
-                        key={`all-states-${filterSets[0]?.serviceCategory || ''}-${filterSets[0]?.serviceCode || ''}`}
-                        option={echartOptions}
+            <div style={{ overflowX: 'auto', width: '100%' }}>
+              <ReactECharts
+                ref={chartRef}
+                key={`all-states-${filterSets[0]?.serviceCategory || ''}-${filterSets[0]?.serviceCode || ''}`}
+                option={echartOptions}
                         style={{ height: '400px', width: '100%' }}
-                        onEvents={{
-                          click: (params: any) => {
-                            console.log('Chart click event:', params);
-                            console.log('isAllStatesSelected:', isAllStatesSelected);
-                            console.log('clickedStates before:', clickedStates);
-                            // Try to handle all click events first
-                            if (params.componentType === 'series' && params.seriesType === 'bar') {
-                              const stateName = params.name;
-                              console.log('Bar clicked for state:', stateName);
-                              // Toggle the state in the array
-                              setClickedStates(prev => {
-                                if (prev.includes(stateName)) {
-                                  return prev.filter(s => s !== stateName);
-                                } else {
-                                  return [...prev, stateName];
-                                }
-                              });
-                            }
-                          }
-                        }}
-                      />
-                    </div>
+                onEvents={{
+                  click: (params: any) => {
+                    console.log('Chart click event:', params);
+                    console.log('isAllStatesSelected:', isAllStatesSelected);
+                    console.log('clickedStates before:', clickedStates);
+                    // Try to handle all click events first
+                    if (params.componentType === 'series' && params.seriesType === 'bar') {
+                      const stateName = params.name;
+                      console.log('Bar clicked for state:', stateName);
+                      // Toggle the state in the array
+                      setClickedStates(prev => {
+                        if (prev.includes(stateName)) {
+                          return prev.filter(s => s !== stateName);
+                        } else {
+                          return [...prev, stateName];
+                        }
+                      });
+                    }
+                  }
+                }}
+              />
+            </div>
                   </>
                 ) : (
                   <div className="flex items-center justify-center h-64">

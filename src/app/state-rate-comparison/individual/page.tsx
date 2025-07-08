@@ -338,12 +338,11 @@ export default function StatePaymentComparison() {
         // Make a lightweight authenticated request to verify the session is still valid
         const response = await fetch('/api/auth-check');
         if (response.status === 401) {
-          console.warn('🔄 Session expired, redirecting to login...');
           setAuthError('Your session has expired. Please sign in again.');
       router.push("/api/auth/login");
         }
       } catch (error) {
-        console.error('Error checking auth status:', error);
+        // Error handling
       }
     };
 
@@ -388,7 +387,6 @@ export default function StatePaymentComparison() {
         .contains("sub_users", JSON.stringify([userEmail]));
 
       if (subUserError) {
-        console.error("❌ Error checking sub-user:", subUserError);
         return;
       }
 
@@ -401,7 +399,6 @@ export default function StatePaymentComparison() {
           .single();
 
         if (fetchError && fetchError.code !== "PGRST116") {
-          console.error("❌ Error fetching user:", fetchError);
           return;
         }
 
@@ -412,7 +409,7 @@ export default function StatePaymentComparison() {
             .eq("Email", userEmail);
 
           if (updateError) {
-            console.error("❌ Error updating user role:", updateError);
+            // Error handling
           }
         } else {
           const { error: insertError } = await supabase
@@ -425,7 +422,7 @@ export default function StatePaymentComparison() {
             });
 
           if (insertError) {
-            console.error("❌ Error inserting sub-user:", insertError);
+            // Error handling
           }
         }
 
@@ -448,7 +445,6 @@ export default function StatePaymentComparison() {
         setIsSubscriptionCheckComplete(true);
       }
     } catch (error) {
-      console.error("❌ Error in subscription check:", error);
       router.push("/subscribe");
     }
   };
@@ -622,7 +618,6 @@ export default function StatePaymentComparison() {
           extractFilters(result.data);
         }
       } catch (error) {
-        console.error("Error loading data:", error);
         setFetchError("Failed to load data. Please try again.");
     } finally {
         setFilterLoading(false);
@@ -697,7 +692,6 @@ export default function StatePaymentComparison() {
         setServiceDescriptions([]);
       }
     } catch (error) {
-      console.error("Error updating filters:", error);
       setFilterError("Failed to update filters. Please try again.");
     } finally {
       setFilterLoading(false);
@@ -764,7 +758,6 @@ export default function StatePaymentComparison() {
         if (index === 0) setSelectedState(selectedState);
       }
     } catch (error) {
-      console.error("Error updating state filters:", error);
       setFilterError("Failed to update state filters. Please try again.");
     } finally {
       setFilterLoading(false);
@@ -802,7 +795,6 @@ export default function StatePaymentComparison() {
         setAllStatesAverages(null); // Clear averages if not in All States mode
       }
     } catch (error) {
-      console.error("Error updating service code filters:", error);
       setFilterError("Failed to update service code filters. Please try again.");
     } finally {
       setFilterLoading(false);
@@ -912,7 +904,6 @@ export default function StatePaymentComparison() {
       setAllStatesAverages(data.stateAverages || []);
     } catch (err) {
       setAllStatesAverages([]);
-      console.error('Error fetching state averages:', err);
     }
   }, [filterSets]);
 
@@ -1203,19 +1194,9 @@ export default function StatePaymentComparison() {
       )).sort();
       
       if (process.env.NODE_ENV === 'development') {
-        console.log(`✅ Filter options updated:`, {
-          states: states.length,
-          serviceCodes: serviceCodes.length,
-          serviceDescriptions: serviceDescriptions.length,
-          programs: programs.length,
-          locationRegions: locationRegions.length,
-          providerTypes: providerTypes.length,
-          durationUnits: durationUnits.length,
-          modifiers: modifiers.length
-        });
       }
     } catch (error) {
-      console.error('Error updating filter options:', error);
+      // Error handling
     } finally {
       setIsUpdatingFilters(false);
     }

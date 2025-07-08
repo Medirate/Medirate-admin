@@ -216,9 +216,6 @@ export default function Dashboard() {
   const itemsPerPage = 50; // Adjust this number based on your needs
 
   const refreshData = async (filters: Record<string, string> = {}): Promise<RefreshDataResponse | null> => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('📡 Fetching data with filters:', Object.keys(filters).length > 0 ? filters : 'none');
-    }
     setLoading(true);
     setError(null);
     try {
@@ -231,9 +228,6 @@ export default function Dashboard() {
       const result = await response.json();
       if (result && Array.isArray(result.data)) {
         setData(result.data);
-        if (process.env.NODE_ENV === 'development') {
-          console.log('✅ Data fetched successfully:', result.data.length, 'records');
-        }
         return result;
       } else {
         setError('Invalid data format received');
@@ -241,7 +235,6 @@ export default function Dashboard() {
       }
     } catch (err) {
       setError('Failed to fetch data. Please try again.');
-      console.error('❌ Error in refreshData:', err);
       return null;
     } finally {
       setLoading(false);
@@ -371,21 +364,8 @@ export default function Dashboard() {
       )).sort();
       
       // Update available options
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`✅ Filter options updated:`, {
-          states: states.length,
-          serviceCodes: serviceCodes.length,
-          serviceDescriptions: serviceDescriptions.length,
-          programs: programs.length,
-          locationRegions: locationRegions.length,
-          providerTypes: providerTypes.length,
-          durationUnits: availableDurationUnits.length,
-          feeScheduleDates: feeScheduleDates.length,
-          modifiers: modifiers.length
-        });
-      }
     } catch (error) {
-      console.error('Error updating filter options:', error);
+      // Error handling
     } finally {
       setIsUpdatingFilters(false);
     }
@@ -402,20 +382,14 @@ export default function Dashboard() {
         .filter(Boolean);
       
       const uniqueStates = Array.from(new Set(states)).sort();
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`✅ Loaded ${uniqueStates.length} states for ${serviceCategory}`);
-      }
     } catch (error) {
-      console.error('Error loading states:', error);
+      // Error handling
     } finally {
       setIsUpdatingFilters(false);
     }
   }, [filterOptionsData]);
 
   const handleSearch = useCallback(async () => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('🔍 Search triggered');
-    }
     setIsSearching(true);
     setHasSearched(true);
     setPendingFilters(new Set());
@@ -438,7 +412,6 @@ export default function Dashboard() {
         setLocalError('Received invalid data format from server');
       }
     } catch (err) {
-      console.error('Error fetching data:', err);
       setLocalError('Failed to fetch data. Please try again.');
     } finally {
       setIsSearching(false);
@@ -447,12 +420,9 @@ export default function Dashboard() {
 
   // All useEffect hooks
   useEffect(() => {
-    console.log('Auth State:', { isLoading, isAuthenticated, userEmail: user?.email });
     if (!isLoading && !isAuthenticated) {
-      console.log('❌ Not authenticated, redirecting to login');
       router.push("/api/auth/login");
     } else if (isAuthenticated) {
-      console.log('✅ Authenticated, checking subscription');
       checkSubscriptionAndSubUser();
     }
   }, [isAuthenticated, isLoading, router]);
@@ -464,11 +434,10 @@ export default function Dashboard() {
       try {
         const response = await fetch('/api/auth-check');
         if (response.status === 401) {
-          console.warn('🔄 Session expired, redirecting to login...');
           router.push("/api/auth/login");
         }
       } catch (error) {
-        console.error('Error checking auth status:', error);
+        // Error handling
       }
     };
 
@@ -479,7 +448,6 @@ export default function Dashboard() {
         checkAuthStatus();
         
         if (hasSearched && !authError && getAreFiltersApplied()) {
-          console.log('🔄 Tab became visible, refreshing current search...');
           handleSearch();
         }
       }
@@ -549,20 +517,11 @@ export default function Dashboard() {
           });
           setFilterOptionsData({ filters, combinations });
           
-          if (process.env.NODE_ENV === 'development') {
-            console.log("📊 Filter data loaded:", {
-              totalCombinations: combinations.length,
-              columns: columns.length,
-              serviceCategories: filters.service_category?.length || 0,
-              states: filters.state_name?.length || 0,
-              totalDates: filters.rate_effective_date?.length || 0
-            });
-          }
+
         } else {
           setFilterOptionsData(data);
         }
       } catch (err) {
-        console.error('Error loading ultra filter options:', err);
         setLocalError(`Could not load filter options: ${err instanceof Error ? err.message : 'Unknown error'}. Please try refreshing the page.`);
       } finally {
         setIsLoadingFilters(false);
@@ -582,31 +541,23 @@ export default function Dashboard() {
   const checkSubscriptionAndSubUser = async () => {
     const userEmail = user?.email ?? "";
     const kindeUserId = user?.id ?? "";
-    console.log('🔍 Checking subscription for:', { userEmail, kindeUserId });
     
     if (!userEmail || !kindeUserId) {
-      console.log('❌ Missing user email or ID');
       return;
     }
 
     try {
       // Check if the user is a sub-user
-      console.log('🔍 Checking if user is a sub-user...');
       const { data: subUserData, error: subUserError } = await supabase
         .from("subscription_users")
         .select("sub_users")
         .contains("sub_users", JSON.stringify([userEmail]));
 
       if (subUserError) {
-        console.error("❌ Error checking sub-user:", subUserError);
-        console.error("Full error object:", JSON.stringify(subUserError, null, 2));
         return;
       }
 
-      console.log('📊 Sub-user check result:', { subUserData });
-
       if (subUserData && subUserData.length > 0) {
-        console.log('✅ User is a sub-user, checking User table...');
         // Check if the user already exists in the User table
         const { data: existingUser, error: fetchError } = await supabase
           .from("User")
@@ -615,14 +566,10 @@ export default function Dashboard() {
           .single();
 
         if (fetchError && fetchError.code !== "PGRST116") { // Ignore "no rows found" error
-          console.error("❌ Error fetching user:", fetchError);
           return;
         }
 
-        console.log('📊 Existing user check result:', { existingUser });
-
         if (existingUser) {
-          console.log('🔄 Updating existing user role to sub-user...');
           // User exists, update their role to "sub-user"
           const { error: updateError } = await supabase
             .from("User")
@@ -630,12 +577,9 @@ export default function Dashboard() {
             .eq("Email", userEmail);
 
           if (updateError) {
-            console.error("❌ Error updating user role:", updateError);
-          } else {
-            console.log("✅ User role updated to sub-user:", userEmail);
+            // Error handling
           }
         } else {
-          console.log('➕ Inserting new sub-user...');
           // User does not exist, insert them as a sub-user
           const { error: insertError } = await supabase
             .from("User")
@@ -647,20 +591,15 @@ export default function Dashboard() {
             });
 
           if (insertError) {
-            console.error("❌ Error inserting sub-user:", insertError);
-          } else {
-            console.log("✅ Sub-user inserted successfully:", userEmail);
+            // Error handling
           }
         }
 
-        // Allow sub-user to access the dashboard
-        console.log('✅ Sub-user access granted');
         setIsSubscriptionCheckComplete(true);
         return;
       }
 
       // If not a sub-user, check for an active subscription
-      console.log('🔍 Checking for active subscription...');
       const response = await fetch("/api/stripe/subscription", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -668,18 +607,13 @@ export default function Dashboard() {
       });
 
       const data = await response.json();
-      console.log('📊 Subscription check result:', data);
 
       if (data.error || data.status === 'no_customer' || data.status === 'no_subscription' || data.status === 'no_items') {
-        console.log('❌ No active subscription, redirecting to subscribe page');
         router.push("/subscribe");
       } else {
-        console.log('✅ Active subscription found');
         setIsSubscriptionCheckComplete(true);
       }
     } catch (error) {
-      console.error("❌ Error in subscription check:", error);
-      console.log('❌ Redirecting to subscribe page due to error');
       router.push("/subscribe");
     }
   };
@@ -1041,123 +975,7 @@ export default function Dashboard() {
     return dates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
   }, [filterOptionsData, selections]);
 
-  // Cleaner debug logs for Fee Schedule Date dropdown
-  if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-    const activeSelections = Object.entries(selections)
-      .filter(([_, value]) => value !== null)
-      .reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {});
-    
-    console.log("🔍 Filter Debug:", {
-      availableDates: availableDates.length,
-      activeSelections,
-      totalCombinations: filterOptionsData?.combinations?.length || 0
-    });
 
-    // Debug: Show which states have data for the selected service category
-    if (selections.service_category && !selections.state_name) {
-      const statesWithData = filterOptionsData?.combinations
-        ?.filter(c => c.service_category === selections.service_category)
-        ?.map(c => c.state_name)
-        ?.filter(Boolean);
-      
-      if (statesWithData) {
-        const uniqueStates = [...new Set(statesWithData)].sort();
-        console.log(`🗺️ States with ${selections.service_category} data:`, uniqueStates);
-        
-        // Check if ANY state has dates for this service category
-        const datesForAnyState = filterOptionsData?.combinations
-          ?.filter(c => c.service_category === selections.service_category && c.rate_effective_date)
-          ?.map(c => c.rate_effective_date)
-          ?.filter(Boolean);
-        
-        if (datesForAnyState) {
-          const uniqueDates = [...new Set(datesForAnyState)].sort();
-          console.log(`📅 Dates available for ${selections.service_category} (any state):`, uniqueDates.length, 'dates');
-          console.log(`📅 Sample dates:`, uniqueDates.slice(0, 5));
-        }
-        
-        // NEW: Show which states have which dates
-        console.log(`📊 State-Date breakdown for ${selections.service_category}:`);
-        const stateDateMap = new Map<string, Set<string>>();
-        
-        filterOptionsData?.combinations?.forEach(combo => {
-          if (combo.service_category === selections.service_category && combo.state_name && combo.rate_effective_date) {
-            if (!stateDateMap.has(combo.state_name)) {
-              stateDateMap.set(combo.state_name, new Set());
-            }
-            
-            // Handle rate_effective_date as array of dates
-            if (Array.isArray(combo.rate_effective_date)) {
-              combo.rate_effective_date.forEach(date => {
-                if (date) stateDateMap.get(combo.state_name)!.add(date);
-              });
-            } else {
-              // Fallback for single date string
-              stateDateMap.get(combo.state_name)!.add(combo.rate_effective_date);
-            }
-          }
-        });
-        
-        // Sort states and show their dates
-        const sortedStates = Array.from(stateDateMap.keys()).sort();
-        sortedStates.forEach(state => {
-          const dates = Array.from(stateDateMap.get(state)!).sort();
-          console.log(`  ${state}: ${dates.length} dates - ${dates.slice(0, 3).join(', ')}${dates.length > 3 ? '...' : ''}`);
-        });
-      }
-    }
-
-    // Debug: When a state is selected, check what dates exist for that specific combination
-    if (selections.service_category && selections.state_name) {
-      const datesForThisCombination = filterOptionsData?.combinations
-        ?.filter(c => 
-          c.service_category === selections.service_category && 
-          c.state_name === selections.state_name && 
-          c.rate_effective_date
-        )
-        ?.map(c => c.rate_effective_date)
-        ?.filter(Boolean);
-      
-      if (datesForThisCombination) {
-        const uniqueDates = [...new Set(datesForThisCombination)].sort();
-        console.log(`📅 Dates for ${selections.state_name} + ${selections.service_category}:`, uniqueDates.length, 'dates');
-        if (uniqueDates.length === 0) {
-          console.log(`❌ No dates found for ${selections.state_name} + ${selections.service_category}`);
-          // Check if this combination exists at all
-          const combinationsExist = filterOptionsData?.combinations
-            ?.filter(c => 
-              c.service_category === selections.service_category && 
-              c.state_name === selections.state_name
-            );
-          console.log(`🔍 Combinations exist for this pair:`, combinationsExist?.length || 0);
-          
-          // Debug: Let's see what the actual combinations look like
-          if (combinationsExist && combinationsExist.length > 0) {
-            console.log(`🔍 Sample combination:`, combinationsExist[0]);
-            console.log(`🔍 All combinations for this pair:`, combinationsExist.slice(0, 3));
-          }
-        } else {
-          console.log(`✅ Found dates:`, uniqueDates.slice(0, 5));
-        }
-      }
-      
-      // Debug: Let's also check what the getAvailableOptionsForFilter function is actually doing
-      console.log(`🔍 Testing getAvailableOptionsForFilter logic:`);
-      const testCombinations = filterOptionsData?.combinations?.filter(combo => {
-        // Only check selections that are actually set (not null)
-        const matches = Object.entries(selections).every(([key, value]) => {
-          if (key === 'fee_schedule_date') return true; // skip current filter
-          if (!value) return true; // skip unset selections
-          return combo[key] === value;
-        });
-        return matches && combo.rate_effective_date;
-      });
-      console.log(`🔍 Combinations that pass the filter logic:`, testCombinations?.length || 0);
-      if (testCombinations && testCombinations.length > 0) {
-        console.log(`🔍 Sample filtered combination:`, testCombinations[0]);
-      }
-    }
-  }
 
   // Only after all hooks, do any early returns:
   if (isLoading || !isAuthenticated || !isSubscriptionCheckComplete) {

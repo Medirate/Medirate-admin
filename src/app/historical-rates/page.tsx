@@ -492,7 +492,6 @@ export default function HistoricalRates() {
   
   // Add proper refreshData function
   const refreshData = async (filters: Record<string, string> = {}): Promise<{ data: ServiceData[]; totalCount: number; currentPage: number; itemsPerPage: number } | null> => {
-    console.log('[DEBUG] refreshData called with filters:', filters);
     setLoading(true);
     setError(null);
     try {
@@ -501,10 +500,8 @@ export default function HistoricalRates() {
         if (value) params.append(key, value);
       });
       const url = `/api/state-payment-comparison?${params.toString()}`;
-      console.log('[DEBUG] Fetching:', url);
       const response = await fetch(url);
       const result = await response.json();
-      console.log('[DEBUG] API response:', result);
       if (result && Array.isArray(result.data)) {
         setData(result.data);
         setHasSearched(true);
@@ -515,7 +512,6 @@ export default function HistoricalRates() {
       }
     } catch (err) {
       setError('Failed to fetch data. Please try again.');
-      console.error('[DEBUG] Error in refreshData:', err);
       return null;
     } finally {
       setLoading(false);
@@ -525,7 +521,6 @@ export default function HistoricalRates() {
   // Add proper refreshFilters function (placeholder for now)
   const refreshFilters = async () => {
     // This can be implemented later if needed for filter options
-    console.log('refreshFilters called');
   };
 
   const [isSubscriptionCheckComplete, setIsSubscriptionCheckComplete] = useState(false);
@@ -668,7 +663,6 @@ export default function HistoricalRates() {
       });
     });
 
-    console.log('Final filteredData for table:', latestEntries.length, latestEntries.slice(0, 3));
     return latestEntries;
   }, [
     data,
@@ -684,9 +678,7 @@ export default function HistoricalRates() {
   ]);
 
   useEffect(() => {
-    if (filteredData.length > 0) {
-      console.log('Sample filteredData:', filteredData.slice(0, 5));
-    }
+    // Filtered data processing
   }, [filteredData]);
 
   const getVisibleColumns = useMemo(() => {
@@ -759,8 +751,6 @@ export default function HistoricalRates() {
         .contains("sub_users", JSON.stringify([userEmail]));
 
       if (subUserError) {
-        console.error("❌ Error checking sub-user:", subUserError);
-        console.error("Full error object:", JSON.stringify(subUserError, null, 2));
         return;
       }
 
@@ -773,7 +763,6 @@ export default function HistoricalRates() {
           .single();
 
         if (fetchError && fetchError.code !== "PGRST116") { // Ignore "no rows found" error
-          console.error("❌ Error fetching user:", fetchError);
           return;
         }
 
@@ -785,9 +774,7 @@ export default function HistoricalRates() {
             .eq("Email", userEmail);
 
           if (updateError) {
-            console.error("❌ Error updating user role:", updateError);
-          } else {
-            console.log("✅ User role updated to sub-user:", userEmail);
+            // Error handling
           }
         } else {
           // User does not exist, insert them as a sub-user
@@ -801,9 +788,7 @@ export default function HistoricalRates() {
             });
 
           if (insertError) {
-            console.error("❌ Error inserting sub-user:", insertError);
-          } else {
-            console.log("✅ Sub-user inserted successfully:", userEmail);
+            // Error handling
           }
         }
 
@@ -826,7 +811,6 @@ export default function HistoricalRates() {
         setIsSubscriptionCheckComplete(true);
       }
     } catch (error) {
-      console.error("Error checking subscription or sub-user:", error);
       router.push("/subscribe");
     }
   };
@@ -839,11 +823,10 @@ export default function HistoricalRates() {
       try {
         const response = await fetch('/api/auth-check');
         if (response.status === 401) {
-          console.warn('🔄 Session expired, redirecting to login...');
           router.push("/api/auth/login");
         }
       } catch (error) {
-        console.error('Error checking auth status:', error);
+        // Error handling
       }
     };
 
@@ -854,7 +837,6 @@ export default function HistoricalRates() {
         checkAuthStatus();
         
         if (hasSearched && !authError && areFiltersApplied) {
-          console.log('🔄 Tab became visible, refreshing current search...');
           // Refresh data if needed
         }
       }
@@ -927,8 +909,7 @@ export default function HistoricalRates() {
 
   // Debug: Log filterOptions and selected filters
   useEffect(() => {
-    console.log('filterOptionsData:', filterOptionsData);
-    console.log('selectedServiceCategory:', selections.service_category, 'selectedState:', selections.state_name);
+    // Filter data processing
   }, [filterOptionsData, selections.service_category, selections.state_name]);
 
   // Remove duplicate useEffect hooks that call refreshData

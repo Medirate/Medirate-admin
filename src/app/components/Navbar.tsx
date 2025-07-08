@@ -49,7 +49,7 @@ const Navbar = () => {
       .single();
 
     if (error) {
-      console.error("❌ Supabase Fetch Error:", error);
+      // Error handling
     } else {
       setUserInfo({
         name: data.FirstName || data.LastName || "User",
@@ -69,10 +69,10 @@ const Navbar = () => {
 
       const data = await response.json();
       if (data.error) {
-        console.error("❌ Error syncing user:", data.error);
+        // Error handling
       }
     } catch (err) {
-      console.error("❌ Sync error:", err);
+      // Error handling
     }
   };
 
