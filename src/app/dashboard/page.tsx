@@ -763,7 +763,16 @@ export default function Dashboard() {
     setCurrentPage(1);
     setHasSearched(false);
     setSortConfig([]);
-    setDisplayedItems(itemsPerPage); // Reset to initial load amount
+    setDisplayedItems(itemsPerPage);
+    setData([]);
+    setTotalCount(0);
+    setError(null);
+    setLocalError(null);
+    setAuthError(null);
+    setPendingFilters(new Set());
+    setFilterOptionsData(null);
+    setIsLoadingFilters(false);
+    setIsUpdatingFilters(false);
   };
 
   // Add pagination controls component
@@ -1300,10 +1309,11 @@ export default function Dashboard() {
                   </label>
                   <Select
                     instanceId="program_select"
-                    options={availablePrograms.map(o => ({ value: o, label: o }))}
-                    value={selections.program ? { value: selections.program, label: selections.program } : null}
-                    onChange={(option) => handleSelectionChange('program', option?.value || null)}
+                    options={getDropdownOptions(availablePrograms, false)}
+                    value={selections.program ? selections.program.split(',').map(p => ({ value: p.trim(), label: p.trim() })) : null}
+                    onChange={(options) => handleSelectionChange('program', options ? options.map(opt => opt.value).join(',') : null)}
                     placeholder="Select Program"
+                    isMulti
                     isClearable
                     isDisabled={!selections.service_category || !selections.state_name || availablePrograms.length === 0}
                     className={clsx("react-select-container", pendingFilters.has('program') ? 'pending-outline' : 'applied-outline')}
@@ -1319,10 +1329,11 @@ export default function Dashboard() {
                   </label>
                   <Select
                     instanceId="location_region_select"
-                    options={availableLocationRegions.map(o => ({ value: o, label: o }))}
-                    value={selections.location_region ? { value: selections.location_region, label: selections.location_region } : null}
-                    onChange={(option) => handleSelectionChange('location_region', option?.value || null)}
+                    options={getDropdownOptions(availableLocationRegions, false)}
+                    value={selections.location_region ? selections.location_region.split(',').map(l => ({ value: l.trim(), label: l.trim() })) : null}
+                    onChange={(options) => handleSelectionChange('location_region', options ? options.map(opt => opt.value).join(',') : null)}
                     placeholder="Select Location/Region"
+                    isMulti
                     isClearable
                     isDisabled={!selections.service_category || !selections.state_name || availableLocationRegions.length === 0}
                     className={clsx("react-select-container", pendingFilters.has('location_region') ? 'pending-outline' : 'applied-outline')}
@@ -1338,10 +1349,11 @@ export default function Dashboard() {
                   </label>
                   <Select
                     instanceId="provider_type_select"
-                    options={availableProviderTypes.map(o => ({ value: o, label: o }))}
-                    value={selections.provider_type ? { value: selections.provider_type, label: selections.provider_type } : null}
-                    onChange={(option) => handleSelectionChange('provider_type', option?.value || null)}
+                    options={getDropdownOptions(availableProviderTypes, false)}
+                    value={selections.provider_type ? selections.provider_type.split(',').map(p => ({ value: p.trim(), label: p.trim() })) : null}
+                    onChange={(options) => handleSelectionChange('provider_type', options ? options.map(opt => opt.value).join(',') : null)}
                     placeholder="Select Provider Type"
+                    isMulti
                     isClearable
                     isDisabled={!selections.service_category || !selections.state_name || availableProviderTypes.length === 0}
                     className={clsx("react-select-container", pendingFilters.has('provider_type') ? 'pending-outline' : 'applied-outline')}
@@ -1357,10 +1369,11 @@ export default function Dashboard() {
                   </label>
                   <Select
                     instanceId="duration_unit_select"
-                    options={availableDurationUnits.map(o => ({ value: o, label: o }))}
-                    value={selections.duration_unit ? { value: selections.duration_unit, label: selections.duration_unit } : null}
-                    onChange={(option) => handleSelectionChange('duration_unit', option?.value || null)}
+                    options={getDropdownOptions(availableDurationUnits, false)}
+                    value={selections.duration_unit ? selections.duration_unit.split(',').map(d => ({ value: d.trim(), label: d.trim() })) : null}
+                    onChange={(options) => handleSelectionChange('duration_unit', options ? options.map(opt => opt.value).join(',') : null)}
                     placeholder="Select Duration Unit"
+                    isMulti
                     isClearable
                     isDisabled={!selections.service_category || !selections.state_name || availableDurationUnits.length === 0}
                     className={clsx("react-select-container", pendingFilters.has('duration_unit') ? 'pending-outline' : 'applied-outline')}
@@ -1376,10 +1389,14 @@ export default function Dashboard() {
                   </label>
                     <Select
                     instanceId="modifier_1_select"
-                    options={modifierOptions}
-                    value={selections.modifier_1 ? modifierOptions.find(opt => opt.value === selections.modifier_1) || { value: selections.modifier_1, label: selections.modifier_1 } : null}
-                    onChange={(option) => handleSelectionChange('modifier_1', option?.value || null)}
+                    options={getDropdownOptions(modifierOptions, false)}
+                    value={selections.modifier_1 ? selections.modifier_1.split(',').map(m => {
+                      const mod = modifierOptions.find(opt => opt.value === m.trim());
+                      return mod || { value: m.trim(), label: m.trim() };
+                    }) : null}
+                    onChange={(options) => handleSelectionChange('modifier_1', options ? options.map(opt => opt.value).join(',') : null)}
                     placeholder="Select Modifier"
+                        isMulti
                         isClearable
                     isDisabled={!selections.service_category || !selections.state_name || availableModifiers.length === 0}
                     className={clsx("react-select-container", pendingFilters.has('modifier_1') ? 'pending-outline' : 'applied-outline')}
@@ -1511,20 +1528,26 @@ export default function Dashboard() {
                     <th className={clsx(
                       'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
                       pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                    )} onClick={(e) => handleSort('duration_unit', e)}>
-                    Duration Unit<SortIndicator sortKey="duration_unit" />
-                    </th>
-                    <th className={clsx(
-                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
                     )} onClick={(e) => handleSort('rate', e)}>
                     Rate per Base Unit<SortIndicator sortKey="rate" />
                     </th>
                     <th className={clsx(
                       'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
                       pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                    )} onClick={(e) => handleSort('duration_unit', e)}>
+                    Duration Unit<SortIndicator sortKey="duration_unit" />
+                    </th>
+                    <th className={clsx(
+                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
                     )} onClick={(e) => handleSort('rate_effective_date', e)}>
                     Effective Date<SortIndicator sortKey="rate_effective_date" />
+                    </th>
+                    <th className={clsx(
+                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
+                    )} onClick={(e) => handleSort('provider_type', e)}>
+                    Provider Type<SortIndicator sortKey="provider_type" />
                     </th>
                     <th className={clsx(
                       'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
@@ -1562,15 +1585,9 @@ export default function Dashboard() {
                     )} onClick={(e) => handleSort('location_region', e)}>
                     Location/Region<SortIndicator sortKey="location_region" />
                     </th>
-                    <th className={clsx(
-                      'px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                      pendingFilters.has('sort') ? 'pending-outline' : 'applied-outline'
-                    )} onClick={(e) => handleSort('provider_type', e)}>
-                    Provider Type<SortIndicator sortKey="provider_type" />
-                    </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+                                <tbody className="divide-y divide-gray-200">
                   {sortedData.map((item: any, idx: number) => (
                     <tr key={`id-${item.id}-${item.service_code ?? ''}-${item.rate_effective_date ?? ''}-${idx}`}
                         className="hover:bg-gray-50">
@@ -1578,16 +1595,16 @@ export default function Dashboard() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{SERVICE_CATEGORY_ABBREVIATIONS[item.service_category?.toUpperCase() || ""] || item.service_category || '-'}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.service_code || '-'}</td>
                     <td className="px-6 py-4 text-sm text-gray-900 max-w-[220px] truncate" title={item.service_description || '-'}>{item.service_description || '-'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.duration_unit || '-'}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatRate(item.rate)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.duration_unit || '-'}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatDate(item.rate_effective_date)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.provider_type || '-'}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.modifier_1 ? (item.modifier_1_details ? `${item.modifier_1} - ${item.modifier_1_details}` : item.modifier_1) : '-'}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.modifier_2 ? (item.modifier_2_details ? `${item.modifier_2} - ${item.modifier_2_details}` : item.modifier_2) : '-'}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.modifier_3 ? (item.modifier_3_details ? `${item.modifier_3} - ${item.modifier_3_details}` : item.modifier_3) : '-'}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.modifier_4 ? (item.modifier_4_details ? `${item.modifier_4} - ${item.modifier_4_details}` : item.modifier_4) : '-'}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.program || '-'}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.location_region || '-'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.provider_type || '-'}</td>
                   </tr>
                 ))}
               </tbody>

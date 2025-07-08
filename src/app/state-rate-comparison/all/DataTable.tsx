@@ -182,11 +182,17 @@ export const DataTable = ({
                       {visibleColumns.service_description && (
                         <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Service Description</th>
                       )}
-                      {visibleColumns.program && (
-                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Program</th>
+                      {visibleColumns.rate && (
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Rate</th>
                       )}
-                      {visibleColumns.location_region && (
-                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Region</th>
+                      {visibleColumns.duration_unit && (
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Duration Unit</th>
+                      )}
+                      {visibleColumns.rate_effective_date && (
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Effective Date</th>
+                      )}
+                      {visibleColumns.provider_type && (
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Provider Type</th>
                       )}
                       {visibleColumns.modifier_1 && (
                         <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Modifier 1</th>
@@ -200,17 +206,11 @@ export const DataTable = ({
                       {visibleColumns.modifier_4 && (
                         <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Modifier 4</th>
                       )}
-                      {visibleColumns.rate && (
-                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Rate</th>
+                      {visibleColumns.program && (
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Program</th>
                       )}
-                      {visibleColumns.duration_unit && (
-                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Duration Unit</th>
-                      )}
-                      {visibleColumns.rate_effective_date && (
-                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Effective Date</th>
-                      )}
-                      {visibleColumns.provider_type && (
-                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Provider Type</th>
+                      {visibleColumns.location_region && (
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Region</th>
                       )}
                     </tr>
                   </thead>
@@ -297,33 +297,7 @@ export const DataTable = ({
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(item.service_code)}</td>
                           )}
                           {visibleColumns.service_description && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 max-w-[220px]">
-                              <div className="relative group">
-                                <span className="truncate block group-hover:text-blue-600 transition-colors duration-200" title={item.service_description || '-'}>
-                                  {item.service_description && item.service_description.length > 30
-                                    ? item.service_description.slice(0, 30) + '...'
-                                    : item.service_description || '-'}
-                                </span>
-                              </div>
-                            </td>
-                          )}
-                          {visibleColumns.program && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(item.program)}</td>
-                          )}
-                          {visibleColumns.location_region && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(item.location_region)}</td>
-                          )}
-                          {visibleColumns.modifier_1 && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(item.modifier_1)}</td>
-                          )}
-                          {visibleColumns.modifier_2 && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(item.modifier_2)}</td>
-                          )}
-                          {visibleColumns.modifier_3 && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(item.modifier_3)}</td>
-                          )}
-                          {visibleColumns.modifier_4 && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(item.modifier_4)}</td>
+                            <td className="px-6 py-4 text-sm text-gray-900 max-w-[220px] truncate" title={item.service_description || '-'}>{item.service_description || '-'}</td>
                           )}
                           {visibleColumns.rate && (
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatRate(item.rate)}</td>
@@ -336,6 +310,48 @@ export const DataTable = ({
                           )}
                           {visibleColumns.provider_type && (
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(item.provider_type)}</td>
+                          )}
+                          {visibleColumns.modifier_1 && (
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {item.modifier_1 ? (
+                                item.modifier_1_details ? 
+                                  `${item.modifier_1} - ${item.modifier_1_details}` : 
+                                  item.modifier_1
+                              ) : '-'}
+                            </td>
+                          )}
+                          {visibleColumns.modifier_2 && (
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {item.modifier_2 ? (
+                                item.modifier_2_details ? 
+                                  `${item.modifier_2} - ${item.modifier_2_details}` : 
+                                  item.modifier_2
+                              ) : '-'}
+                            </td>
+                          )}
+                          {visibleColumns.modifier_3 && (
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {item.modifier_3 ? (
+                                item.modifier_3_details ? 
+                                  `${item.modifier_3} - ${item.modifier_3_details}` : 
+                                  item.modifier_3
+                              ) : '-'}
+                            </td>
+                          )}
+                          {visibleColumns.modifier_4 && (
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {item.modifier_4 ? (
+                                item.modifier_4_details ? 
+                                  `${item.modifier_4} - ${item.modifier_4_details}` : 
+                                  item.modifier_4
+                              ) : '-'}
+                            </td>
+                          )}
+                          {visibleColumns.program && (
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(item.program)}</td>
+                          )}
+                          {visibleColumns.location_region && (
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(item.location_region)}</td>
                           )}
                         </tr>
                       );

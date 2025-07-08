@@ -982,6 +982,13 @@ export default function HistoricalRates() {
     setSelectedEntry(null);
     setCurrentPage(1);
     setTotalCount(0);
+    setData([]);
+    setError(null);
+    setLocalError(null);
+    setAuthError(null);
+    setHasSearched(false);
+    setFilterOptionsData(null);
+    setIsLoadingFilters(false);
     if (typeof refreshFilters === 'function') {
       await refreshFilters();
     }
@@ -1314,10 +1321,11 @@ export default function HistoricalRates() {
                       <label className="text-sm font-medium text-gray-700">Program</label>
                       <Select
                         instanceId="program_select"
-                        options={availablePrograms.map((o: string) => ({ value: o, label: o }))}
-                        value={selections.program ? { value: selections.program, label: selections.program } : null}
-                        onChange={option => handleSelectionChange('program', option?.value || null)}
+                        options={getDropdownOptions(availablePrograms, false)}
+                        value={selections.program ? selections.program.split(',').map(p => ({ value: p.trim(), label: p.trim() })) : null}
+                        onChange={(options) => handleSelectionChange('program', options ? options.map(opt => opt.value).join(',') : null)}
                         placeholder="Select Program"
+                        isMulti
                         isClearable
                         isDisabled={!selections.service_category || !selections.state_name || availablePrograms.length === 0}
                         className="react-select-container"
@@ -1332,10 +1340,11 @@ export default function HistoricalRates() {
                       <label className="text-sm font-medium text-gray-700">Location/Region</label>
                       <Select
                         instanceId="location_region_select"
-                        options={availableLocationRegions.map((o: string) => ({ value: o, label: o }))}
-                        value={selections.location_region ? { value: selections.location_region, label: selections.location_region } : null}
-                        onChange={option => handleSelectionChange('location_region', option?.value || null)}
+                        options={getDropdownOptions(availableLocationRegions, false)}
+                        value={selections.location_region ? selections.location_region.split(',').map(l => ({ value: l.trim(), label: l.trim() })) : null}
+                        onChange={(options) => handleSelectionChange('location_region', options ? options.map(opt => opt.value).join(',') : null)}
                         placeholder="Select Location/Region"
+                        isMulti
                         isClearable
                         isDisabled={!selections.service_category || !selections.state_name || availableLocationRegions.length === 0}
                         className="react-select-container"
@@ -1350,10 +1359,11 @@ export default function HistoricalRates() {
                       <label className="text-sm font-medium text-gray-700">Provider Type</label>
                       <Select
                         instanceId="provider_type_select"
-                        options={availableProviderTypes.map((o: string) => ({ value: o, label: o }))}
-                        value={selections.provider_type ? { value: selections.provider_type, label: selections.provider_type } : null}
-                        onChange={option => handleSelectionChange('provider_type', option?.value || null)}
+                        options={getDropdownOptions(availableProviderTypes, false)}
+                        value={selections.provider_type ? selections.provider_type.split(',').map(p => ({ value: p.trim(), label: p.trim() })) : null}
+                        onChange={(options) => handleSelectionChange('provider_type', options ? options.map(opt => opt.value).join(',') : null)}
                         placeholder="Select Provider Type"
+                        isMulti
                         isClearable
                         isDisabled={!selections.service_category || !selections.state_name || availableProviderTypes.length === 0}
                         className="react-select-container"
@@ -1368,10 +1378,11 @@ export default function HistoricalRates() {
                       <label className="text-sm font-medium text-gray-700">Duration Unit</label>
                       <Select
                         instanceId="duration_unit_select"
-                        options={availableDurationUnits.map((o: string) => ({ value: o, label: o }))}
-                        value={selections.duration_unit ? { value: selections.duration_unit, label: selections.duration_unit } : null}
-                        onChange={option => handleSelectionChange('duration_unit', option?.value || null)}
+                        options={getDropdownOptions(availableDurationUnits, false)}
+                        value={selections.duration_unit ? selections.duration_unit.split(',').map(d => ({ value: d.trim(), label: d.trim() })) : null}
+                        onChange={(options) => handleSelectionChange('duration_unit', options ? options.map(opt => opt.value).join(',') : null)}
                         placeholder="Select Duration Unit"
+                        isMulti
                         isClearable
                         isDisabled={!selections.service_category || !selections.state_name || availableDurationUnits.length === 0}
                         className="react-select-container"
@@ -1386,17 +1397,29 @@ export default function HistoricalRates() {
                       <label className="text-sm font-medium text-gray-700">Modifier</label>
                       <Select
                         instanceId="modifier_1_select"
-                        options={availableModifiers.map((o: string) => {
+                        options={[{ value: '-', label: '-' }, ...availableModifiers.map((o: string) => {
                           const def =
                             filterOptionsData?.combinations?.find((c: any) => c.modifier_1 === o)?.modifier_1_details ||
                             filterOptionsData?.combinations?.find((c: any) => c.modifier_2 === o)?.modifier_2_details ||
                             filterOptionsData?.combinations?.find((c: any) => c.modifier_3 === o)?.modifier_3_details ||
                             filterOptionsData?.combinations?.find((c: any) => c.modifier_4 === o)?.modifier_4_details;
                           return { value: o, label: def ? `${o} - ${def}` : o };
-                        })}
-                        value={selections.modifier_1 ? { value: selections.modifier_1, label: selections.modifier_1 } : null}
-                        onChange={option => handleSelectionChange('modifier_1', option?.value || null)}
+                        })]}
+                        value={selections.modifier_1 ? selections.modifier_1.split(',').map(m => {
+                          const mod = availableModifiers.find(opt => opt === m.trim());
+                          if (mod) {
+                            const def =
+                              filterOptionsData?.combinations?.find((c: any) => c.modifier_1 === mod)?.modifier_1_details ||
+                              filterOptionsData?.combinations?.find((c: any) => c.modifier_2 === mod)?.modifier_2_details ||
+                              filterOptionsData?.combinations?.find((c: any) => c.modifier_3 === mod)?.modifier_3_details ||
+                              filterOptionsData?.combinations?.find((c: any) => c.modifier_4 === mod)?.modifier_4_details;
+                            return { value: mod, label: def ? `${mod} - ${def}` : mod };
+                          }
+                          return { value: m.trim(), label: m.trim() };
+                        }) : null}
+                        onChange={(options) => handleSelectionChange('modifier_1', options ? options.map(opt => opt.value).join(',') : null)}
                         placeholder="Select Modifier"
+                        isMulti
                         isClearable
                         isDisabled={!selections.service_category || !selections.state_name || availableModifiers.length === 0}
                         className="react-select-container"
@@ -1583,12 +1606,16 @@ export default function HistoricalRates() {
                       {getVisibleColumns.service_description && (
                         <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Service Description</th>
                       )}
-                      {getVisibleColumns.duration_unit && (
-                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Duration Unit</th>
-                      )}
                       {getVisibleColumns.rate && (
                         <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Rate per Base Unit</th>
                       )}
+                      {getVisibleColumns.duration_unit && (
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Duration Unit</th>
+                      )}
+                      {getVisibleColumns.rate_effective_date && (
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Effective Date</th>
+                      )}
+                      <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Provider Type</th>
                       {getVisibleColumns.modifier_1 && (
                         <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Modifier 1</th>
                       )}
@@ -1601,16 +1628,12 @@ export default function HistoricalRates() {
                       {getVisibleColumns.modifier_4 && (
                         <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Modifier 4</th>
                       )}
-                      {getVisibleColumns.rate_effective_date && (
-                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Effective Date</th>
-                      )}
                       {getVisibleColumns.program && (
                         <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Program</th>
                       )}
                       {getVisibleColumns.location_region && (
                         <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Location/Region</th>
                       )}
-                      <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Provider Type</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
@@ -1700,16 +1723,11 @@ export default function HistoricalRates() {
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatText(entry.service_code)}</td>
                           )}
                           {getVisibleColumns.service_description && (
+                            <td className="px-6 py-4 text-sm text-gray-900 max-w-[220px] truncate" title={entry.service_description || '-'}>{entry.service_description || '-'}</td>
+                          )}
+                          {getVisibleColumns.rate && (
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              <CustomTooltip content={entry.service_description || '-'}>
-                                <div className="max-w-[220px] truncate cursor-pointer group">
-                                  <span className="group-hover:text-blue-600 transition-colors duration-200">
-                                    {entry.service_description && entry.service_description.length > 30
-                                      ? entry.service_description.slice(0, 30) + '...'
-                                      : entry.service_description || '-'}
-                                  </span>
-                                </div>
-                              </CustomTooltip>
+                                {formatRate(entry.rate)}
                             </td>
                           )}
                           {getVisibleColumns.duration_unit && (
@@ -1717,11 +1735,14 @@ export default function HistoricalRates() {
                                 {entry.duration_unit || '-'}
                             </td>
                           )}
-                          {getVisibleColumns.rate && (
+                          {getVisibleColumns.rate_effective_date && (
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {formatRate(entry.rate)}
+                                {formatDate(entry.rate_effective_date)}
                             </td>
                           )}
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {formatText(entry.provider_type)}
+                          </td>
                           {getVisibleColumns.modifier_1 && (
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                 {entry.modifier_1 ? `${entry.modifier_1}${entry.modifier_1_details ? ` - ${entry.modifier_1_details}` : ''}` : '-'}
@@ -1742,11 +1763,6 @@ export default function HistoricalRates() {
                                 {entry.modifier_4 ? `${entry.modifier_4}${entry.modifier_4_details ? ` - ${entry.modifier_4_details}` : ''}` : '-'}
                             </td>
                           )}
-                          {getVisibleColumns.rate_effective_date && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {formatDate(entry.rate_effective_date)}
-                            </td>
-                          )}
                           {getVisibleColumns.program && (
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                 {entry.program}
@@ -1757,9 +1773,6 @@ export default function HistoricalRates() {
                                 {formatText(entry.location_region)}
                             </td>
                           )}
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {formatText(entry.provider_type)}
-                          </td>
                         </tr>
                       );
                     })}

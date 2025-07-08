@@ -223,15 +223,15 @@ export default function StatePaymentComparison() {
   // Add selections state (like dashboard)
   const [selections, setSelections] = useState<Selections>({
     state_name: null,
-      service_category: null,
-      service_code: null,
-      service_description: null,
-      program: null,
-      location_region: null,
-      provider_type: null,
-      duration_unit: null,
+    service_category: null,
+    service_code: null,
+    service_description: null,
+    program: null,
+    location_region: null,
+    provider_type: null,
+    duration_unit: null,
     fee_schedule_date: null,
-      modifier_1: null,
+    modifier_1: null,
   });
 
   // Add pending filters state (like dashboard)
@@ -504,6 +504,8 @@ export default function StatePaymentComparison() {
   const [stateSelectedForAverage, setStateSelectedForAverage] = useState<{ [state: string]: Set<string> }>({});
   const [pendingSearch, setPendingSearch] = useState(false);
   const [hasSearchedOnce, setHasSearchedOnce] = useState(false);
+  // Add state to track missing required fields
+  const [missingFields, setMissingFields] = useState<{[key: string]: boolean}>({});
 
   const hasSelectedRows = useMemo(() => 
     Object.values(selectedTableRows).some(selections => selections.length > 0),
@@ -640,234 +642,220 @@ export default function StatePaymentComparison() {
     setProviderTypes(filterOptions.providerTypes);
   };
 
-  // Update handleServiceCategoryChange to use dynamic filtering
-  const handleServiceCategoryChange = async (index: number, category: string) => {
-    try {
-      setFilterLoading(true);
-      const newFilters = [...filterSets];
-      
-      // Update the service category
-      newFilters[index] = {
-        ...newFilters[index],
-        serviceCategory: category,
-        serviceCode: "",
-        serviceCodeOptions: []
-      };
-      
-      // Use dynamic filtering to get available options
-        if (filterOptionsData) {
-        // Update selections for dynamic filtering
-        if (index === 0) {
-          handleSelectionChange('service_category', category);
-        }
-        
-        // Get available service codes using dynamic filtering
-        const availableCodes = getAvailableOptionsForFilter('service_code');
-        newFilters[index].serviceCodeOptions = availableCodes;
-      }
-      
-      setFilterSets(newFilters);
-      
-      // Clear dependent filters for this filter set only
-      if (index === filterSets.length - 1) {
-        setServiceCodes([]);
-        setPrograms([]);
-        setLocationRegions([]);
-        setModifiers([]);
-        setProviderTypes([]);
-        setServiceDescriptions([]);
-      }
-    } catch (error) {
-      setFilterError("Failed to update filters. Please try again.");
-    } finally {
-      setFilterLoading(false);
-    }
+  // Update filter handlers to work with existing UI but use new dynamic filtering
+  const handleServiceCategoryChange = (index: number, serviceCategory: string) => {
+    // Update filterSets for UI
+    const newFilters = [...filterSets];
+    newFilters[index] = {
+      ...newFilters[index],
+      serviceCategory: serviceCategory,
+      states: ["ALL_STATES"], // Default to All States
+      serviceCode: "",
+      serviceCodeOptions: []
+    };
+    setFilterSets(newFilters);
+    
+    // Update selections for dynamic filtering
+    setSelections({
+      ...selections,
+      service_category: serviceCategory,
+      state_name: null,
+      service_code: null,
+      service_description: null,
+      program: null,
+      location_region: null,
+      provider_type: null,
+      duration_unit: null,
+      fee_schedule_date: null,
+      modifier_1: null,
+    });
   };
 
-  // Update handleStateChange to use dynamic filtering
-  const handleStateChange = async (index: number, option: { value: string; label: string } | null) => {
-    try {
-      setFilterLoading(true);
-      const newFilters = [...filterSets];
-      const selectedState = option?.value || "";
-
-      if (selectedState === "ALL_STATES") {
-        setIsAllStatesSelected(true);
-        // Set all states
-        const allStates = filterOptions.states;
-        newFilters[index] = {
-          ...newFilters[index],
-          states: allStates,
-          serviceCode: "",
-          serviceCodeOptions: []
-        };
-        
-        // Update selections for dynamic filtering
-        if (index === 0) {
-          handleSelectionChange('state_name', null); // Clear state selection for "All States"
-        }
-        
-        // Get all codes for the selected category using dynamic filtering
-        if (newFilters[index].serviceCategory && filterOptionsData) {
-          const availableCodes = getAvailableOptionsForFilter('service_code');
-          newFilters[index].serviceCodeOptions = availableCodes;
-        }
-        
-        setFilterSets(newFilters);
-        setSelectedState("ALL_STATES");
-        setFilterLoading(false);
-        return;
-      } else {
-        setIsAllStatesSelected(false);
-        // Update for single state
-        newFilters[index] = {
-          ...newFilters[index],
-          states: selectedState ? [selectedState] : [],
-          serviceCode: "",
-          serviceCodeOptions: []
-        };
-        
-        // Update selections for dynamic filtering
-        if (index === 0) {
-          handleSelectionChange('state_name', selectedState);
-        }
-        
-        // Clear dependent filters for this filter set only
-        if (index === filterSets.length - 1) {
-          setServiceCodes([]);
-          setPrograms([]);
-          setLocationRegions([]);
-          setModifiers([]);
-          setProviderTypes([]);
-          setServiceDescriptions([]);
-        }
-        
-        // Get service codes using dynamic filtering
-        if (selectedState && newFilters[index].serviceCategory && filterOptionsData) {
-          const availableCodes = getAvailableOptionsForFilter('service_code');
-          newFilters[index].serviceCodeOptions = availableCodes;
-          setFilterSets(newFilters);
-        }
-        
-        if (index === 0) setSelectedState(selectedState);
-      }
-    } catch (error) {
-      setFilterError("Failed to update state filters. Please try again.");
-    } finally {
-      setFilterLoading(false);
-    }
+  const handleStateChange = (index: number, state: string) => {
+    // Update filterSets for UI
+    const newFilters = [...filterSets];
+    newFilters[index] = {
+      ...newFilters[index],
+      states: [state],
+      serviceCode: "",
+      serviceCodeOptions: []
+    };
+    setFilterSets(newFilters);
+    
+    // Update selections for dynamic filtering
+    setSelections({
+      ...selections,
+      state_name: state,
+      service_code: null,
+      service_description: null,
+      program: null,
+      location_region: null,
+      provider_type: null,
+      duration_unit: null,
+      fee_schedule_date: null,
+      modifier_1: null,
+    });
   };
 
-  // Update handleServiceCodeChange to use dynamic filtering
-  const handleServiceCodeChange = async (index: number, code: string) => {
-    try {
-      setFilterLoading(true);
-      const newFilters = [...filterSets];
-      newFilters[index] = {
-        ...newFilters[index],
-        serviceCode: code
-      };
-      setFilterSets(newFilters);
-      
-      // Update selections for dynamic filtering
-      if (index === 0) {
-        handleSelectionChange('service_code', code);
-      }
-      
-      // Clear dependent filters for this filter set only
-      if (index === filterSets.length - 1) {
-        setServiceCodes([]);
-        setPrograms([]);
-        setLocationRegions([]);
-        setModifiers([]);
-        setProviderTypes([]);
-        setServiceDescriptions([]);
-      }
-      
-      // Remove all automatic data fetching - this will only happen when Search is clicked
-      if (isAllStatesSelected) {
-        setAllStatesAverages(null); // Clear averages if not in All States mode
-      }
-    } catch (error) {
-      setFilterError("Failed to update service code filters. Please try again.");
-    } finally {
-      setFilterLoading(false);
-    }
+  const handleServiceCodeChange = (index: number, serviceCode: string) => {
+    // Update filterSets for UI
+    const newFilters = [...filterSets];
+    newFilters[index] = {
+      ...newFilters[index],
+      serviceCode: serviceCode,
+      serviceDescription: "" // Clear service description when service code changes
+    };
+    setFilterSets(newFilters);
+    // Update selections for dynamic filtering
+    setSelections({
+      ...selections,
+      service_code: serviceCode,
+      service_description: null, // Clear service description
+      program: null,
+      location_region: null,
+      provider_type: null,
+      duration_unit: null,
+      fee_schedule_date: null,
+      modifier_1: null,
+    });
   };
 
-  // Update other filter handlers to use dynamic filtering
+  const handleServiceDescriptionChange = (index: number, serviceDescription: string) => {
+    // Update filterSets for UI
+    const newFilters = [...filterSets];
+    newFilters[index] = {
+      ...newFilters[index],
+      serviceDescription: serviceDescription,
+      serviceCode: "" // Clear service code when service description changes
+    };
+    setFilterSets(newFilters);
+    // Update selections for dynamic filtering
+    setSelections({
+      ...selections,
+      service_description: serviceDescription,
+      service_code: null, // Clear service code
+      program: null,
+      location_region: null,
+      provider_type: null,
+      duration_unit: null,
+      fee_schedule_date: null,
+      modifier_1: null,
+    });
+  };
+
   const handleProgramChange = (index: number, program: string) => {
+    // Update filterSets for UI
     const newFilters = [...filterSets];
     newFilters[index] = {
       ...newFilters[index],
       program: program
     };
     setFilterSets(newFilters);
-    if (index === 0) {
-      handleSelectionChange('program', program);
-    }
+    
+    // Update selections for dynamic filtering
+    setSelections({
+      ...selections,
+      program: program,
+      service_code: null,
+      service_description: null,
+      location_region: null,
+      provider_type: null,
+      duration_unit: null,
+      fee_schedule_date: null,
+      modifier_1: null,
+    });
   };
 
-  const handleLocationRegionChange = (index: number, region: string) => {
+  const handleLocationRegionChange = (index: number, locationRegion: string) => {
+    // Update filterSets for UI
     const newFilters = [...filterSets];
     newFilters[index] = {
       ...newFilters[index],
-      locationRegion: region
+      locationRegion: locationRegion
     };
     setFilterSets(newFilters);
-    if (index === 0) {
-      handleSelectionChange('location_region', region);
-    }
+    
+    // Update selections for dynamic filtering
+    setSelections({
+      ...selections,
+      location_region: locationRegion,
+      service_code: null,
+      service_description: null,
+      program: null,
+      provider_type: null,
+      duration_unit: null,
+      fee_schedule_date: null,
+      modifier_1: null,
+    });
   };
 
-  const handleModifierChange = (index: number, modifier: string) => {
-    const newFilters = [...filterSets];
-    newFilters[index] = {
-      ...newFilters[index],
-      modifier: modifier
-    };
-    setFilterSets(newFilters);
-    if (index === 0) {
-      handleSelectionChange('modifier_1', modifier);
-    }
-  };
-
-  const handleServiceDescriptionChange = (index: number, desc: string) => {
-    const newFilters = [...filterSets];
-    newFilters[index] = {
-      ...newFilters[index],
-      serviceDescription: desc
-    };
-    setFilterSets(newFilters);
-    if (index === 0) {
-      handleSelectionChange('service_description', desc);
-    }
-  };
-
-  const handleProviderTypeChange = async (index: number, providerType: string) => {
+  const handleProviderTypeChange = (index: number, providerType: string) => {
+    // Update filterSets for UI
     const newFilters = [...filterSets];
     newFilters[index] = {
       ...newFilters[index],
       providerType: providerType
     };
     setFilterSets(newFilters);
-    if (index === 0) {
-      handleSelectionChange('provider_type', providerType);
-    }
+    
+    // Update selections for dynamic filtering
+    setSelections({
+      ...selections,
+      provider_type: providerType,
+      service_code: null,
+      service_description: null,
+      program: null,
+      location_region: null,
+      duration_unit: null,
+      fee_schedule_date: null,
+      modifier_1: null,
+    });
   };
 
-  const handleDurationUnitChange = async (index: number, durationUnits: string[]) => {
+  const handleDurationUnitChange = (index: number, durationUnit: string) => {
+    // Update filterSets for UI
     const newFilters = [...filterSets];
     newFilters[index] = {
       ...newFilters[index],
-      durationUnits: durationUnits
+      durationUnits: [durationUnit]
     };
     setFilterSets(newFilters);
-    if (index === 0) {
-      // For multiple duration units, we'll handle this differently
-      // For now, just set the first one for backward compatibility
-      handleSelectionChange('duration_unit', durationUnits.length > 0 ? durationUnits[0] : null);
-    }
+    
+    // Update selections for dynamic filtering
+    setSelections({
+      ...selections,
+      duration_unit: durationUnit,
+      service_code: null,
+      service_description: null,
+      program: null,
+      location_region: null,
+      provider_type: null,
+      fee_schedule_date: null,
+      modifier_1: null,
+    });
+  };
+
+  const handleModifierChange = (index: number, modifier: string) => {
+    // Update filterSets for UI
+    const newFilters = [...filterSets];
+    newFilters[index] = {
+      ...newFilters[index],
+      modifier: modifier
+    };
+    setFilterSets(newFilters);
+    
+    // Update selections for dynamic filtering
+    setSelections({
+      ...selections,
+      modifier_1: modifier,
+      service_code: null,
+      service_description: null,
+      program: null,
+      location_region: null,
+      provider_type: null,
+      duration_unit: null,
+      fee_schedule_date: null,
+    });
   };
 
   // Fetch state averages for All States mode
@@ -1284,13 +1272,46 @@ export default function StatePaymentComparison() {
   function getAvailableOptionsForFilter(filterKey: keyof Selections) {
     if (!filterOptionsData || !filterOptionsData.combinations) return [];
     
-    // For all filters, ensure that we only consider combos that match current selections
+    // Special handling for fee_schedule_date to aggregate dates from the 'rate_effective_date' column
+    if (filterKey === 'fee_schedule_date') {
+      const dateSet = new Set<string>();
+      filterOptionsData.combinations.forEach(combo => {
+        // Only check selections that are actually set (not null)
+        const matches = Object.entries(selections).every(([key, value]) => {
+          if (key === 'fee_schedule_date') return true; // skip current filter
+          if (!value) return true; // skip unset selections
+          return combo[key] === value;
+        });
+        if (matches && combo.rate_effective_date) {
+          // Handle rate_effective_date as array of dates
+          if (Array.isArray(combo.rate_effective_date)) {
+            combo.rate_effective_date.forEach(date => {
+              if (date) dateSet.add(date);
+            });
+          } else {
+            // Fallback for single date string
+            dateSet.add(combo.rate_effective_date);
+          }
+        }
+      });
+      return Array.from(dateSet).sort();
+    }
+    
+    // For all other filters, ensure that if a fee_schedule_date is selected, we only consider combos where the date matches
     return Array.from(new Set(
       filterOptionsData.combinations
         .filter(combo => {
-          // Check all other selections except the current filterKey
+          // If a fee_schedule_date is selected, only consider combos where the date matches
+          if (selections.fee_schedule_date) {
+            if (Array.isArray(combo.rate_effective_date)) {
+              if (!combo.rate_effective_date.includes(selections.fee_schedule_date)) return false;
+            } else {
+              if (combo.rate_effective_date !== selections.fee_schedule_date) return false;
+            }
+          }
+          // Now check all other selections except the current filterKey
           return Object.entries(selections).every(([key, value]) => {
-            if (key === filterKey) return true; // skip current filter
+            if (key === filterKey || key === 'fee_schedule_date') return true;
             if (!value) return true;
             return combo[key] === value;
           });
@@ -1299,6 +1320,11 @@ export default function StatePaymentComparison() {
         .filter(Boolean)
     )).sort();
   }
+
+  // Function to get available options for a specific filter set
+  const getAvailableOptionsForFilterSet = (filterKey: keyof Selections, filterSetIndex: number) => {
+    return getAvailableOptionsForFilter(filterKey);
+  };
 
   // Add dynamic filter options computed from filterOptionsData (like dashboard)
   const availableServiceCategories = getAvailableOptionsForFilter('service_category');
@@ -1309,6 +1335,7 @@ export default function StatePaymentComparison() {
   const availableLocationRegions = getAvailableOptionsForFilter('location_region');
   const availableProviderTypes = getAvailableOptionsForFilter('provider_type');
   const availableDurationUnits = getAvailableOptionsForFilter('duration_unit');
+  const availableFeeScheduleDates = getAvailableOptionsForFilter('fee_schedule_date');
   const availableModifiers = getAvailableOptionsForFilter('modifier_1');
 
   // Add loadFilterOptions function (like dashboard)
@@ -1508,11 +1535,11 @@ export default function StatePaymentComparison() {
         } else if (selectedCount === 0) {
           barColor = '#A0AEC0'; // gray for none
           selectionStatus = 'none';
-        } else if (selectedCount > 0 && selectedCount < total) {
-          barColor = '#FFB347'; // muted orange for partial
-          selectionStatus = 'partial';
-        } else if (selectedCount === total) {
-          barColor = '#36A2EB'; // blue for all
+        } else if (selectedCount === 1) {
+          barColor = '#FFB347'; // yellow/orange for single selection
+          selectionStatus = 'single';
+        } else if (selectedCount > 1) {
+          barColor = '#36A2EB'; // blue for multiple (average)
           selectionStatus = 'all';
         }
         return {
@@ -1941,6 +1968,35 @@ export default function StatePaymentComparison() {
     setSelectedEntries({});         // <-- Clear selected entries
     setClickedStates([]);          // <-- Clear clicked states
     setChartRefreshKey(k => k + 1); // <-- Force chart to re-render/reset
+    
+    // Clear all additional state variables that might persist
+    setFilterSetData({});
+    setAllStatesTablePages({});
+    setAllStatesSelectedRows({});
+    setStateAverageEntries({});
+    setStateSelectedForAverage({});
+    setAllStatesAverages(null);
+    setPendingSearch(false);
+    setHasSearchedOnce(false);
+    setMissingFields({});
+    setGlobalModifierOrder(new Map());
+    setGlobalSelectionOrder(new Map());
+    setComment(null);
+    setComments([]);
+    
+    // Reset selections for dynamic filtering
+    setSelections({
+      service_category: null,
+      state_name: null,
+      service_code: null,
+      service_description: null,
+      program: null,
+      location_region: null,
+      provider_type: null,
+      duration_unit: null,
+      fee_schedule_date: null,
+      modifier_1: null,
+    });
   };
 
   // Calculate highest and lowest among currently selected bars
@@ -2292,6 +2348,14 @@ export default function StatePaymentComparison() {
 
   // Only fetch data when Search is clicked
   const handleSearch = async () => {
+    const requiredFields = ['serviceCategory', 'serviceCodeOrDescription', 'durationUnits'];
+    const newMissing: {[key: string]: boolean} = {};
+    const filterSet = filterSets[0]; // Only one filter set for all states
+    newMissing.serviceCategory = !filterSet.serviceCategory;
+    newMissing.serviceCodeOrDescription = !(filterSet.serviceCode || filterSet.serviceDescription);
+    newMissing.durationUnits = !filterSet.durationUnits || filterSet.durationUnits.length === 0;
+    setMissingFields(newMissing);
+    if (Object.values(newMissing).some(Boolean)) return; // Don't search if missing
     console.log('🔍 Search button clicked - fetching data...');
     setPendingSearch(false);
     setClickedStates([]); // Clear clicked states when starting a new search
@@ -2536,6 +2600,7 @@ export default function StatePaymentComparison() {
                         className="react-select-container"
                         classNamePrefix="react-select"
                       />
+                      {missingFields.serviceCategory && <div className="text-xs text-red-500 mt-1">Please select a service line.</div>}
                     </div>
 
                     {/* Service Code Selector - Third */}
@@ -2550,28 +2615,29 @@ export default function StatePaymentComparison() {
                         <Select
                           instanceId={`service-code-select-${index}`}
                           options={
-                            filterSet.serviceCodeOptions.length > 0
-                              ? filterSet.serviceCodeOptions.map((code: any) => ({ value: code, label: code }))
-                              : []
+                            (() => {
+                              const availableServiceCodes = getAvailableOptionsForFilterSet('service_code', index);
+                              return availableServiceCodes && availableServiceCodes.length > 0
+                                ? availableServiceCodes.map((code: any) => ({ value: code, label: code }))
+                                : [];
+                            })()
                           }
                           value={filterSet.serviceCode ? { value: filterSet.serviceCode, label: filterSet.serviceCode } : null}
                           onChange={(option) => {
                             const newValue = option?.value || "";
-                            // If user selects service code, clear service description
-                            if (newValue && filterSet.serviceDescription) {
-                              const newFilters = [...filterSets];
-                              newFilters[index] = {
-                                ...newFilters[index],
-                                serviceDescription: ""
-                              };
-                              setFilterSets(newFilters);
-                            }
                             wrappedHandleServiceCodeChange(index, newValue);
                           }}
                           placeholder="Select Service Code (Required if no Service Description)"
                           isSearchable
                           filterOption={customFilterOption}
-                          className="react-select-container"
+                          isDisabled={(() => {
+                            const availableServiceCodes = getAvailableOptionsForFilterSet('service_code', index);
+                            return (!filterSet.serviceCode && (!availableServiceCodes || availableServiceCodes.length === 0));
+                          })()}
+                          className={`react-select-container ${(() => {
+                            const availableServiceCodes = getAvailableOptionsForFilterSet('service_code', index);
+                            return (!filterSet.serviceCode && (!availableServiceCodes || availableServiceCodes.length === 0)) ? 'opacity-50' : '';
+                          })()}`}
                           classNamePrefix="react-select"
                         />
                         {filterSet.serviceCode && (
@@ -2582,6 +2648,7 @@ export default function StatePaymentComparison() {
                             Clear
                           </button>
                         )}
+                        {missingFields.serviceCodeOrDescription && <div className="text-xs text-red-500 mt-1">Please select a service code or description.</div>}
                       </div>
                     ) : (
                       <div className="space-y-2">
@@ -2599,17 +2666,27 @@ export default function StatePaymentComparison() {
                         <Select
                           instanceId={`program-select-${index}`}
                           options={
-                            (availablePrograms && availablePrograms.length > 0)
-                              ? [{ value: '-', label: '-' }, ...availablePrograms.map((program: any) => ({ value: program, label: program }))]
-                              : []
+                            (() => {
+                              const availablePrograms = getAvailableOptionsForFilterSet('program', index);
+                              return availablePrograms && availablePrograms.length > 0
+                                ? [{ value: '-', label: '-' }, ...availablePrograms.map((program: any) => ({ value: program, label: program }))]
+                                : [];
+                            })()
                           }
-                            value={filterSet.program ? { value: filterSet.program, label: filterSet.program } : null}
-                          onChange={(option) => wrappedHandleProgramChange(index, option?.value || "")}
+                          value={filterSet.program ? filterSet.program.split(',').map(p => ({ value: p.trim(), label: p.trim() })) : null}
+                          onChange={(options) => wrappedHandleProgramChange(index, options ? options.map(opt => opt.value).join(',') : "")}
                           placeholder="Select Program"
+                          isMulti
                           isSearchable
                           filterOption={customFilterOption}
-                          isDisabled={(availablePrograms || []).length === 0}
-                          className={`react-select-container ${(availablePrograms || []).length === 0 ? 'opacity-50' : ''}`}
+                          isDisabled={(() => {
+                            const availablePrograms = getAvailableOptionsForFilterSet('program', index);
+                            return (!filterSet.program && (!availablePrograms || availablePrograms.length === 0));
+                          })()}
+                          className={`react-select-container ${(() => {
+                            const availablePrograms = getAvailableOptionsForFilterSet('program', index);
+                            return (!filterSet.program && (!availablePrograms || availablePrograms.length === 0)) ? 'opacity-50' : '';
+                          })()}`}
                           classNamePrefix="react-select"
                         />
                         {filterSet.program && (
@@ -2630,17 +2707,27 @@ export default function StatePaymentComparison() {
                         <Select
                           instanceId={`location-region-select-${index}`}
                           options={
-                            (availableLocationRegions && availableLocationRegions.length > 0)
-                              ? [{ value: '-', label: '-' }, ...availableLocationRegions.map((region: any) => ({ value: region, label: region }))]
-                              : []
+                            (() => {
+                              const availableLocationRegions = getAvailableOptionsForFilterSet('location_region', index);
+                              return availableLocationRegions && availableLocationRegions.length > 0
+                                ? [{ value: '-', label: '-' }, ...availableLocationRegions.map((region: any) => ({ value: region, label: region }))]
+                                : [];
+                            })()
                           }
-                          value={filterSet.locationRegion ? { value: filterSet.locationRegion, label: filterSet.locationRegion } : null}
-                          onChange={(option) => wrappedHandleLocationRegionChange(index, option?.value || "")}
+                          value={filterSet.locationRegion ? filterSet.locationRegion.split(',').map(l => ({ value: l.trim(), label: l.trim() })) : null}
+                          onChange={(options) => wrappedHandleLocationRegionChange(index, options ? options.map(opt => opt.value).join(',') : "")}
                           placeholder="Select Location/Region"
+                          isMulti
                           isSearchable
                           filterOption={customFilterOption}
-                          isDisabled={(availableLocationRegions || []).length === 0}
-                          className={`react-select-container ${(availableLocationRegions || []).length === 0 ? 'opacity-50' : ''}`}
+                          isDisabled={(() => {
+                            const availableLocationRegions = getAvailableOptionsForFilterSet('location_region', index);
+                            return (availableLocationRegions || []).length === 0;
+                          })()}
+                          className={`react-select-container ${(() => {
+                            const availableLocationRegions = getAvailableOptionsForFilterSet('location_region', index);
+                            return (availableLocationRegions || []).length === 0 ? 'opacity-50' : '';
+                          })()}`}
                           classNamePrefix="react-select"
                         />
                         {filterSet.locationRegion && (
@@ -2661,17 +2748,38 @@ export default function StatePaymentComparison() {
                         <Select
                           instanceId={`modifier-select-${index}`}
                           options={
-                            (availableModifiers && availableModifiers.length > 0)
-                              ? [{ value: '-', label: '-' }, ...availableModifiers.map((modifier: any) => ({ value: modifier, label: modifier }))]
-                              : []
+                            (() => {
+                              const availableModifiers = getAvailableOptionsForFilterSet('modifier_1', index);
+                              return availableModifiers && availableModifiers.length > 0
+                                ? [{ value: '-', label: '-' }, ...availableModifiers.map((modifier: any) => ({ value: modifier, label: modifier }))]
+                                : [];
+                            })()
                           }
-                          value={filterSet.modifier ? { value: filterSet.modifier, label: filterSet.modifier } : null}
-                          onChange={(option) => wrappedHandleModifierChange(index, option?.value || "")}
+                          value={filterSet.modifier ? filterSet.modifier.split(',').map(m => {
+                            const mod = availableModifiers.find(opt => opt === m.trim());
+                            if (mod) {
+                              const def =
+                                filterOptionsData?.combinations?.find((c: any) => c.modifier_1 === mod)?.modifier_1_details ||
+                                filterOptionsData?.combinations?.find((c: any) => c.modifier_2 === mod)?.modifier_2_details ||
+                                filterOptionsData?.combinations?.find((c: any) => c.modifier_3 === mod)?.modifier_3_details ||
+                                filterOptionsData?.combinations?.find((c: any) => c.modifier_4 === mod)?.modifier_4_details;
+                              return { value: mod, label: def ? `${mod} - ${def}` : mod };
+                            }
+                            return { value: m.trim(), label: m.trim() };
+                          }) : null}
+                          onChange={(options) => wrappedHandleModifierChange(index, options ? options.map(opt => opt.value).join(',') : "")}
                           placeholder="Select Modifier"
+                          isMulti
                           isSearchable
                           filterOption={customFilterOption}
-                          isDisabled={(availableModifiers || []).length === 0}
-                          className={`react-select-container ${(availableModifiers || []).length === 0 ? 'opacity-50' : ''}`}
+                          isDisabled={(() => {
+                            const availableModifiers = getAvailableOptionsForFilterSet('modifier_1', index);
+                            return (!filterSet.modifier && (!availableModifiers || availableModifiers.length === 0));
+                          })()}
+                          className={`react-select-container ${(() => {
+                            const availableModifiers = getAvailableOptionsForFilterSet('modifier_1', index);
+                            return (!filterSet.modifier && (!availableModifiers || availableModifiers.length === 0)) ? 'opacity-50' : '';
+                          })()}`}
                           classNamePrefix="react-select"
                         />
                         {filterSet.modifier && (
@@ -2692,17 +2800,27 @@ export default function StatePaymentComparison() {
                         <Select
                           instanceId={`provider-type-select-${index}`}
                           options={
-                            (availableProviderTypes && availableProviderTypes.length > 0)
-                              ? [{ value: '-', label: '-' }, ...availableProviderTypes.map((type: any) => ({ value: type, label: type }))]
-                              : []
+                            (() => {
+                              const availableProviderTypes = getAvailableOptionsForFilterSet('provider_type', index);
+                              return availableProviderTypes && availableProviderTypes.length > 0
+                                ? [{ value: '-', label: '-' }, ...availableProviderTypes.map((type: any) => ({ value: type, label: type }))]
+                                : [];
+                            })()
                           }
-                          value={filterSet.providerType ? { value: filterSet.providerType, label: filterSet.providerType } : null}
-                          onChange={(option) => wrappedHandleProviderTypeChange(index, option?.value || "")}
+                          value={filterSet.providerType ? filterSet.providerType.split(',').map(p => ({ value: p.trim(), label: p.trim() })) : null}
+                          onChange={(options) => wrappedHandleProviderTypeChange(index, options ? options.map(opt => opt.value).join(',') : "")}
                           placeholder="Select Provider Type"
+                          isMulti
                           isSearchable
                           filterOption={customFilterOption}
-                          isDisabled={(availableProviderTypes || []).length === 0}
-                          className={`react-select-container ${(availableProviderTypes || []).length === 0 ? 'opacity-50' : ''}`}
+                          isDisabled={(() => {
+                            const availableProviderTypes = getAvailableOptionsForFilterSet('provider_type', index);
+                            return (!filterSet.providerType && (!availableProviderTypes || availableProviderTypes.length === 0));
+                          })()}
+                          className={`react-select-container ${(() => {
+                            const availableProviderTypes = getAvailableOptionsForFilterSet('provider_type', index);
+                            return (!filterSet.providerType && (!availableProviderTypes || availableProviderTypes.length === 0)) ? 'opacity-50' : '';
+                          })()}`}
                           classNamePrefix="react-select"
                         />
                         {filterSet.providerType && (
@@ -2719,14 +2837,17 @@ export default function StatePaymentComparison() {
                     {/* Duration Unit Selector - Mandatory */}
                       <div className="space-y-2">
                       <label className="text-sm font-medium text-gray-700">
-                        Duration Unit <span className="text-red-500">*</span>
+                        Duration Unit 
                       </label>
                         <Select
                           instanceId={`duration-unit-select-${index}`}
                           options={
-                            (availableDurationUnits && availableDurationUnits.length > 0)
-                            ? availableDurationUnits.map((unit: any) => ({ value: unit, label: unit }))
-                            : []
+                            (() => {
+                              const availableDurationUnits = getAvailableOptionsForFilterSet('duration_unit', index);
+                              return availableDurationUnits && availableDurationUnits.length > 0
+                                ? availableDurationUnits.map((unit: any) => ({ value: unit, label: unit }))
+                                : [];
+                            })()
                         }
                         value={filterSet.durationUnits.map(unit => ({ value: unit, label: unit }))}
                         onChange={(options) => {
@@ -2737,8 +2858,14 @@ export default function StatePaymentComparison() {
                           isSearchable
                         isMulti
                           filterOption={customFilterOption}
-                          isDisabled={(availableDurationUnits || []).length === 0}
-                          className={`react-select-container ${(availableDurationUnits || []).length === 0 ? 'opacity-50' : ''}`}
+                          isDisabled={(() => {
+                            const availableDurationUnits = getAvailableOptionsForFilterSet('duration_unit', index);
+                            return (!filterSet.durationUnits.length && (!availableDurationUnits || availableDurationUnits.length === 0));
+                          })()}
+                          className={`react-select-container ${(() => {
+                            const availableDurationUnits = getAvailableOptionsForFilterSet('duration_unit', index);
+                            return (!filterSet.durationUnits.length && (!availableDurationUnits || availableDurationUnits.length === 0)) ? 'opacity-50' : '';
+                          })()}`}
                           classNamePrefix="react-select"
                         />
                       {filterSet.durationUnits.length > 0 && (
@@ -2749,12 +2876,13 @@ export default function StatePaymentComparison() {
                           Clear All
                           </button>
                         )}
+                        {missingFields.durationUnits && <div className="text-xs text-red-500 mt-1">Please select at least one duration unit.</div>}
                       </div>
 
                     {/* Service Description Selector - Mandatory */}
                       <div className="space-y-2">
                       <label className="text-sm font-medium text-gray-700">
-                        Service Description <span className="text-red-500">*</span>
+                        Service Description 
                         {filterSet.serviceCode && (
                           <span className="text-xs text-gray-500 ml-2">(Choose either Service Code OR Service Description)</span>
                         )}
@@ -2762,29 +2890,29 @@ export default function StatePaymentComparison() {
                         <Select
                           instanceId={`service-description-select-${index}`}
                           options={
-                            (availableServiceDescriptions && availableServiceDescriptions.length > 0)
-                            ? availableServiceDescriptions.map((desc: any) => ({ value: desc, label: desc }))
-                              : []
+                            (() => {
+                              const availableServiceDescriptions = getAvailableOptionsForFilterSet('service_description', index);
+                              return availableServiceDescriptions && availableServiceDescriptions.length > 0
+                                ? availableServiceDescriptions.map((desc: any) => ({ value: desc, label: desc }))
+                                : [];
+                            })()
                           }
                           value={filterSet.serviceDescription ? { value: filterSet.serviceDescription, label: filterSet.serviceDescription } : null}
                         onChange={(option) => {
                           const newValue = option?.value || "";
-                          // If user selects service description, clear service code
-                          if (newValue && filterSet.serviceCode) {
-                            const newFilters = [...filterSets];
-                            newFilters[index] = {
-                              ...newFilters[index],
-                              serviceCode: ""
-                            };
-                            setFilterSets(newFilters);
-                          }
                           wrappedHandleServiceDescriptionChange(index, newValue);
                         }}
                         placeholder="Select Service Description (Required if no Service Code)"
                           isSearchable
                           filterOption={customFilterOption}
-                          isDisabled={(availableServiceDescriptions || []).length === 0}
-                          className={`react-select-container ${(availableServiceDescriptions || []).length === 0 ? 'opacity-50' : ''}`}
+                          isDisabled={(() => {
+                            const availableServiceDescriptions = getAvailableOptionsForFilterSet('service_description', index);
+                            return (!filterSet.serviceDescription && (!availableServiceDescriptions || availableServiceDescriptions.length === 0));
+                          })()}
+                          className={`react-select-container ${(() => {
+                            const availableServiceDescriptions = getAvailableOptionsForFilterSet('service_description', index);
+                            return (!filterSet.serviceDescription && (!availableServiceDescriptions || availableServiceDescriptions.length === 0)) ? 'opacity-50' : '';
+                          })()}`}
                           classNamePrefix="react-select"
                         />
                         {filterSet.serviceDescription && (
@@ -2795,6 +2923,7 @@ export default function StatePaymentComparison() {
                             Clear
                           </button>
                         )}
+                        {missingFields.serviceCodeOrDescription && <div className="text-xs text-red-500 mt-1">Please select a service code or description.</div>}
                     </div>
                   </div>
                 </div>
@@ -2815,7 +2944,6 @@ export default function StatePaymentComparison() {
                 <button
                   onClick={handleSearch}
                   className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold shadow"
-                  disabled={!pendingSearch || !isSearchReady}
                 >
                   Search
                 </button>
@@ -2941,8 +3069,7 @@ export default function StatePaymentComparison() {
                       <p className="text-gray-600 mb-4">Select filters and click Search to view the chart</p>
                       <button
                         onClick={handleSearch}
-                        disabled={!isSearchReady}
-                        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                       >
                         Search
                       </button>

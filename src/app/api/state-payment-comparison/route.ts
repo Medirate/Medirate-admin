@@ -145,12 +145,67 @@ export async function GET(request: Request) {
     if (state) query = query.eq('state_name', state);
     if (serviceCode) query = query.eq('service_code', serviceCode);
     if (serviceDescription) query = query.eq('service_description', serviceDescription);
-    if (program) query = query.eq('program', program);
-    if (locationRegion) query = query.eq('location_region', locationRegion);
-    if (providerType) query = query.eq('provider_type', providerType);
+    
+    // Handle secondary filters with "-" option for empty values and multi-select support
+    if (program) {
+      if (program === '-') {
+        query = query.or('program.is.null,program.eq.');
+      } else if (program.includes(',')) {
+        // Handle multi-select - split by comma and use OR
+        const programs = program.split(',').map(p => p.trim()).filter(p => p);
+        if (programs.length > 0) {
+          const orConditions = programs.map(p => `program.eq.${p}`).join(',');
+          query = query.or(orConditions);
+        }
+      } else {
+        query = query.eq('program', program);
+      }
+    }
+    if (locationRegion) {
+      if (locationRegion === '-') {
+        query = query.or('location_region.is.null,location_region.eq.');
+      } else if (locationRegion.includes(',')) {
+        // Handle multi-select - split by comma and use OR
+        const regions = locationRegion.split(',').map(r => r.trim()).filter(r => r);
+        if (regions.length > 0) {
+          const orConditions = regions.map(r => `location_region.eq.${r}`).join(',');
+          query = query.or(orConditions);
+        }
+      } else {
+        query = query.eq('location_region', locationRegion);
+      }
+    }
+    if (providerType) {
+      if (providerType === '-') {
+        query = query.or('provider_type.is.null,provider_type.eq.');
+      } else if (providerType.includes(',')) {
+        // Handle multi-select - split by comma and use OR
+        const types = providerType.split(',').map(t => t.trim()).filter(t => t);
+        if (types.length > 0) {
+          const orConditions = types.map(t => `provider_type.eq.${t}`).join(',');
+          query = query.or(orConditions);
+        }
+      } else {
+        query = query.eq('provider_type', providerType);
+      }
+    }
     if (modifier) {
-      // Check all modifier columns
-      query = query.or(`modifier_1.eq.${modifier},modifier_2.eq.${modifier},modifier_3.eq.${modifier},modifier_4.eq.${modifier}`);
+      if (modifier === '-') {
+        // Show entries with no modifiers
+        query = query.is('modifier_1', null).is('modifier_2', null).is('modifier_3', null).is('modifier_4', null);
+      } else if (modifier.includes(',')) {
+        // Handle multi-select - split by comma and check all modifier columns
+        const modifiers = modifier.split(',').map(m => m.trim()).filter(m => m);
+        if (modifiers.length > 0) {
+          const orConditions = modifiers.map(m => 
+            `modifier_1.eq.${m},modifier_2.eq.${m},modifier_3.eq.${m},modifier_4.eq.${m}`
+          ).join(',');
+          query = query.or(orConditions);
+        }
+      } else {
+        // Check all modifier columns
+        query = query.or(`modifier_1.eq.${modifier},modifier_2.eq.${modifier},modifier_3.eq.${modifier},modifier_4.eq.${modifier}`);
+      }
     }
     if (feeScheduleDate) {
       query = query.eq('rate_effective_date', feeScheduleDate);
