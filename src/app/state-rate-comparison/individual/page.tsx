@@ -662,17 +662,10 @@ export default function StatePaymentComparison() {
           serviceCode: "",
           serviceCodeOptions: []
         };
-        // Get all codes for the selected category from filterOptionsData
+        // Get all codes for the selected category using dynamic filtering
         if (filterOptionsData) {
-          const allCodes = Array.from(
-            new Set(
-              filterOptionsData.combinations
-                .filter(combo => combo.service_category === category)
-                .map(combo => combo.service_code)
-                .filter(Boolean)
-            )
-          ).sort();
-          newFilters[index].serviceCodeOptions = allCodes;
+          const availableCodes = getAvailableOptionsForFilter('service_code');
+          newFilters[index].serviceCodeOptions = availableCodes;
         }
         setFilterSets(newFilters);
         setFilterLoading(false);
@@ -728,17 +721,10 @@ export default function StatePaymentComparison() {
           serviceCode: "",
           serviceCodeOptions: []
         };
-        // Get all codes for the selected category from filterOptionsData
+        // Get all codes for the selected category using dynamic filtering
         if (newFilters[index].serviceCategory && filterOptionsData) {
-          const allCodes = Array.from(
-            new Set(
-              filterOptionsData.combinations
-                .filter(combo => combo.service_category === newFilters[index].serviceCategory)
-                .map(combo => combo.service_code)
-                .filter(Boolean)
-            )
-          ).sort();
-          newFilters[index].serviceCodeOptions = allCodes;
+          const availableCodes = getAvailableOptionsForFilter('service_code');
+          newFilters[index].serviceCodeOptions = availableCodes;
         }
         setFilterSets(newFilters);
         setSelectedState("ALL_STATES");
@@ -770,22 +756,10 @@ export default function StatePaymentComparison() {
           setServiceDescriptions([]);
         }
         if (selectedState && newFilters[index].serviceCategory && filterOptionsData) {
-          // Get service codes for this specific category and state combination from filterOptionsData
-          const serviceCodes = Array.from(
-            new Set(
-              filterOptionsData.combinations
-                .filter(combo => 
-                  combo.service_category === newFilters[index].serviceCategory &&
-                  combo.state_name === selectedState
-                )
-                .map(combo => combo.service_code)
-                .filter(Boolean)
-            )
-          ).sort();
-          newFilters[index].serviceCodeOptions = serviceCodes;
+          // Get service codes using dynamic filtering
+          const availableCodes = getAvailableOptionsForFilter('service_code');
+          newFilters[index].serviceCodeOptions = availableCodes;
           setFilterSets(newFilters);
-          
-          // Remove automatic data fetching - this will only happen when Search is clicked
         }
         if (index === 0) setSelectedState(selectedState);
       }
@@ -1110,8 +1084,9 @@ export default function StatePaymentComparison() {
     )).sort();
   }
 
-  // Add dynamic filter options computed from filterOptionsData
+  // Add dynamic filter options computed from filterOptionsData (like dashboard)
   const availableServiceCategories = getAvailableOptionsForFilter('service_category');
+  const availableStates = getAvailableOptionsForFilter('state_name');
   const availableServiceCodes = getAvailableOptionsForFilter('service_code');
   const availableServiceDescriptions = getAvailableOptionsForFilter('service_description');
   const availablePrograms = getAvailableOptionsForFilter('program');
@@ -1119,6 +1094,172 @@ export default function StatePaymentComparison() {
   const availableProviderTypes = getAvailableOptionsForFilter('provider_type');
   const availableDurationUnits = getAvailableOptionsForFilter('duration_unit');
   const availableModifiers = getAvailableOptionsForFilter('modifier_1');
+
+  // Add loadFilterOptions function (like dashboard)
+  const loadFilterOptions = useCallback(async () => {
+    if (!filterOptionsData) return;
+    
+    setIsUpdatingFilters(true);
+    try {
+      // Build filter conditions based on current selections
+      const conditions: ((combo: Combination) => boolean)[] = [];
+      
+      if (selections.service_category) {
+        conditions.push(combo => combo.service_category === selections.service_category);
+      }
+      
+      if (selections.state_name) {
+        conditions.push(combo => combo.state_name === selections.state_name);
+      }
+      
+      if (selections.service_code) {
+        conditions.push(combo => combo.service_code === selections.service_code);
+      }
+      
+      if (selections.service_description) {
+        conditions.push(combo => combo.service_description === selections.service_description);
+      }
+      
+      if (selections.program) {
+        conditions.push(combo => combo.program === selections.program);
+      }
+      
+      if (selections.location_region) {
+        conditions.push(combo => combo.location_region === selections.location_region);
+      }
+      
+      if (selections.provider_type) {
+        conditions.push(combo => combo.provider_type === selections.provider_type);
+      }
+      
+      if (selections.duration_unit) {
+        conditions.push(combo => combo.duration_unit === selections.duration_unit);
+      }
+      
+      if (selections.modifier_1) {
+        conditions.push(combo => combo.modifier_1 === selections.modifier_1);
+      }
+      
+      // Filter combinations based on all current selections
+      const filteredCombinations = filterOptionsData.combinations.filter(combo => 
+        conditions.every(condition => condition(combo))
+      );
+      
+      // Extract unique values for each filter, excluding already selected values
+      const states = Array.from(new Set(
+        filteredCombinations
+          .map(c => c.state_name)
+          .filter(Boolean)
+          .filter(state => !selections.state_name || state === selections.state_name)
+      )).sort();
+      
+      const serviceCodes = Array.from(new Set(
+        filteredCombinations
+          .map(c => c.service_code)
+          .filter(Boolean)
+          .filter(code => !selections.service_code || code === selections.service_code)
+      )).sort();
+      
+      const serviceDescriptions = Array.from(new Set(
+        filteredCombinations
+          .map(c => c.service_description)
+          .filter(Boolean)
+          .filter(desc => !selections.service_description || desc === selections.service_description)
+      )).sort();
+      
+      const programs = Array.from(new Set(
+        filteredCombinations
+          .map(c => c.program)
+          .filter(Boolean)
+          .filter(program => !selections.program || program === selections.program)
+      )).sort();
+      
+      const locationRegions = Array.from(new Set(
+        filteredCombinations
+          .map(c => c.location_region)
+          .filter(Boolean)
+          .filter(region => !selections.location_region || region === selections.location_region)
+      )).sort();
+      
+      const providerTypes = Array.from(new Set(
+        filteredCombinations
+          .map(c => c.provider_type)
+          .filter(Boolean)
+          .filter(type => !selections.provider_type || type === selections.provider_type)
+      )).sort();
+      
+      const durationUnits = Array.from(new Set(
+        filteredCombinations
+          .map(c => c.duration_unit)
+          .filter(Boolean)
+          .filter(unit => !selections.duration_unit || unit === selections.duration_unit)
+      )).sort();
+      
+      const modifiers = Array.from(new Set(
+        filteredCombinations
+          .map(c => c.modifier_1)
+          .filter(Boolean)
+          .filter(modifier => !selections.modifier_1 || modifier === selections.modifier_1)
+      )).sort();
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`✅ Filter options updated:`, {
+          states: states.length,
+          serviceCodes: serviceCodes.length,
+          serviceDescriptions: serviceDescriptions.length,
+          programs: programs.length,
+          locationRegions: locationRegions.length,
+          providerTypes: providerTypes.length,
+          durationUnits: durationUnits.length,
+          modifiers: modifiers.length
+        });
+      }
+    } catch (error) {
+      console.error('Error updating filter options:', error);
+    } finally {
+      setIsUpdatingFilters(false);
+    }
+  }, [filterOptionsData, selections]);
+
+  // Add handleSelectionChange function (like dashboard)
+  const handleSelectionChange = (field: keyof Selections, value: string | null) => {
+    // Only reset dependent filters if the new selection makes previous selections impossible
+    const newSelections: Selections = { ...selections, [field]: value };
+    const dependencyChain: (keyof Selections)[] = [
+        'service_category', 'state_name', 'service_code', 
+        'service_description', 'program', 'location_region', 
+        'provider_type', 'duration_unit', 'modifier_1'
+    ];
+    const changedIndex = dependencyChain.indexOf(field);
+    if (changedIndex !== -1) {
+      for (let i = changedIndex + 1; i < dependencyChain.length; i++) {
+        const fieldToClear = dependencyChain[i];
+        // Only clear if the current value is not valid for the new selection
+        if (selections[fieldToClear] && !getAvailableOptionsForFilter(fieldToClear).includes(selections[fieldToClear]!)) {
+          newSelections[fieldToClear] = null;
+        }
+      }
+    }
+    setSelections(newSelections);
+    // Add to pendingFilters
+    setPendingFilters(prev => new Set(prev).add(field));
+    setTimeout(() => loadFilterOptions(), 100);
+  };
+
+  // Add ClearButton component (like dashboard)
+  const ClearButton = ({ filterKey }: { filterKey: keyof Selections }) => (
+    selections[filterKey] ? (
+      <button
+        type="button"
+        aria-label={`Clear ${filterKey}`}
+        onClick={() => handleSelectionChange(filterKey, null)}
+        className="ml-1 px-2 py-1 text-xs font-semibold text-blue-600 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 focus:outline-none filter-clear-btn"
+        tabIndex={0}
+      >
+        Clear
+      </button>
+    ) : null
+  );
 
   // Move stateColorMap before echartOptions
   const stateColorMap = useMemo(() => {
@@ -1719,46 +1860,7 @@ export default function StatePaymentComparison() {
     return filterSets.map(fs => `${fs.serviceCategory}-${fs.serviceCode}-${fs.states.join(',')}`).join('|');
   }, [filterSets]);
 
-  // Add dynamic filtering logic (like dashboard)
 
-  // Add handleSelectionChange function for proper filter dependency management
-  const handleSelectionChange = (field: keyof Selections, value: string | null) => {
-    // Only reset dependent filters if the new selection makes previous selections impossible
-    const newSelections: Selections = { ...selections, [field]: value };
-    const dependencyChain: (keyof Selections)[] = [
-      'service_category', 'state_name', 'service_code', 
-      'service_description', 'program', 'location_region', 
-      'provider_type', 'modifier_1'
-    ];
-    const changedIndex = dependencyChain.indexOf(field);
-    if (changedIndex !== -1) {
-      for (let i = changedIndex + 1; i < dependencyChain.length; i++) {
-        const fieldToClear = dependencyChain[i];
-        // Only clear if the current value is not valid for the new selection
-        if (selections[fieldToClear] && !getAvailableOptionsForFilter(fieldToClear).includes(selections[fieldToClear]!)) {
-          newSelections[fieldToClear] = null;
-        }
-      }
-    }
-    setSelections(newSelections);
-    // Add to pendingFilters
-    setPendingFilters(prev => new Set(prev).add(field));
-  };
-
-  // Add ClearButton component
-  const ClearButton = ({ filterKey }: { filterKey: keyof Selections }) => (
-    selections[filterKey] ? (
-      <button
-        type="button"
-        aria-label={`Clear ${filterKey}`}
-        onClick={() => handleSelectionChange(filterKey, null)}
-        className="ml-1 px-2 py-1 text-xs font-semibold text-blue-600 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 focus:outline-none filter-clear-btn"
-        tabIndex={0}
-      >
-        Clear
-      </button>
-    ) : null
-  );
 
   // Trigger state averages fetch when "All States" mode is active
   // Remove automatic fetchAllStatesAverages - this will only happen when Search is clicked
@@ -1855,6 +1957,50 @@ export default function StatePaymentComparison() {
       setFilterLoading(false);
     }
   };
+
+  // Add useEffect to load filter options when component mounts
+  useEffect(() => {
+    async function loadUltraFilterOptions() {
+      try {
+        setIsLoadingFilters(true);
+        setError(null);
+        const res = await fetch("/filter_options.json.gz");
+        if (!res.ok) throw new Error(`Failed to fetch filter options: ${res.status} ${res.statusText}`);
+        const gzipped = new Uint8Array(await res.arrayBuffer());
+        const decompressed = gunzipSync(gzipped);
+        const jsonStr = strFromU8(decompressed);
+        const data = JSON.parse(jsonStr);
+        // Handle new columnar format with mappings
+        if (data.m && data.v && data.c) {
+          const { m: mappings, v: values, c: columns } = data;
+          const numRows: number = values[0].length;
+          const combinations: any[] = [];
+          for (let i = 0; i < numRows; i++) {
+            const combo: Record<string, string> = {};
+            columns.forEach((col: string, colIndex: number) => {
+              const intValue = values[colIndex][i];
+              combo[col] = intValue === -1 ? '' : mappings[col][intValue];
+            });
+            combinations.push(combo);
+          }
+          // Extract unique values for each filter
+          const filters: Record<string, string[]> = {};
+          columns.forEach((col: string) => {
+            const uniqueValues = [...new Set(combinations.map((c: any) => c[col]).filter((v: string) => v))];
+            filters[col as string] = uniqueValues.sort();
+          });
+          setFilterOptionsData({ filters, combinations });
+        } else {
+          setFilterOptionsData(data);
+        }
+      } catch (err) {
+        setError(`Could not load filter options: ${err instanceof Error ? err.message : 'Unknown error'}. Please try refreshing the page.`);
+      } finally {
+        setIsLoadingFilters(false);
+      }
+    }
+    loadUltraFilterOptions();
+  }, []);
 
   // Update useEffect for initial data load and filter changes
   useEffect(() => {
