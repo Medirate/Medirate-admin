@@ -58,6 +58,34 @@ function normalizeState(val: string | null): Set<string> {
   return results;
 }
 
+// Utility: Convert Excel serial date or string to MM/DD/YYYY (copied from edit page)
+function formatExcelOrStringDate(val: any): string {
+  if (val == null || val === "") return "";
+  // If it's a number or a string that looks like a number (Excel serial)
+  const serial = typeof val === "number" ? val : (typeof val === "string" && /^\d{5,6}$/.test(val.trim()) ? parseInt(val, 10) : null);
+  if (serial && serial > 20000 && serial < 90000) { // Excel serial range
+    // Excel's epoch starts at 1899-12-31, but there is a bug for 1900 leap year, so add 1
+    const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+    const date = new Date(excelEpoch.getTime() + serial * 86400000);
+    // If the date is within 2 years of today, it's probably correct
+    const now = new Date();
+    if (Math.abs(date.getTime() - now.getTime()) < 2 * 365 * 86400000) {
+      return date.toLocaleDateString("en-US", { year: "numeric", month: "2-digit", day: "2-digit" });
+    }
+  }
+  // Try parsing as a date string (prefer US format)
+  let d = new Date(val);
+  if (!isNaN(d.getTime())) {
+    // If the date is within 2 years of today, it's probably correct
+    const now = new Date();
+    if (Math.abs(d.getTime() - now.getTime()) < 2 * 365 * 86400000) {
+      return d.toLocaleDateString("en-US", { year: "numeric", month: "2-digit", day: "2-digit" });
+    }
+  }
+  // Fallback: just return as string
+  return String(val);
+}
+
 export async function POST(req: NextRequest) {
   const logs: string[] = [];
   
@@ -320,7 +348,7 @@ export async function POST(req: NextRequest) {
           const details: string[] = [];
           if (status) details.push(`<b>Status:</b> ${status}`);
           if (lastAction) details.push(`<b>Last Action:</b> ${lastAction}`);
-          if (actionDate) details.push(`<b>Action Date:</b> ${actionDate}`);
+          if (actionDate) details.push(`<b>Action Date:</b> ${formatExcelOrStringDate(actionDate)}`);
           if (sponsors) details.push(`<b>Sponsors:</b> ${sponsors}`);
           
           alertCards.push(`
@@ -348,7 +376,7 @@ export async function POST(req: NextRequest) {
           const announcementDate = alert.announcement_date;
           
           const details: string[] = [];
-          if (announcementDate) details.push(`<b>Announcement Date:</b> ${announcementDate}`);
+          if (announcementDate) details.push(`<b>Announcement Date:</b> ${formatExcelOrStringDate(announcementDate)}`);
           
           alertCards.push(`
             <div class="alert-card" style="background:#f8fafc; border-radius:0; box-shadow:none; border-top:1px solid #e2e8f0; border-bottom:1px solid #e2e8f0; padding:32px 40px; font-family:Arial,sans-serif; color:#0F3557; box-sizing:border-box; margin:32px 48px;">
