@@ -2,15 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
-import { createClient } from "@supabase/supabase-js";
 import { motion } from "framer-motion";
 import { MoonLoader } from "react-spinners";
-
-// ✅ Initialize Supabase
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { supabase } from "@/lib/supabase";
 
 // ✅ Full list of U.S. states
 const STATES = [

@@ -8,15 +8,9 @@ import "react-datepicker/dist/react-datepicker.css";
 import Select from 'react-select';
 import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
 import { useRouter } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
 import clsx from 'clsx';
 import { gunzipSync, strFromU8 } from "fflate";
-
-// Initialize Supabase Client
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { supabase } from "@/lib/supabase";
 
 // --- NEW: Types for client-side filtering ---
 interface FilterOptionsData {

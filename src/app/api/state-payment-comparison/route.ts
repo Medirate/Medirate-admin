@@ -1,12 +1,9 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createServiceClient } from "@/lib/supabase";
 import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
 
 // Initialize Supabase Client
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE!
-);
+const supabase = createServiceClient();
 
 // Helper function to parse rate from text
 function parseRate(rateText: string): number {

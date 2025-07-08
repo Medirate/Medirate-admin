@@ -3,15 +3,9 @@
 import { useEffect, useState } from "react";
 import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
 import { useRouter } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
 import AppLayout from "@/app/components/applayout";
 import { FaShieldAlt } from 'react-icons/fa';
-
-// Initialize Supabase Client
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { supabase } from "@/lib/supabase";
 
 interface AdminUser {
   id: number;

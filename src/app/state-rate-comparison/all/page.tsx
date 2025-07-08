@@ -14,15 +14,9 @@ import * as echarts from 'echarts';
 import { useRouter } from "next/navigation";
 import { DataTable } from './DataTable';
 import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
-import { createClient } from "@supabase/supabase-js";
 import clsx from 'clsx';
 import { gunzipSync, strFromU8 } from "fflate";
-
-// Initialize Supabase Client
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { supabase } from "@/lib/supabase";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 

@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
-import { createClient } from "@supabase/supabase-js";
 import {
   Menu,
   X,
@@ -23,12 +22,7 @@ import {
   Mail,
 } from "lucide-react";
 import Link from "next/link";
-
-// Initialize Supabase Client
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { supabase } from "@/lib/supabase";
 
 // Admin Rate Developments submenu links
 const adminRateDevLinks: { href: string; label: string; icon: React.ReactNode }[] = [

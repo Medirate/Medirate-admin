@@ -3,14 +3,8 @@
 import { useState, useEffect } from "react";
 import { Camera, Mail, User } from "lucide-react";
 import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
-import { createClient } from "@supabase/supabase-js";
 import SubscriptionTermsModal from '@/app/components/SubscriptionTermsModal';
-
-// ✅ Initialize Supabase
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { supabase } from "@/lib/supabase";
 
 export default function Profile() {
   const { user } = useKindeBrowserClient();

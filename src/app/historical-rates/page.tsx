@@ -19,9 +19,9 @@ import {
 
 import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
 import { useRouter } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
 import type { Dispatch, SetStateAction } from 'react';
 import { gunzipSync, strFromU8 } from "fflate";
+import { supabase } from "@/lib/supabase";
 
 interface ServiceData {
   state_name: string;
@@ -54,12 +54,6 @@ ChartJS.register(
   Title,
   Tooltip,
   Legend
-);
-
-// Initialize Supabase Client
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
 // Add this custom filter function before the HistoricalRates component

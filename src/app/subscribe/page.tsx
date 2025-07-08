@@ -6,13 +6,7 @@ import { CreditCard, CheckCircle } from "lucide-react"; // Using Lucide icons
 import SubscriptionTermsModal from '@/app/components/SubscriptionTermsModal';
 import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
 import { useRouter } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
-
-// Initialize Supabase
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { supabase } from "@/lib/supabase";
 
 const StripePricingTableWithFooter = () => {
   const [showTerms, setShowTerms] = useState(false);

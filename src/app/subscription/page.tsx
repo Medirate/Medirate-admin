@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
 import { toast, Toaster } from "react-hot-toast";
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "@/lib/supabase";
 
 interface Subscription {
   plan: string;
@@ -17,11 +17,6 @@ interface Subscription {
   latestInvoice: string;
   paymentMethod: string;
 }
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 export default function SubscriptionPage() {
   const { user, isAuthenticated } = useKindeBrowserClient();

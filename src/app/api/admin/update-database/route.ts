@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { BlobServiceClient } from "@azure/storage-blob";
 import * as XLSX from "xlsx";
-import { createClient } from '@supabase/supabase-js';
 
 // Helper to get env vars safely
 function getEnv(name: string): string {
@@ -136,7 +135,8 @@ export async function POST(req: NextRequest) {
 
     // --- Supabase client ---
     log('Connecting to Supabase...', 'info', 'connection');
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE);
+    const { createServiceClient } = await import('@/lib/supabase');
+    const supabase = createServiceClient();
     log('Supabase connection successful.', 'success', 'connection');
 
     if (type === 'billtrack') {
