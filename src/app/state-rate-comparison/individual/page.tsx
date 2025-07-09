@@ -1161,7 +1161,37 @@ export default function StatePaymentComparison() {
 
   // Function to get available options for a specific filter set
   const getAvailableOptionsForFilterSet = (filterKey: keyof Selections, filterSetIndex: number) => {
-    return getAvailableOptionsForFilter(filterKey);
+    if (!filterOptionsData || !filterOptionsData.combinations) return [];
+    
+    const filterSet = filterSets[filterSetIndex];
+    if (!filterSet) return [];
+    
+    // Build filter conditions based on the current filterSet (not selections)
+    const filteredCombinations = filterOptionsData.combinations.filter(combo => {
+      // Apply filters based on current filterSet state
+      if (filterSet.serviceCategory && combo.service_category !== filterSet.serviceCategory) return false;
+      if (filterSet.states.length > 0 && !filterSet.states.includes(combo.state_name)) return false;
+      if (filterSet.serviceCode && combo.service_code !== filterSet.serviceCode) return false;
+      if (filterSet.serviceDescription && combo.service_description !== filterSet.serviceDescription) return false;
+      if (filterSet.program && filterSet.program !== "-" && combo.program !== filterSet.program) return false;
+      if (filterSet.locationRegion && filterSet.locationRegion !== "-" && combo.location_region !== filterSet.locationRegion) return false;
+      if (filterSet.providerType && filterSet.providerType !== "-" && combo.provider_type !== filterSet.providerType) return false;
+      if (filterSet.modifier && filterSet.modifier !== "-" && combo.modifier_1 !== filterSet.modifier) return false;
+      
+      // For duration units: don't filter by current selection for that filter
+      if (filterKey !== 'duration_unit' && filterSet.durationUnits && filterSet.durationUnits.length > 0) {
+        if (!filterSet.durationUnits.includes(combo.duration_unit)) return false;
+      }
+      
+      return true;
+    });
+    
+    // Get unique values for the requested filter
+    return Array.from(new Set(
+      filteredCombinations
+        .map(c => c[filterKey])
+        .filter(Boolean)
+    )).sort();
   };
 
   // Add dynamic filter options computed from filterOptionsData (like dashboard)

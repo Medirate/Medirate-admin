@@ -447,7 +447,13 @@ function getAvailableOptionsForFilter(filterKey: keyof Selections, selections: S
         return Object.entries(selections).every(([key, value]) => {
           if (key === filterKey) return true;
           if (!value) return true;
-          return combo[key] === value;
+          
+          // Handle multi-select values (arrays) vs single values (strings)
+          if (Array.isArray(value)) {
+            return value.includes(combo[key]);
+          } else {
+            return combo[key] === value;
+          }
         });
       })
       .map((c: any) => c[filterKey])
