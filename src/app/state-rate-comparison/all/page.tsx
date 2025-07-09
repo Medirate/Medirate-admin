@@ -1297,28 +1297,106 @@ export default function StatePaymentComparison() {
       return Array.from(dateSet).sort();
     }
     
-    // For all other filters, ensure that if a fee_schedule_date is selected, we only consider combos where the date matches
-    return Array.from(new Set(
-      filterOptionsData.combinations
-        .filter(combo => {
-          // If a fee_schedule_date is selected, only consider combos where the date matches
-          if (selections.fee_schedule_date) {
-            if (Array.isArray(combo.rate_effective_date)) {
-              if (!combo.rate_effective_date.includes(selections.fee_schedule_date)) return false;
-            } else {
-              if (combo.rate_effective_date !== selections.fee_schedule_date) return false;
-            }
-          }
-          // Now check all other selections except the current filterKey
-          return Object.entries(selections).every(([key, value]) => {
-            if (key === filterKey || key === 'fee_schedule_date') return true;
-            if (!value) return true;
-            return combo[key] === value;
-          });
-        })
+    // For state rate comparison pages, use less restrictive filtering
+    // Only check primary filters (service_category, state_name, service_code, service_description)
+    // Secondary filters (program, location_region, provider_type, duration_unit, modifier_1) should be independent
+    const filteredCombinations = filterOptionsData.combinations.filter(combo => {
+      // Check primary filters only
+      if (selections.service_category && combo.service_category !== selections.service_category) return false;
+      if (selections.state_name && combo.state_name !== selections.state_name) return false;
+      if (selections.service_code && combo.service_code !== selections.service_code) return false;
+      if (selections.service_description && combo.service_description !== selections.service_description) return false;
+      
+      // For secondary filters, check them properly
+      // Handle multi-select values (arrays) vs single values (strings)
+      if (selections.program && selections.program !== "-") {
+        const selectedPrograms = Array.isArray(selections.program) ? selections.program : [selections.program];
+        if (!selectedPrograms.includes(combo.program)) return false;
+      }
+      if (selections.location_region && selections.location_region !== "-") {
+        const selectedRegions = Array.isArray(selections.location_region) ? selections.location_region : [selections.location_region];
+        if (!selectedRegions.includes(combo.location_region)) return false;
+      }
+      if (selections.provider_type && selections.provider_type !== "-") {
+        const selectedTypes = Array.isArray(selections.provider_type) ? selections.provider_type : [selections.provider_type];
+        if (!selectedTypes.includes(combo.provider_type)) return false;
+      }
+      if (selections.duration_unit && selections.duration_unit !== "-") {
+        const selectedUnits = Array.isArray(selections.duration_unit) ? selections.duration_unit : [selections.duration_unit];
+        if (!selectedUnits.includes(combo.duration_unit)) return false;
+      }
+      if (selections.modifier_1 && selections.modifier_1 !== "-") {
+        const selectedModifiers = Array.isArray(selections.modifier_1) ? selections.modifier_1 : [selections.modifier_1];
+        if (!selectedModifiers.includes(combo.modifier_1)) return false;
+      }
+      
+      // Handle "-" selections (empty/null values)
+      if (selections.program === "-" && combo.program) return false;
+      if (selections.location_region === "-" && combo.location_region) return false;
+      if (selections.provider_type === "-" && combo.provider_type) return false;
+      if (selections.duration_unit === "-" && combo.duration_unit) return false;
+      if (selections.modifier_1 === "-" && combo.modifier_1) return false;
+      
+      return true;
+    });
+
+    const availableOptions = Array.from(new Set(
+      filteredCombinations
         .map(c => c[filterKey])
         .filter(Boolean)
     )).sort();
+
+    // DEBUG: Log when modifier filter is being checked
+    if (filterKey === 'modifier_1') {
+      console.log('🔍 DEBUG - Modifier Filter Check (All Page):', {
+        filterKey,
+        currentSelections: selections,
+        totalCombinations: filterOptionsData.combinations.length,
+        filteredCombinations: filteredCombinations.length,
+        availableOptions: availableOptions,
+        availableOptionsCount: availableOptions.length,
+        willBeDisabled: availableOptions.length === 0
+      });
+      
+      // Log a few sample combinations to understand the data
+      if (filteredCombinations.length > 0) {
+        console.log('📊 Sample filtered combinations (All):', filteredCombinations.slice(0, 3).map(c => ({
+          service_category: c.service_category,
+          state_name: c.state_name,
+          service_code: c.service_code,
+          modifier_1: c.modifier_1,
+          duration_unit: c.duration_unit,
+          program: c.program,
+          location_region: c.location_region,
+          provider_type: c.provider_type
+        })));
+      }
+      
+      // Also log when duration_unit is selected to see what's happening
+      if (selections.duration_unit) {
+        console.log('🎯 Duration Unit Selected:', selections.duration_unit);
+        console.log('🔍 Looking for combinations with duration_unit:', selections.duration_unit);
+        const selectedUnits = Array.isArray(selections.duration_unit) ? selections.duration_unit : [selections.duration_unit];
+        const matchingDurationCombos = filterOptionsData.combinations.filter(c => 
+          selectedUnits.includes(c.duration_unit) &&
+          c.service_category === selections.service_category &&
+          c.state_name === selections.state_name &&
+          c.service_code === selections.service_code
+        );
+        console.log('📊 Combinations matching duration unit:', matchingDurationCombos.length);
+        if (matchingDurationCombos.length > 0) {
+          console.log('📋 Sample matching combinations:', matchingDurationCombos.slice(0, 3).map(c => ({
+            service_category: c.service_category,
+            state_name: c.state_name,
+            service_code: c.service_code,
+            modifier_1: c.modifier_1,
+            duration_unit: c.duration_unit
+          })));
+        }
+      }
+    }
+
+    return availableOptions;
   }
 
   // Function to get available options for a specific filter set
