@@ -488,10 +488,38 @@ const formatRate = (rate: string | undefined) => {
   return `$${numericRate.toFixed(2)}`;
 };
 
-// Add a formatDate helper at the top
+// Add a formatDate helper at the top - timezone-safe version
 function formatDate(dateString: string | undefined): string {
   if (!dateString) return '-';
-  const date = new Date(dateString);
-  if (isNaN(date.getTime())) return dateString;
-  return `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}/${date.getFullYear()}`;
+  
+  // Handle both YYYY-MM-DD and MM/DD/YYYY formats
+  let year: number, month: number, day: number;
+  
+  if (dateString.includes('/')) {
+    // MM/DD/YYYY format
+    const [monthStr, dayStr, yearStr] = dateString.split('/');
+    month = parseInt(monthStr, 10);
+    day = parseInt(dayStr, 10);
+    year = parseInt(yearStr, 10);
+  } else if (dateString.includes('-')) {
+    // YYYY-MM-DD format
+    const [yearStr, monthStr, dayStr] = dateString.split('-');
+    year = parseInt(yearStr, 10);
+    month = parseInt(monthStr, 10);
+    day = parseInt(dayStr, 10);
+  } else {
+    // Fallback for unexpected formats - use timezone-safe parsing
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString;
+    return `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}/${date.getFullYear()}`;
+  }
+  
+  // Validate the parsed values
+  if (isNaN(year) || isNaN(month) || isNaN(day) || 
+      month < 1 || month > 12 || day < 1 || day > 31) {
+    return dateString; // Return original if invalid
+  }
+  
+  // Return in MM/DD/YYYY format
+  return `${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}/${year}`;
 } 

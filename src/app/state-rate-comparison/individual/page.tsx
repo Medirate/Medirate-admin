@@ -197,12 +197,67 @@ function getRowKey(item: ServiceData) {
 // Add at the top of the component, after useState imports
 const ITEMS_PER_STATE_PAGE = 50;
 
-// Add this helper near the top (after imports)
+// Add this helper near the top (after imports) - timezone-safe version
 function formatDate(dateString: string | undefined): string {
   if (!dateString) return '-';
-  const date = new Date(dateString);
-  if (isNaN(date.getTime())) return dateString;
-  return `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}/${date.getFullYear()}`;
+  
+  // Handle both YYYY-MM-DD and MM/DD/YYYY formats
+  let year: number, month: number, day: number;
+  
+  if (dateString.includes('/')) {
+    // MM/DD/YYYY format
+    const [monthStr, dayStr, yearStr] = dateString.split('/');
+    month = parseInt(monthStr, 10);
+    day = parseInt(dayStr, 10);
+    year = parseInt(yearStr, 10);
+  } else if (dateString.includes('-')) {
+    // YYYY-MM-DD format
+    const [yearStr, monthStr, dayStr] = dateString.split('-');
+    year = parseInt(yearStr, 10);
+    month = parseInt(monthStr, 10);
+    day = parseInt(dayStr, 10);
+  } else {
+    // Fallback for unexpected formats - use timezone-safe parsing
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString;
+    return `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}/${date.getFullYear()}`;
+  }
+  
+  // Validate the parsed values
+  if (isNaN(year) || isNaN(month) || isNaN(day) || 
+      month < 1 || month > 12 || day < 1 || day > 31) {
+    return dateString; // Return original if invalid
+  }
+  
+  // Return in MM/DD/YYYY format
+  return `${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}/${year}`;
+}
+
+// Helper function to create timezone-safe Date objects for comparisons
+function parseTimezoneNeutralDate(dateString: string): Date {
+  if (!dateString) return new Date();
+  
+  let year: number, month: number, day: number;
+  
+  if (dateString.includes('/')) {
+    // MM/DD/YYYY format
+    const [monthStr, dayStr, yearStr] = dateString.split('/');
+    month = parseInt(monthStr, 10);
+    day = parseInt(dayStr, 10);
+    year = parseInt(yearStr, 10);
+  } else if (dateString.includes('-')) {
+    // YYYY-MM-DD format
+    const [yearStr, monthStr, dayStr] = dateString.split('-');
+    year = parseInt(yearStr, 10);
+    month = parseInt(monthStr, 10);
+    day = parseInt(dayStr, 10);
+  } else {
+    // Fallback
+    return new Date(dateString);
+  }
+  
+  // Create date in local timezone (month is 0-indexed in Date constructor)
+  return new Date(year, month - 1, day);
 }
 
 // Add state color mapping after the color arrays
@@ -567,10 +622,10 @@ export default function StatePaymentComparison() {
     const latestRatesMap = new Map<string, ServiceData>();
     data.forEach((item) => {
       const key = `${item.state_name}|${item.service_category}|${item.service_code}|${item.modifier_1}|${item.modifier_2}|${item.modifier_3}|${item.modifier_4}|${item.program}|${item.location_region}`;
-      const currentDate = new Date(item.rate_effective_date);
+      const currentDate = parseTimezoneNeutralDate(item.rate_effective_date);
       const existing = latestRatesMap.get(key);
       
-      if (!existing || currentDate > new Date(existing.rate_effective_date)) {
+      if (!existing || currentDate > parseTimezoneNeutralDate(existing.rate_effective_date)) {
         latestRatesMap.set(key, item);
       }
     });

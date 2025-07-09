@@ -172,13 +172,7 @@ export async function POST(req: NextRequest) {
         if (r.url) dbByUrl.set(r.url, r);
       });
       // 3. Insert new entries
-      const today = (() => {
-        const date = new Date();
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-      })();
+      const today = new Date().toISOString().slice(0, 10);
       const newEntries = filteredRows.filter(r => r.url && !dbByUrl.has(r.url));
       let inserted = [];
       for (const entry of newEntries) {
@@ -347,13 +341,7 @@ export async function POST(req: NextRequest) {
       log(`Excel has ${cleanedProviderRows.length} entries, first 10 IDs: ${excelIds.join(', ')}`, 'info', 'debug');
       
       // 4. Insert new entries (BATCHED)
-      const today = (() => {
-        const date = new Date();
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-      })();
+      const today = new Date().toISOString().slice(0, 10);
       // Only process entries that have valid, non-empty IDs
       const validEntries = cleanedProviderRows.filter(r => r.id && r.id.toString().trim() !== '');
       const newEntries = validEntries.filter(r => !dbById.has(r.id.toString()));

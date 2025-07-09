@@ -169,30 +169,6 @@ const customFilterOption = (option: any, inputValue: string) => {
   return label.includes(searchTerm);
 };
 
-// Helper function to format date to YYYY-MM-DD without timezone conversion
-const formatDateForAPI = (date: Date): string => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
-// Helper function to parse date string to Date object safely (avoiding timezone issues)
-const parseDateSafely = (dateString: string): Date => {
-  // If the date is in YYYY-MM-DD format, parse it safely
-  if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
-    const [year, month, day] = dateString.split('-').map(Number);
-    return new Date(year, month - 1, day); // month is 0-indexed
-  }
-  // If the date is in MM/DD/YYYY format, parse it safely  
-  if (dateString.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
-    const [month, day, year] = dateString.split('/').map(Number);
-    return new Date(year, month - 1, day); // month is 0-indexed
-  }
-  // Fallback to regular Date constructor
-  return new Date(dateString);
-};
-
 export default function Dashboard() {
   const { isAuthenticated, isLoading, user } = useKindeBrowserClient();
   const router = useRouter();
@@ -220,7 +196,7 @@ export default function Dashboard() {
     fee_schedule_date: null,
     modifier_1: null,
   });
-  const [startDate, setStartDate] = useState<Date | null>(parseDateSafely('2017-01-01'));
+  const [startDate, setStartDate] = useState<Date | null>(new Date('2017-01-01'));
   const [endDate, setEndDate] = useState<Date | null>(new Date());
   const [localError, setLocalError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
@@ -416,9 +392,8 @@ export default function Dashboard() {
       for (const [key, value] of Object.entries(selections)) {
         if (value) filters[key] = value;
       }
-      // Fix timezone issue: use local date components instead of UTC conversion
-      if (startDate) filters.start_date = formatDateForAPI(startDate);
-      if (endDate) filters.end_date = formatDateForAPI(endDate);
+      if (startDate) filters.start_date = startDate.toISOString().split('T')[0];
+      if (endDate) filters.end_date = endDate.toISOString().split('T')[0];
       filters.page = String(currentPage);
       filters.itemsPerPage = String(itemsPerPage);
       if (selections.modifier_1) filters.modifier_1 = selections.modifier_1;
@@ -823,6 +798,78 @@ export default function Dashboard() {
     );
   };
 
+  // Helper functions defined before useMemo hooks that use them
+  const formatDate = (dateString: string | undefined) => {
+    if (!dateString) return '-';
+    
+    // Handle both YYYY-MM-DD and MM/DD/YYYY formats
+    let year: number, month: number, day: number;
+    
+    if (dateString.includes('/')) {
+      // MM/DD/YYYY format
+      const [monthStr, dayStr, yearStr] = dateString.split('/');
+      month = parseInt(monthStr, 10);
+      day = parseInt(dayStr, 10);
+      year = parseInt(yearStr, 10);
+    } else if (dateString.includes('-')) {
+      // YYYY-MM-DD format
+      const [yearStr, monthStr, dayStr] = dateString.split('-');
+      year = parseInt(yearStr, 10);
+      month = parseInt(monthStr, 10);
+      day = parseInt(dayStr, 10);
+    } else {
+      // Fallback to original behavior for unexpected formats
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return dateString;
+      return `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}/${date.getFullYear()}`;
+    }
+    
+    // Validate the parsed values
+    if (isNaN(year) || isNaN(month) || isNaN(day) || 
+        month < 1 || month > 12 || day < 1 || day > 31) {
+      return dateString; // Return original if invalid
+    }
+    
+    // Return in MM/DD/YYYY format
+    return `${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}/${year}`;
+  };
+
+  // Helper function to create timezone-safe Date objects for DatePicker
+  const parseTimezoneNeutralDate = (dateString: string): Date => {
+    if (!dateString) return new Date();
+    
+    let year: number, month: number, day: number;
+    
+    if (dateString.includes('/')) {
+      // MM/DD/YYYY format
+      const [monthStr, dayStr, yearStr] = dateString.split('/');
+      month = parseInt(monthStr, 10);
+      day = parseInt(dayStr, 10);
+      year = parseInt(yearStr, 10);
+    } else if (dateString.includes('-')) {
+      // YYYY-MM-DD format
+      const [yearStr, monthStr, dayStr] = dateString.split('-');
+      year = parseInt(yearStr, 10);
+      month = parseInt(monthStr, 10);
+      day = parseInt(dayStr, 10);
+    } else {
+      // Fallback
+      return new Date(dateString);
+    }
+    
+    // Create date in local timezone (month is 0-indexed in Date constructor)
+    return new Date(year, month - 1, day);
+  };
+
+  // Helper function to format rates with 2 decimal points
+  const formatRate = (rate: string | undefined) => {
+    if (!rate) return '-';
+    // Remove any existing $ and parse as number
+    const numericRate = parseFloat(rate.replace(/[^0-9.-]/g, ''));
+    if (isNaN(numericRate)) return rate; // Return original if not a valid number
+    return `$${numericRate.toFixed(2)}`;
+  };
+
   // After all useState/useEffect/useCallback hooks, but before any useMemo or code that uses available* variables:
 
   // Add client-side sorting functionality
@@ -839,8 +886,8 @@ export default function Dashboard() {
           aValue = parseFloat((aValue || '0').replace(/[^0-9.-]/g, ''));
           bValue = parseFloat((bValue || '0').replace(/[^0-9.-]/g, ''));
         } else if (key === 'rate_effective_date') {
-          aValue = aValue ? new Date(aValue).getTime() : 0;
-          bValue = bValue ? new Date(bValue).getTime() : 0;
+          aValue = aValue ? parseTimezoneNeutralDate(aValue).getTime() : 0;
+          bValue = bValue ? parseTimezoneNeutralDate(bValue).getTime() : 0;
         } else {
           aValue = (aValue || '').toString().toLowerCase();
           bValue = (bValue || '').toString().toLowerCase();
@@ -862,12 +909,11 @@ export default function Dashboard() {
     const filters: any = {};
     for (const [key, value] of Object.entries(selections)) {
       if (value) filters[key] = value;
-          }
-      // Fix timezone issue: use local date components instead of UTC conversion
-      if (startDate) filters.start_date = formatDateForAPI(startDate);
-      if (endDate) filters.end_date = formatDateForAPI(endDate);
-      filters.page = String(nextPage);
-      filters.itemsPerPage = String(itemsPerPage);
+    }
+    if (startDate) filters.start_date = startDate.toISOString().split('T')[0];
+    if (endDate) filters.end_date = endDate.toISOString().split('T')[0];
+    filters.page = String(nextPage);
+    filters.itemsPerPage = String(itemsPerPage);
     setLoading(true);
     const result = await refreshData(filters);
     setLoading(false);
@@ -886,10 +932,9 @@ export default function Dashboard() {
     const filters: any = {};
     for (const [key, value] of Object.entries(selections)) {
       if (value) filters[key] = value;
-          }
-    // Fix timezone issue: use local date components instead of UTC conversion
-    if (startDate) filters.start_date = formatDateForAPI(startDate);
-    if (endDate) filters.end_date = formatDateForAPI(endDate);
+    }
+    if (startDate) filters.start_date = startDate.toISOString().split('T')[0];
+    if (endDate) filters.end_date = endDate.toISOString().split('T')[0];
     filters.page = String(page);
     filters.itemsPerPage = String(itemsPerPage);
     setLoading(true);
@@ -1008,7 +1053,7 @@ export default function Dashboard() {
   // Update the availableDates calculation to use the new helper function
   const availableDates: string[] = useMemo(() => {
     const dates = getAvailableOptionsForFilter('fee_schedule_date');
-    return dates.sort((a, b) => parseDateSafely(b).getTime() - parseDateSafely(a).getTime());
+    return dates.sort((a, b) => parseTimezoneNeutralDate(b).getTime() - parseTimezoneNeutralDate(a).getTime());
   }, [filterOptionsData, selections]);
 
 
@@ -1025,22 +1070,6 @@ export default function Dashboard() {
       </div>
     );
   }
-
-  const formatDate = (dateString: string | undefined) => {
-    if (!dateString) return '-';
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return dateString; // Return original if invalid
-    return `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}/${date.getFullYear()}`;
-  };
-
-  // Helper function to format rates with 2 decimal points
-  const formatRate = (rate: string | undefined) => {
-    if (!rate) return '-';
-    // Remove any existing $ and parse as number
-    const numericRate = parseFloat(rate.replace(/[^0-9.-]/g, ''));
-    if (isNaN(numericRate)) return rate; // Return original if not a valid number
-    return `$${numericRate.toFixed(2)}`;
-  };
 
   // Filter options are now handled by the backend API
 
@@ -1063,13 +1092,12 @@ export default function Dashboard() {
     if (selections.fee_schedule_date) {
       filters.feeScheduleDate = selections.fee_schedule_date;
     } else if (startDate && endDate) {
-      // Fix timezone issue: use local date components instead of UTC conversion
-      filters.startDate = formatDateForAPI(startDate);
-      filters.endDate = formatDateForAPI(endDate);
+      filters.startDate = startDate.toISOString().split('T')[0];
+      filters.endDate = endDate.toISOString().split('T')[0];
     } else if (startDate) {
-      filters.startDate = formatDateForAPI(startDate);
+      filters.startDate = startDate.toISOString().split('T')[0];
     } else if (endDate) {
-      filters.endDate = formatDateForAPI(endDate);
+      filters.endDate = endDate.toISOString().split('T')[0];
     }
     return filters;
   };
@@ -1168,7 +1196,7 @@ export default function Dashboard() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                   disabled={!!selections.fee_schedule_date || !selections.service_category}
                   isClearable
-                  includeDates={availableDates.map(date => parseDateSafely(date))}
+                  includeDates={availableDates.map(date => parseTimezoneNeutralDate(date))}
                   popperClassName="datepicker-zindex"
                 />
               </div>
@@ -1184,7 +1212,7 @@ export default function Dashboard() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                   disabled={!!selections.fee_schedule_date || !selections.service_category}
                   isClearable
-                  includeDates={availableDates.map(date => parseDateSafely(date))}
+                  includeDates={availableDates.map(date => parseTimezoneNeutralDate(date))}
                   popperClassName="datepicker-zindex"
                 />
               </div>
