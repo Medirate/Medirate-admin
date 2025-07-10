@@ -509,15 +509,6 @@ export default function StatePaymentComparison() {
   const [filterError, setFilterError] = useState<string | null>(null);
   const [chartError, setChartError] = useState<string | null>(null);
   const [tableError, setTableError] = useState<string | null>(null);
-  const [selectedServiceCategory, setSelectedServiceCategory] = useState("");
-  const [selectedState, setSelectedState] = useState("ALL_STATES"); // Default to "All States"
-  const [selectedServiceCode, setSelectedServiceCode] = useState("");
-  const [selectedProgram, setSelectedProgram] = useState("");
-  const [selectedLocationRegion, setSelectedLocationRegion] = useState("");
-  const [selectedModifier, setSelectedModifier] = useState("");
-  const [selectedServiceDescription, setSelectedServiceDescription] = useState("");
-  const [selectedProviderType, setSelectedProviderType] = useState("");
-  const [selectedDurationUnit, setSelectedDurationUnit] = useState("");
   const [showApplyToAllPrompt, setShowApplyToAllPrompt] = useState(false);
   const [lastSelectedModifier, setLastSelectedModifier] = useState<string | null>(null);
   const [selectedTableRows, setSelectedTableRows] = useState<{[state: string]: string[]}>({});
@@ -1048,43 +1039,55 @@ export default function StatePaymentComparison() {
     }
   }, [filterSets]);
 
-  // Then filter based on selections
+  // Filter data based on filterSets (core filters) and selections (refinement filters)
   const filteredData = useMemo(() => {
     return latestRates.filter((item) => {
-      return filterSets.some(filterSet => (
-        (!filterSet.serviceCategory || item.service_category?.trim().toUpperCase() === filterSet.serviceCategory.trim().toUpperCase()) &&
-        (!filterSet.states.length || filterSet.states.map(s => s.trim().toUpperCase()).includes(item.state_name?.trim().toUpperCase())) &&
-        (!filterSet.serviceCode || item.service_code?.trim() === filterSet.serviceCode.trim()) &&
-        (
-          !selectedProgram ||
-          (selectedProgram === '-' ? !item.program || item.program.trim() === '' : item.program?.trim() === selectedProgram.trim())
-        ) &&
-        (
-          !selectedLocationRegion ||
-          (selectedLocationRegion === '-' ? !item.location_region || item.location_region.trim() === '' : item.location_region?.trim() === selectedLocationRegion.trim())
-        ) &&
-        (
-          !selectedModifier ||
-          (selectedModifier === '-' ?
-            (!item.modifier_1 && !item.modifier_2 && !item.modifier_3 && !item.modifier_4) :
-            [item.modifier_1, item.modifier_2, item.modifier_3, item.modifier_4].includes(selectedModifier)
-          )
-        ) &&
-        (
-          !selectedServiceDescription ||
-          (selectedServiceDescription === '-' ? !item.service_description || item.service_description.trim() === '' : item.service_description?.trim() === selectedServiceDescription.trim())
-        ) &&
-        (
-          !selectedProviderType ||
-          (selectedProviderType === '-' ? !item.provider_type || item.provider_type.trim() === '' : item.provider_type?.trim() === selectedProviderType.trim())
-        ) &&
-        (
-          !selectedDurationUnit ||
-          (selectedDurationUnit === '-' ? !item.duration_unit || item.duration_unit.trim() === '' : item.duration_unit?.trim() === selectedDurationUnit.trim())
-        )
-      ));
+      return filterSets.some(filterSet => {
+        // Core required filters from filterSet
+        if (filterSet.serviceCategory && item.service_category?.trim().toUpperCase() !== filterSet.serviceCategory.trim().toUpperCase()) return false;
+        if (filterSet.states.length && !filterSet.states.includes("ALL_STATES") && !filterSet.states.map(s => s.trim().toUpperCase()).includes(item.state_name?.trim().toUpperCase())) return false;
+        if (filterSet.serviceCode && item.service_code?.trim() !== filterSet.serviceCode.trim()) return false;
+        if (filterSet.serviceDescription && item.service_description?.trim() !== filterSet.serviceDescription.trim()) return false;
+        
+        // Optional refinement filters from selections object (if set by user)
+        if (selections.program && selections.program !== '-') {
+          if (item.program?.trim() !== selections.program.trim()) return false;
+        } else if (selections.program === '-') {
+          if (item.program && item.program.trim() !== '') return false;
+        }
+        
+        if (selections.location_region && selections.location_region !== '-') {
+          if (item.location_region?.trim() !== selections.location_region.trim()) return false;
+        } else if (selections.location_region === '-') {
+          if (item.location_region && item.location_region.trim() !== '') return false;
+        }
+        
+        if (selections.modifier_1 && selections.modifier_1 !== '-') {
+          if (![item.modifier_1, item.modifier_2, item.modifier_3, item.modifier_4].includes(selections.modifier_1)) return false;
+        } else if (selections.modifier_1 === '-') {
+          if (item.modifier_1 || item.modifier_2 || item.modifier_3 || item.modifier_4) return false;
+        }
+        
+        if (selections.provider_type && selections.provider_type !== '-') {
+          if (item.provider_type?.trim() !== selections.provider_type.trim()) return false;
+        } else if (selections.provider_type === '-') {
+          if (item.provider_type && item.provider_type.trim() !== '') return false;
+        }
+        
+        if (selections.duration_unit && selections.duration_unit !== '-') {
+          // Handle comma-separated duration units
+          const selectedUnits = typeof selections.duration_unit === 'string' 
+            ? selections.duration_unit.split(',').map(unit => unit.trim())
+            : [];
+          if (!selectedUnits.includes(item.duration_unit?.trim() || '')) return false;
+        } else if (selections.duration_unit === '-') {
+          if (item.duration_unit && item.duration_unit.trim() !== '') return false;
+        }
+        
+        return true;
+      });
     });
-  }, [latestRates, filterSets, selectedProgram, selectedLocationRegion, selectedModifier, selectedServiceDescription, selectedProviderType, selectedDurationUnit]);
+  }, [latestRates, filterSets, selections]);
 
   // Group filtered data by state
   const groupedByState = useMemo(() => {
@@ -1383,7 +1386,7 @@ export default function StatePaymentComparison() {
     
     // Build filter conditions based on the current filterSet (not selections)
     const filteredCombinations = filterOptionsData.combinations.filter(combo => {
-      // Apply filters based on current filterSet state
+      // Always apply CORE REQUIRED filters - these define the base service
       if (filterSet.serviceCategory && combo.service_category !== filterSet.serviceCategory) return false;
       
       // Handle special case for "ALL_STATES" - don't filter by state in this case
@@ -1391,14 +1394,22 @@ export default function StatePaymentComparison() {
       
       if (filterSet.serviceCode && combo.service_code !== filterSet.serviceCode) return false;
       if (filterSet.serviceDescription && combo.service_description !== filterSet.serviceDescription) return false;
-      if (filterSet.program && filterSet.program !== "-" && combo.program !== filterSet.program) return false;
-      if (filterSet.locationRegion && filterSet.locationRegion !== "-" && combo.location_region !== filterSet.locationRegion) return false;
-      if (filterSet.providerType && filterSet.providerType !== "-" && combo.provider_type !== filterSet.providerType) return false;
-      if (filterSet.modifier && filterSet.modifier !== "-" && combo.modifier_1 !== filterSet.modifier) return false;
       
-      // For duration units: don't filter by current selection for that filter
-      if (filterKey !== 'duration_unit' && filterSet.durationUnits && filterSet.durationUnits.length > 0) {
-        if (!filterSet.durationUnits.includes(combo.duration_unit)) return false;
+      // For OPTIONAL filters: only apply them when we're NOT looking for options for that specific filter
+      // This makes filters independent - selecting Duration Unit doesn't limit Modifier options, etc.
+      if (filterKey !== 'program' && filterSet.program && filterSet.program !== "-" && combo.program !== filterSet.program) return false;
+      if (filterKey !== 'location_region' && filterSet.locationRegion && filterSet.locationRegion !== "-" && combo.location_region !== filterSet.locationRegion) return false;
+      if (filterKey !== 'provider_type' && filterSet.providerType && filterSet.providerType !== "-" && combo.provider_type !== filterSet.providerType) return false;
+      if (filterKey !== 'modifier_1' && filterSet.modifier && filterSet.modifier !== "-" && combo.modifier_1 !== filterSet.modifier) return false;
+      
+      // Don't apply duration unit filter when looking for other optional filter options
+      // This ensures modifiers/programs/etc show ALL available options for the core service
+      if (filterKey !== 'duration_unit') {
+        // Skip duration unit filtering when looking for modifier, program, location, provider, service_code, or service_description options
+        const isLookingForOptionalFilter = ['modifier_1', 'program', 'location_region', 'provider_type', 'service_code', 'service_description'].includes(filterKey as string);
+        if (!isLookingForOptionalFilter && filterSet.durationUnits && filterSet.durationUnits.length > 0) {
+          if (!filterSet.durationUnits.includes(combo.duration_unit)) return false;
+        }
       }
       
       return true;
@@ -2042,9 +2053,6 @@ export default function StatePaymentComparison() {
     }]);
 
     // Reset other filter-related states
-    setSelectedServiceCategory("");
-    setSelectedState("ALL_STATES"); // Set default state
-    setSelectedServiceCode("");
     setSelectedEntry(null);
     setServiceCodes([]);
     setSelectedTableRows({});
@@ -2122,12 +2130,15 @@ export default function StatePaymentComparison() {
 
   // Calculate national average
   const nationalAverage = useMemo(() => {
-    if (!selectedServiceCategory || !selectedServiceCode) return 0;
+    const serviceCategory = filterSets[0]?.serviceCategory;
+    const serviceCode = filterSets[0]?.serviceCode;
+    
+    if (!serviceCategory || !serviceCode) return 0;
 
     const rates = data
       .filter((item: ServiceData) => 
-        item.service_category === selectedServiceCategory &&
-        item.service_code === selectedServiceCode
+        item.service_category === serviceCategory &&
+        item.service_code === serviceCode
       )
       .map((item: ServiceData) => 
         (() => {
@@ -2148,7 +2159,7 @@ export default function StatePaymentComparison() {
 
     const sum = rates.reduce((sum: number, rate: number) => sum + rate, 0);
     return (sum / rates.length).toFixed(2);
-  }, [data, selectedServiceCategory, selectedServiceCode, showRatePerHour]);
+  }, [data, filterSets, showRatePerHour]);
 
   // Add this component to display the calculation details
   const CalculationDetails = () => {
@@ -2274,12 +2285,15 @@ export default function StatePaymentComparison() {
 
   // Add useEffect to update filter options when service category or state changes
   useEffect(() => {
-    if (selectedServiceCategory && selectedState) {
-      refreshFilters(selectedServiceCategory, selectedState);
-    } else if (selectedServiceCategory) {
-      refreshFilters(selectedServiceCategory);
+    const serviceCategory = selections.service_category || filterSets[0]?.serviceCategory;
+    const state = selections.state_name || filterSets[0]?.states[0];
+    
+    if (serviceCategory && state) {
+      refreshFilters(serviceCategory, state);
+    } else if (serviceCategory) {
+      refreshFilters(serviceCategory);
     }
-  }, [selectedServiceCategory, selectedState, refreshFilters]);
+  }, [selections.service_category, selections.state_name, filterSets, refreshFilters]);
 
   // Update the row selection handler to update selectedEntries and refresh chart
   const handleRowSelection = (state: string, item: ServiceData) => {

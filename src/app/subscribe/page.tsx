@@ -306,7 +306,7 @@ const StripePricingTableWithFooter = () => {
                 <li className="flex items-start gap-3 text-base text-gray-800">
                     <CheckCircle className="text-blue-600 w-5 h-5 flex-shrink-0 mt-0.5" />
                     <span className="text-left">
-                    Customizable email alerts for real-time updates on topics and states of your choice <span className="text-sm text-gray-400">(In Development)</span>
+                    Customizable email alerts for real-time updates on topics and states of your choice
                     </span>
                 </li>
               </ul>

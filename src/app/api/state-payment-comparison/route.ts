@@ -203,8 +203,8 @@ export async function GET(request: Request) {
           query = query.or(orConditions);
         }
       } else {
-        // Check all modifier columns
-        query = query.or(`modifier_1.eq.${modifier},modifier_2.eq.${modifier},modifier_3.eq.${modifier},modifier_4.eq.${modifier}`);
+      // Check all modifier columns
+      query = query.or(`modifier_1.eq.${modifier},modifier_2.eq.${modifier},modifier_3.eq.${modifier},modifier_4.eq.${modifier}`);
       }
     }
     if (feeScheduleDate) {
