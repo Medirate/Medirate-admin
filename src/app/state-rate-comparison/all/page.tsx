@@ -2851,7 +2851,18 @@ export default function StatePaymentComparison() {
                             (() => {
                               const availableModifiers = getAvailableOptionsForFilterSet('modifier_1', index);
                               return availableModifiers && availableModifiers.length > 0
-                                ? [{ value: '-', label: '-' }, ...availableModifiers.map((modifier: any) => ({ value: modifier, label: modifier }))]
+                                ? [{ value: '-', label: '-' }, ...availableModifiers.map((modifier: any) => {
+                                    // Find the first matching definition from filterOptionsData.combinations
+                                    const def =
+                                      filterOptionsData?.combinations?.find((c: any) => c.modifier_1 === modifier)?.modifier_1_details ||
+                                      filterOptionsData?.combinations?.find((c: any) => c.modifier_2 === modifier)?.modifier_2_details ||
+                                      filterOptionsData?.combinations?.find((c: any) => c.modifier_3 === modifier)?.modifier_3_details ||
+                                      filterOptionsData?.combinations?.find((c: any) => c.modifier_4 === modifier)?.modifier_4_details;
+                                    return {
+                                      value: modifier,
+                                      label: def ? `${modifier} - ${def}` : modifier
+                                    };
+                                  })]
                                 : [];
                             })()
                           }
