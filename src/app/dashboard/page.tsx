@@ -1060,7 +1060,7 @@ export default function Dashboard() {
   // Replace the getDropdownOptions function with the following:
   const getDropdownOptions = (options: (Option | string)[], isMandatory: boolean, filterKey?: keyof Selections): Option[] => {
     // For secondary filters, use the smart logic that checks for blank entries
-    if (!isMandatory && filterKey && ['program', 'location_region', 'provider_type', 'modifier_1'].includes(filterKey)) {
+    if (!isMandatory && filterKey && ['program', 'location_region', 'provider_type', 'modifier_1'].includes(filterKey as string)) {
       return buildSecondaryFilterOptions(options, filterKey);
     }
     

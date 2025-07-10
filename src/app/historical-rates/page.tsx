@@ -428,7 +428,7 @@ const getDropdownOptions = (options: string[], isMandatory: boolean = false, fil
   }));
   
   // For secondary filters, check if there are actually blank entries before adding "-" option
-  if (!isMandatory && filterKey && selections && filterOptionsData && ['program', 'location_region', 'provider_type', 'modifier_1'].includes(filterKey)) {
+  if (!isMandatory && filterKey && selections && filterOptionsData && ['program', 'location_region', 'provider_type', 'modifier_1'].includes(filterKey as string)) {
     const hasBlankEntries = hasBlankEntriesForFilter(filterKey, selections, filterOptionsData);
     if (hasBlankEntries && filterKey !== 'duration_unit') {
       dropdownOptions.unshift({ value: "-", label: "-" });
