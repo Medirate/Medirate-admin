@@ -1006,6 +1006,69 @@ export default function Dashboard() {
     )).sort();
   }
 
+  // Helper function to check if there are blank entries for a secondary filter
+  const hasBlankEntriesForFilter = (filterKey: keyof Selections): boolean => {
+    if (!filterOptionsData || !filterOptionsData.combinations) return false;
+    
+    // Build filter conditions based on current selections (same as getAvailableOptionsForFilter)
+    const filteredCombinations = filterOptionsData.combinations.filter(combo => {
+      // If a fee_schedule_date is selected, only consider combos where the date matches
+      if (selections.fee_schedule_date) {
+        if (Array.isArray(combo.rate_effective_date)) {
+          if (!combo.rate_effective_date.includes(selections.fee_schedule_date)) return false;
+        } else {
+          if (combo.rate_effective_date !== selections.fee_schedule_date) return false;
+        }
+      }
+      // Check all other selections except the current filterKey
+      return Object.entries(selections).every(([key, value]) => {
+        if (key === filterKey || key === 'fee_schedule_date') return true;
+        if (!value) return true;
+        
+        const comboValue = combo[key];
+        if (typeof comboValue !== 'string') return true; // Skip non-string fields
+        
+        // Handle multi-select values (arrays) vs single values (strings)
+        if (Array.isArray(value)) {
+          return value.includes(String(comboValue));
+        } else {
+          return comboValue === value;
+        }
+      });
+    });
+    
+    // Check if there are any entries where the specified field is blank/empty
+    return filteredCombinations.some(combo => {
+      const fieldValue = combo[filterKey];
+      return !fieldValue || (typeof fieldValue === 'string' && fieldValue.trim() === '');
+    });
+  };
+
+  // Helper function to build dropdown options with conditional "-" option for secondary filters
+  const buildSecondaryFilterOptions = (options: (Option | string)[], filterKey: keyof Selections, withDescriptions: boolean = false): Option[] => {
+    const opts: Option[] = options.map(opt => (typeof opt === 'string' ? { value: opt, label: opt } : opt));
+    const hasBlankEntries = hasBlankEntriesForFilter(filterKey);
+    
+    // Only add "-" option if there are blank entries for this filter (and it's not duration_unit)
+    if (hasBlankEntries && filterKey !== 'duration_unit') {
+      return [{ value: '-', label: '-' }, ...opts];
+    }
+    
+    return opts;
+  };
+
+  // Replace the getDropdownOptions function with the following:
+  const getDropdownOptions = (options: (Option | string)[], isMandatory: boolean, filterKey?: keyof Selections): Option[] => {
+    // For secondary filters, use the smart logic that checks for blank entries
+    if (!isMandatory && filterKey && ['program', 'location_region', 'provider_type', 'modifier_1'].includes(filterKey)) {
+      return buildSecondaryFilterOptions(options, filterKey);
+    }
+    
+    // For other filters, use the original logic
+    const opts: Option[] = options.map(opt => (typeof opt === 'string' ? { value: opt, label: opt } : opt));
+    return isMandatory ? opts : [{ value: '-', label: '-' }, ...opts];
+  };
+
   const availableServiceCategories = getAvailableOptionsForFilter('service_category');
   const availableStates = getAvailableOptionsForFilter('state_name');
   const availableServiceCodes = getAvailableOptionsForFilter('service_code');
@@ -1072,37 +1135,6 @@ export default function Dashboard() {
   }
 
   // Filter options are now handled by the backend API
-
-  // Replace the getDropdownOptions function with a smarter version
-  const getDropdownOptions = (options: (Option | string)[], isMandatory: boolean, filterKey?: keyof Selections): Option[] => {
-    const opts: Option[] = options.map(opt => (typeof opt === 'string' ? { value: opt, label: opt } : opt));
-    
-    if (isMandatory) return opts;
-    
-    // Check if there are actually blank entries for this filter
-    const hasBlankEntries = filterKey ? checkForBlankEntries(filterKey) : false;
-    
-    return hasBlankEntries ? [{ value: '-', label: '-' }, ...opts] : opts;
-  };
-
-  // Helper function to check if there are blank entries for a given filter
-  const checkForBlankEntries = (filterKey: keyof Selections): boolean => {
-    if (!filterOptionsData || !filterOptionsData.combinations) return false;
-    
-    // Get combinations that match current primary filters
-    const filteredCombinations = filterOptionsData.combinations.filter(combo => {
-      // Check primary filters only (not the current filter being checked)
-      if (selections.service_category && combo.service_category !== selections.service_category) return false;
-      if (selections.state_name && combo.state_name !== selections.state_name) return false;
-      if (selections.service_code && combo.service_code !== selections.service_code) return false;
-      if (selections.service_description && combo.service_description !== selections.service_description) return false;
-      
-      return true;
-    });
-    
-    // Check if any combinations have blank values for this filter
-    return filteredCombinations.some(combo => !combo[filterKey] || combo[filterKey] === '');
-  };
 
   // Add this after state declarations
   const isStateSelected = !!selections.state_name && (availableServiceCodes.length > 0 || availableServiceDescriptions.length > 0 || availableFeeScheduleDates.length > 0) && !isLoadingFilters;
@@ -1396,7 +1428,7 @@ export default function Dashboard() {
                   </label>
                   <Select
                     instanceId="program_select"
-                    options={getDropdownOptions(availablePrograms, false, 'program')}
+                    options={getDropdownOptions(availablePrograms, false)}
                     value={selections.program ? selections.program.split(',').map(p => ({ value: p.trim(), label: p.trim() })) : null}
                     onChange={(options) => handleSelectionChange('program', options ? options.map(opt => opt.value).join(',') : null)}
                     placeholder="Select Program"
@@ -1416,7 +1448,7 @@ export default function Dashboard() {
                   </label>
                   <Select
                     instanceId="location_region_select"
-                    options={getDropdownOptions(availableLocationRegions, false, 'location_region')}
+                    options={getDropdownOptions(availableLocationRegions, false)}
                     value={selections.location_region ? selections.location_region.split(',').map(l => ({ value: l.trim(), label: l.trim() })) : null}
                     onChange={(options) => handleSelectionChange('location_region', options ? options.map(opt => opt.value).join(',') : null)}
                     placeholder="Select Location/Region"
@@ -1436,7 +1468,7 @@ export default function Dashboard() {
                   </label>
                   <Select
                     instanceId="provider_type_select"
-                    options={getDropdownOptions(availableProviderTypes, false, 'provider_type')}
+                    options={getDropdownOptions(availableProviderTypes, false)}
                     value={selections.provider_type ? selections.provider_type.split(',').map(p => ({ value: p.trim(), label: p.trim() })) : null}
                     onChange={(options) => handleSelectionChange('provider_type', options ? options.map(opt => opt.value).join(',') : null)}
                     placeholder="Select Provider Type"
@@ -1456,7 +1488,7 @@ export default function Dashboard() {
                   </label>
                   <Select
                     instanceId="duration_unit_select"
-                    options={getDropdownOptions(availableDurationUnits, false, 'duration_unit')}
+                    options={getDropdownOptions(availableDurationUnits, false)}
                     value={selections.duration_unit ? selections.duration_unit.split(',').map(d => ({ value: d.trim(), label: d.trim() })) : null}
                     onChange={(options) => handleSelectionChange('duration_unit', options ? options.map(opt => opt.value).join(',') : null)}
                     placeholder="Select Duration Unit"
@@ -1476,7 +1508,7 @@ export default function Dashboard() {
                   </label>
                     <Select
                     instanceId="modifier_1_select"
-                    options={getDropdownOptions(modifierOptions, false, 'modifier_1')}
+                    options={getDropdownOptions(modifierOptions, false)}
                     value={selections.modifier_1 ? selections.modifier_1.split(',').map(m => {
                       const mod = modifierOptions.find(opt => opt.value === m.trim());
                       return mod || { value: m.trim(), label: m.trim() };

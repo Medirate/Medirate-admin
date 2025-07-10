@@ -420,45 +420,25 @@ const STATE_ABBREVIATIONS: Record<string, string> = {
 };
 
 // Add this helper function similar to dashboard
-const getDropdownOptions = (options: string[], isMandatory: boolean = false, filterKey?: keyof Selections, filterOptionsData?: any, selections?: Selections): { value: string; label: string }[] => {
+const getDropdownOptions = (options: string[], isMandatory: boolean = false, filterKey?: keyof Selections, selections?: Selections, filterOptionsData?: any): { value: string; label: string }[] => {
   const uniqueOptions = [...new Set(options)].filter(Boolean).sort((a, b) => a.localeCompare(b));
   const dropdownOptions = uniqueOptions.map(option => ({
     value: option,
     label: option
   }));
   
-  if (isMandatory) {
-    return dropdownOptions;
-  }
-  
-  // Check if there are actually blank entries for this filter
-  const hasBlankEntries = filterKey && filterOptionsData && selections ? checkForBlankEntries(filterKey, filterOptionsData, selections) : false;
-  
-  // Add "-" option for non-mandatory filters only if there are blank entries
-  if (hasBlankEntries) {
+  // For secondary filters, check if there are actually blank entries before adding "-" option
+  if (!isMandatory && filterKey && selections && filterOptionsData && ['program', 'location_region', 'provider_type', 'modifier_1'].includes(filterKey)) {
+    const hasBlankEntries = hasBlankEntriesForFilter(filterKey, selections, filterOptionsData);
+    if (hasBlankEntries && filterKey !== 'duration_unit') {
+      dropdownOptions.unshift({ value: "-", label: "-" });
+    }
+  } else if (!isMandatory) {
+    // For other filters, use the original logic
     dropdownOptions.unshift({ value: "-", label: "-" });
   }
   
   return dropdownOptions;
-};
-
-// Helper function to check if there are blank entries for a given filter
-const checkForBlankEntries = (filterKey: keyof Selections, filterOptionsData: any, selections: Selections): boolean => {
-  if (!filterOptionsData || !filterOptionsData.combinations) return false;
-  
-  // Get combinations that match current primary filters
-  const filteredCombinations = filterOptionsData.combinations.filter((combo: any) => {
-    // Check primary filters only (not the current filter being checked)
-    if (selections.service_category && combo.service_category !== selections.service_category) return false;
-    if (selections.state_name && combo.state_name !== selections.state_name) return false;
-    if (selections.service_code && combo.service_code !== selections.service_code) return false;
-    if (selections.service_description && combo.service_description !== selections.service_description) return false;
-    
-    return true;
-  });
-  
-  // Check if any combinations have blank values for this filter
-  return filteredCombinations.some((combo: any) => !combo[filterKey] || combo[filterKey] === '');
 };
 
 // Add helper to get available options for each filter based on current selections
@@ -486,6 +466,36 @@ function getAvailableOptionsForFilter(filterKey: keyof Selections, selections: S
       .filter((val: any): val is string => Boolean(val))
   )).sort() as string[];
 }
+
+// Helper function to check if there are blank entries for a secondary filter
+const hasBlankEntriesForFilter = (filterKey: keyof Selections, selections: Selections, filterOptionsData: any): boolean => {
+  if (!filterOptionsData || !filterOptionsData.combinations) return false;
+  
+  // Build filter conditions based on current selections (same as getAvailableOptionsForFilter)
+  const filteredCombinations = filterOptionsData.combinations.filter((combo: any) => {
+    // Check all other selections except the current filterKey
+    return Object.entries(selections).every(([key, value]) => {
+      if (key === filterKey) return true;
+      if (!value) return true;
+      
+      const comboValue = combo[key];
+      if (typeof comboValue !== 'string') return true; // Skip non-string fields
+      
+      // Handle multi-select values (arrays) vs single values (strings)
+      if (Array.isArray(value)) {
+        return value.includes(String(comboValue));
+      } else {
+        return comboValue === value;
+      }
+    });
+  });
+  
+  // Check if there are any entries where the specified field is blank/empty
+  return filteredCombinations.some((combo: any) => {
+    const fieldValue = combo[filterKey];
+    return !fieldValue || (typeof fieldValue === 'string' && fieldValue.trim() === '');
+  });
+};
 
 // Add Selections type and state for unified filter management
 // --- NEW: Types for client-side filtering ---
@@ -1381,7 +1391,7 @@ export default function HistoricalRates() {
                       <label className="text-sm font-medium text-gray-700">Program</label>
                       <Select
                         instanceId="program_select"
-                        options={getDropdownOptions(availablePrograms, false, 'program', filterOptionsData, selections)}
+                        options={getDropdownOptions(availablePrograms, false)}
                         value={selections.program ? selections.program.split(',').map(p => ({ value: p.trim(), label: p.trim() })) : null}
                         onChange={(options) => handleSelectionChange('program', options ? options.map(opt => opt.value).join(',') : null)}
                         placeholder="Select Program"
@@ -1400,7 +1410,7 @@ export default function HistoricalRates() {
                       <label className="text-sm font-medium text-gray-700">Location/Region</label>
                       <Select
                         instanceId="location_region_select"
-                        options={getDropdownOptions(availableLocationRegions, false, 'location_region', filterOptionsData, selections)}
+                        options={getDropdownOptions(availableLocationRegions, false)}
                         value={selections.location_region ? selections.location_region.split(',').map(l => ({ value: l.trim(), label: l.trim() })) : null}
                         onChange={(options) => handleSelectionChange('location_region', options ? options.map(opt => opt.value).join(',') : null)}
                         placeholder="Select Location/Region"
@@ -1419,7 +1429,7 @@ export default function HistoricalRates() {
                       <label className="text-sm font-medium text-gray-700">Provider Type</label>
                       <Select
                         instanceId="provider_type_select"
-                        options={getDropdownOptions(availableProviderTypes, false, 'provider_type', filterOptionsData, selections)}
+                        options={getDropdownOptions(availableProviderTypes, false)}
                         value={selections.provider_type ? selections.provider_type.split(',').map(p => ({ value: p.trim(), label: p.trim() })) : null}
                         onChange={(options) => handleSelectionChange('provider_type', options ? options.map(opt => opt.value).join(',') : null)}
                         placeholder="Select Provider Type"
@@ -1438,7 +1448,7 @@ export default function HistoricalRates() {
                       <label className="text-sm font-medium text-gray-700">Duration Unit</label>
                       <Select
                         instanceId="duration_unit_select"
-                        options={getDropdownOptions(availableDurationUnits, false, 'duration_unit', filterOptionsData, selections)}
+                        options={getDropdownOptions(availableDurationUnits, false)}
                         value={selections.duration_unit ? selections.duration_unit.split(',').map(d => ({ value: d.trim(), label: d.trim() })) : null}
                         onChange={(options) => handleSelectionChange('duration_unit', options ? options.map(opt => opt.value).join(',') : null)}
                         placeholder="Select Duration Unit"
@@ -1457,18 +1467,14 @@ export default function HistoricalRates() {
                       <label className="text-sm font-medium text-gray-700">Modifier</label>
                       <Select
                         instanceId="modifier_1_select"
-                        options={(() => {
-                          const hasBlankModifiers = checkForBlankEntries('modifier_1', filterOptionsData, selections);
-                          const modifierOptions = availableModifiers.map((o: string) => {
-                            const def =
-                              filterOptionsData?.combinations?.find((c: any) => c.modifier_1 === o)?.modifier_1_details ||
-                              filterOptionsData?.combinations?.find((c: any) => c.modifier_2 === o)?.modifier_2_details ||
-                              filterOptionsData?.combinations?.find((c: any) => c.modifier_3 === o)?.modifier_3_details ||
-                              filterOptionsData?.combinations?.find((c: any) => c.modifier_4 === o)?.modifier_4_details;
-                            return { value: o, label: def ? `${o} - ${def}` : o };
-                          });
-                          return hasBlankModifiers ? [{ value: '-', label: '-' }, ...modifierOptions] : modifierOptions;
-                        })()}
+                        options={[{ value: '-', label: '-' }, ...availableModifiers.map((o: string) => {
+                          const def =
+                            filterOptionsData?.combinations?.find((c: any) => c.modifier_1 === o)?.modifier_1_details ||
+                            filterOptionsData?.combinations?.find((c: any) => c.modifier_2 === o)?.modifier_2_details ||
+                            filterOptionsData?.combinations?.find((c: any) => c.modifier_3 === o)?.modifier_3_details ||
+                            filterOptionsData?.combinations?.find((c: any) => c.modifier_4 === o)?.modifier_4_details;
+                          return { value: o, label: def ? `${o} - ${def}` : o };
+                        })]}
                         value={selections.modifier_1 ? selections.modifier_1.split(',').map(m => {
                           const mod = availableModifiers.find(opt => opt === m.trim());
                           if (mod) {

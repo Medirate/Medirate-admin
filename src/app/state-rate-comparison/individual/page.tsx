@@ -1260,6 +1260,73 @@ export default function StatePaymentComparison() {
     )).sort();
   };
 
+  // Helper function to check if there are blank entries for a secondary filter
+  const hasBlankEntriesForFilter = (filterKey: keyof Selections, filterSetIndex: number): boolean => {
+    if (!filterOptionsData || !filterOptionsData.combinations) return false;
+    
+    const filterSet = filterSets[filterSetIndex];
+    if (!filterSet) return false;
+    
+    // Build filter conditions based on the current filterSet (same as getAvailableOptionsForFilterSet)
+    const filteredCombinations = filterOptionsData.combinations.filter(combo => {
+      // Always apply CORE REQUIRED filters
+      if (filterSet.serviceCategory && combo.service_category !== filterSet.serviceCategory) return false;
+      if (filterSet.states.length > 0 && !filterSet.states.includes(combo.state_name)) return false;
+      if (filterSet.serviceCode && combo.service_code !== filterSet.serviceCode) return false;
+      if (filterSet.serviceDescription && combo.service_description !== filterSet.serviceDescription) return false;
+      
+      // For OPTIONAL filters: only apply them when we're NOT looking for options for that specific filter
+      if (filterKey !== 'program' && filterSet.program && filterSet.program !== "-" && combo.program !== filterSet.program) return false;
+      if (filterKey !== 'location_region' && filterSet.locationRegion && filterSet.locationRegion !== "-" && combo.location_region !== filterSet.locationRegion) return false;
+      if (filterKey !== 'provider_type' && filterSet.providerType && filterSet.providerType !== "-" && combo.provider_type !== filterSet.providerType) return false;
+      if (filterKey !== 'modifier_1' && filterSet.modifier && filterSet.modifier !== "-" && combo.modifier_1 !== filterSet.modifier) return false;
+      
+      // Don't apply duration unit filter when looking for other optional filter options
+      if (filterKey !== 'duration_unit') {
+        const isLookingForOptionalFilter = ['modifier_1', 'program', 'location_region', 'provider_type', 'service_code', 'service_description'].includes(filterKey as string);
+        if (!isLookingForOptionalFilter && filterSet.durationUnits && filterSet.durationUnits.length > 0) {
+          if (!filterSet.durationUnits.includes(combo.duration_unit)) return false;
+        }
+      }
+      
+      return true;
+    });
+    
+    // Check if there are any entries where the specified field is blank/empty
+    return filteredCombinations.some(combo => !combo[filterKey] || combo[filterKey].trim() === '');
+  };
+
+  // Helper function to build dropdown options with conditional "-" option
+  const buildSecondaryFilterOptions = (filterKey: keyof Selections, filterSetIndex: number, withDescriptions: boolean = false) => {
+    const availableOptions = getAvailableOptionsForFilterSet(filterKey, filterSetIndex);
+    const hasBlankEntries = hasBlankEntriesForFilter(filterKey, filterSetIndex);
+    
+    if (!availableOptions || availableOptions.length === 0) return [];
+    
+    const options = availableOptions.map((option: any) => {
+      if (withDescriptions && filterKey === 'modifier_1') {
+        // Find the first matching definition from filterOptionsData.combinations
+        const def =
+          filterOptionsData?.combinations?.find((c: any) => c.modifier_1 === option)?.modifier_1_details ||
+          filterOptionsData?.combinations?.find((c: any) => c.modifier_2 === option)?.modifier_2_details ||
+          filterOptionsData?.combinations?.find((c: any) => c.modifier_3 === option)?.modifier_3_details ||
+          filterOptionsData?.combinations?.find((c: any) => c.modifier_4 === option)?.modifier_4_details;
+        return {
+          value: option,
+          label: def ? `${option} - ${def}` : option
+        };
+      }
+      return { value: option, label: option };
+    });
+    
+    // Only add "-" option if there are blank entries for this filter (and it's not duration_unit)
+    if (hasBlankEntries && filterKey !== 'duration_unit') {
+      return [{ value: '-', label: '-' }, ...options];
+    }
+    
+    return options;
+  };
+
   // Add dynamic filter options computed from filterOptionsData (like dashboard)
   const availableServiceCategories = getAvailableOptionsForFilter('service_category');
   const availableStates = getAvailableOptionsForFilter('state_name');
@@ -2217,28 +2284,6 @@ export default function StatePaymentComparison() {
     // (You may need to move your data loading logic from other useEffects here)
   }, [/* other dependencies */, pendingSearch]);
 
-  // Helper function to check if there are blank entries for a given filter in a specific filter set
-  const checkForBlankEntriesInFilterSet = (filterKey: keyof Selections, filterSetIndex: number): boolean => {
-    if (!filterOptionsData || !filterOptionsData.combinations) return false;
-    
-    const filterSet = filterSets[filterSetIndex];
-    if (!filterSet) return false;
-    
-    // Get combinations that match current filterSet's primary filters
-    const filteredCombinations = filterOptionsData.combinations.filter((combo: any) => {
-      // Check primary filters only (not the current filter being checked)
-      if (filterSet.serviceCategory && combo.service_category !== filterSet.serviceCategory) return false;
-      if (filterSet.states.length > 0 && !filterSet.states.includes(combo.state_name)) return false;
-      if (filterSet.serviceCode && combo.service_code !== filterSet.serviceCode) return false;
-      if (filterSet.serviceDescription && combo.service_description !== filterSet.serviceDescription) return false;
-      
-      return true;
-    });
-    
-    // Check if any combinations have blank values for this filter
-    return filteredCombinations.some((combo: any) => !combo[filterKey] || combo[filterKey] === '');
-  };
-
   return (
     <AppLayout activeTab="stateRateComparison">
       <div className="p-4 sm:p-8 bg-gradient-to-br from-gray-50 to-blue-50 min-h-screen">
@@ -2419,17 +2464,7 @@ export default function StatePaymentComparison() {
                         <label className="text-sm font-medium text-gray-700">Program</label>
                         <Select
                           instanceId={`program-select-${index}`}
-                          options={
-                            (() => {
-                              const availablePrograms = getAvailableOptionsForFilterSet('program', index);
-                              if (!availablePrograms || availablePrograms.length === 0) return [];
-                              
-                              const hasBlankPrograms = checkForBlankEntriesInFilterSet('program', index);
-                              const programOptions = availablePrograms.map((program: any) => ({ value: program, label: program }));
-                              
-                              return hasBlankPrograms ? [{ value: '-', label: '-' }, ...programOptions] : programOptions;
-                            })()
-                          }
+                          options={buildSecondaryFilterOptions('program', index)}
                             value={filterSet.program ? filterSet.program.split(',').map(p => ({ value: p.trim(), label: p.trim() })) : null}
                           onChange={(options) => wrappedHandleProgramChange(index, options ? options.map(opt => opt.value).join(',') : "")}
                           placeholder="Select Program"
@@ -2460,17 +2495,7 @@ export default function StatePaymentComparison() {
                         <label className="text-sm font-medium text-gray-700">Location/Region</label>
                         <Select
                           instanceId={`location-region-select-${index}`}
-                          options={
-                            (() => {
-                              const availableLocationRegions = getAvailableOptionsForFilterSet('location_region', index);
-                              if (!availableLocationRegions || availableLocationRegions.length === 0) return [];
-                              
-                              const hasBlankRegions = checkForBlankEntriesInFilterSet('location_region', index);
-                              const regionOptions = availableLocationRegions.map((region: any) => ({ value: region, label: region }));
-                              
-                              return hasBlankRegions ? [{ value: '-', label: '-' }, ...regionOptions] : regionOptions;
-                            })()
-                          }
+                          options={buildSecondaryFilterOptions('location_region', index)}
                           value={filterSet.locationRegion ? filterSet.locationRegion.split(',').map(l => ({ value: l.trim(), label: l.trim() })) : null}
                           onChange={(options) => wrappedHandleLocationRegionChange(index, options ? options.map(opt => opt.value).join(',') : "")}
                           placeholder="Select Location/Region"
@@ -2501,28 +2526,7 @@ export default function StatePaymentComparison() {
                         <label className="text-sm font-medium text-gray-700">Modifier</label>
                         <Select
                           instanceId={`modifier-select-${index}`}
-                          options={
-                            (() => {
-                              const availableModifiers = getAvailableOptionsForFilterSet('modifier_1', index);
-                              if (!availableModifiers || availableModifiers.length === 0) return [];
-                              
-                              const hasBlankModifiers = checkForBlankEntriesInFilterSet('modifier_1', index);
-                              const modifierOptions = availableModifiers.map((modifier: any) => {
-                                // Find the first matching definition from filterOptionsData.combinations
-                                const def =
-                                  filterOptionsData?.combinations?.find((c: any) => c.modifier_1 === modifier)?.modifier_1_details ||
-                                  filterOptionsData?.combinations?.find((c: any) => c.modifier_2 === modifier)?.modifier_2_details ||
-                                  filterOptionsData?.combinations?.find((c: any) => c.modifier_3 === modifier)?.modifier_3_details ||
-                                  filterOptionsData?.combinations?.find((c: any) => c.modifier_4 === modifier)?.modifier_4_details;
-                                return {
-                                  value: modifier,
-                                  label: def ? `${modifier} - ${def}` : modifier
-                                };
-                              });
-                              
-                              return hasBlankModifiers ? [{ value: '-', label: '-' }, ...modifierOptions] : modifierOptions;
-                            })()
-                          }
+                          options={buildSecondaryFilterOptions('modifier_1', index, true)}
                           value={filterSet.modifier ? filterSet.modifier.split(',').map(m => {
                             const mod = availableModifiers.find(opt => opt === m.trim());
                             if (mod) {
@@ -2564,17 +2568,7 @@ export default function StatePaymentComparison() {
                         <label className="text-sm font-medium text-gray-700">Provider Type</label>
                         <Select
                           instanceId={`provider-type-select-${index}`}
-                          options={
-                            (() => {
-                              const availableProviderTypes = getAvailableOptionsForFilterSet('provider_type', index);
-                              if (!availableProviderTypes || availableProviderTypes.length === 0) return [];
-                              
-                              const hasBlankTypes = checkForBlankEntriesInFilterSet('provider_type', index);
-                              const typeOptions = availableProviderTypes.map((type: any) => ({ value: type, label: type }));
-                              
-                              return hasBlankTypes ? [{ value: '-', label: '-' }, ...typeOptions] : typeOptions;
-                            })()
-                          }
+                          options={buildSecondaryFilterOptions('provider_type', index)}
                           value={filterSet.providerType ? filterSet.providerType.split(',').map(p => ({ value: p.trim(), label: p.trim() })) : null}
                           onChange={(options) => wrappedHandleProviderTypeChange(index, options ? options.map(opt => opt.value).join(',') : "")}
                           placeholder="Select Provider Type"
@@ -2608,12 +2602,9 @@ export default function StatePaymentComparison() {
                           options={
                             (() => {
                               const availableDurationUnits = getAvailableOptionsForFilterSet('duration_unit', index);
-                              if (!availableDurationUnits || availableDurationUnits.length === 0) return [];
-                              
-                              const hasBlankUnits = checkForBlankEntriesInFilterSet('duration_unit', index);
-                              const unitOptions = availableDurationUnits.map((unit: any) => ({ value: unit, label: unit }));
-                              
-                              return hasBlankUnits ? [{ value: '-', label: '-' }, ...unitOptions] : unitOptions;
+                              return availableDurationUnits && availableDurationUnits.length > 0
+                                ? availableDurationUnits.map((unit: any) => ({ value: unit, label: unit }))
+                                : [];
                             })()
                           }
                           value={filterSet.durationUnits && filterSet.durationUnits.length > 0 
