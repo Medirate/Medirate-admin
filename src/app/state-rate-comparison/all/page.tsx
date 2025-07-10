@@ -2586,6 +2586,29 @@ export default function StatePaymentComparison() {
   // Don't render chart until we have filter options loaded
   const shouldRenderChart = !isInitialLoading && filterOptionsData && (hasSearchedOnce || !isAllStatesSelected);
 
+  // Helper function to check if there are blank entries for a given filter in a specific filter set
+  const checkForBlankEntriesInFilterSet = (filterKey: keyof Selections, filterSetIndex: number): boolean => {
+    if (!filterOptionsData || !filterOptionsData.combinations) return false;
+    
+    const filterSet = filterSets[filterSetIndex];
+    if (!filterSet) return false;
+    
+    // Get combinations that match current filterSet's primary filters
+    const filteredCombinations = filterOptionsData.combinations.filter((combo: any) => {
+      // Check primary filters only (not the current filter being checked)
+      if (filterSet.serviceCategory && combo.service_category !== filterSet.serviceCategory) return false;
+      // Handle special case for "ALL_STATES" - don't filter by state in this case
+      if (filterSet.states.length > 0 && !filterSet.states.includes("ALL_STATES") && !filterSet.states.includes(combo.state_name)) return false;
+      if (filterSet.serviceCode && combo.service_code !== filterSet.serviceCode) return false;
+      if (filterSet.serviceDescription && combo.service_description !== filterSet.serviceDescription) return false;
+      
+      return true;
+    });
+    
+    // Check if any combinations have blank values for this filter
+    return filteredCombinations.some((combo: any) => !combo[filterKey] || combo[filterKey] === '');
+  };
+
   return (
     <AppLayout activeTab="stateRateComparison">
       <div className="p-4 sm:p-8 bg-gradient-to-br from-gray-50 to-blue-50 min-h-screen">
@@ -2768,9 +2791,12 @@ export default function StatePaymentComparison() {
                           options={
                             (() => {
                               const availablePrograms = getAvailableOptionsForFilterSet('program', index);
-                              return availablePrograms && availablePrograms.length > 0
-                                ? [{ value: '-', label: '-' }, ...availablePrograms.map((program: any) => ({ value: program, label: program }))]
-                                : [];
+                              if (!availablePrograms || availablePrograms.length === 0) return [];
+                              
+                              const hasBlankPrograms = checkForBlankEntriesInFilterSet('program', index);
+                              const programOptions = availablePrograms.map((program: any) => ({ value: program, label: program }));
+                              
+                              return hasBlankPrograms ? [{ value: '-', label: '-' }, ...programOptions] : programOptions;
                             })()
                           }
                           value={filterSet.program ? filterSet.program.split(',').map(p => ({ value: p.trim(), label: p.trim() })) : null}
@@ -2809,9 +2835,12 @@ export default function StatePaymentComparison() {
                           options={
                             (() => {
                               const availableLocationRegions = getAvailableOptionsForFilterSet('location_region', index);
-                              return availableLocationRegions && availableLocationRegions.length > 0
-                                ? [{ value: '-', label: '-' }, ...availableLocationRegions.map((region: any) => ({ value: region, label: region }))]
-                                : [];
+                              if (!availableLocationRegions || availableLocationRegions.length === 0) return [];
+                              
+                              const hasBlankRegions = checkForBlankEntriesInFilterSet('location_region', index);
+                              const regionOptions = availableLocationRegions.map((region: any) => ({ value: region, label: region }));
+                              
+                              return hasBlankRegions ? [{ value: '-', label: '-' }, ...regionOptions] : regionOptions;
                             })()
                           }
                           value={filterSet.locationRegion ? filterSet.locationRegion.split(',').map(l => ({ value: l.trim(), label: l.trim() })) : null}
@@ -2850,20 +2879,23 @@ export default function StatePaymentComparison() {
                           options={
                             (() => {
                               const availableModifiers = getAvailableOptionsForFilterSet('modifier_1', index);
-                              return availableModifiers && availableModifiers.length > 0
-                                ? [{ value: '-', label: '-' }, ...availableModifiers.map((modifier: any) => {
-                                    // Find the first matching definition from filterOptionsData.combinations
-                                    const def =
-                                      filterOptionsData?.combinations?.find((c: any) => c.modifier_1 === modifier)?.modifier_1_details ||
-                                      filterOptionsData?.combinations?.find((c: any) => c.modifier_2 === modifier)?.modifier_2_details ||
-                                      filterOptionsData?.combinations?.find((c: any) => c.modifier_3 === modifier)?.modifier_3_details ||
-                                      filterOptionsData?.combinations?.find((c: any) => c.modifier_4 === modifier)?.modifier_4_details;
-                                    return {
-                                      value: modifier,
-                                      label: def ? `${modifier} - ${def}` : modifier
-                                    };
-                                  })]
-                                : [];
+                              if (!availableModifiers || availableModifiers.length === 0) return [];
+                              
+                              const hasBlankModifiers = checkForBlankEntriesInFilterSet('modifier_1', index);
+                              const modifierOptions = availableModifiers.map((modifier: any) => {
+                                // Find the first matching definition from filterOptionsData.combinations
+                                const def =
+                                  filterOptionsData?.combinations?.find((c: any) => c.modifier_1 === modifier)?.modifier_1_details ||
+                                  filterOptionsData?.combinations?.find((c: any) => c.modifier_2 === modifier)?.modifier_2_details ||
+                                  filterOptionsData?.combinations?.find((c: any) => c.modifier_3 === modifier)?.modifier_3_details ||
+                                  filterOptionsData?.combinations?.find((c: any) => c.modifier_4 === modifier)?.modifier_4_details;
+                                return {
+                                  value: modifier,
+                                  label: def ? `${modifier} - ${def}` : modifier
+                                };
+                              });
+                              
+                              return hasBlankModifiers ? [{ value: '-', label: '-' }, ...modifierOptions] : modifierOptions;
                             })()
                           }
                           value={filterSet.modifier ? filterSet.modifier.split(',').map(m => {
@@ -2913,9 +2945,12 @@ export default function StatePaymentComparison() {
                           options={
                             (() => {
                               const availableProviderTypes = getAvailableOptionsForFilterSet('provider_type', index);
-                              return availableProviderTypes && availableProviderTypes.length > 0
-                                ? [{ value: '-', label: '-' }, ...availableProviderTypes.map((type: any) => ({ value: type, label: type }))]
-                                : [];
+                              if (!availableProviderTypes || availableProviderTypes.length === 0) return [];
+                              
+                              const hasBlankTypes = checkForBlankEntriesInFilterSet('provider_type', index);
+                              const typeOptions = availableProviderTypes.map((type: any) => ({ value: type, label: type }));
+                              
+                              return hasBlankTypes ? [{ value: '-', label: '-' }, ...typeOptions] : typeOptions;
                             })()
                           }
                           value={filterSet.providerType ? filterSet.providerType.split(',').map(p => ({ value: p.trim(), label: p.trim() })) : null}
@@ -2952,14 +2987,17 @@ export default function StatePaymentComparison() {
                       </label>
                         <Select
                           instanceId={`duration-unit-select-${index}`}
-                          options={
+                                                    options={
                             (() => {
                               const availableDurationUnits = getAvailableOptionsForFilterSet('duration_unit', index);
-                              return availableDurationUnits && availableDurationUnits.length > 0
-                                ? availableDurationUnits.map((unit: any) => ({ value: unit, label: unit }))
-                                : [];
+                              if (!availableDurationUnits || availableDurationUnits.length === 0) return [];
+                              
+                              const hasBlankUnits = checkForBlankEntriesInFilterSet('duration_unit', index);
+                              const unitOptions = availableDurationUnits.map((unit: any) => ({ value: unit, label: unit }));
+                              
+                              return hasBlankUnits ? [{ value: '-', label: '-' }, ...unitOptions] : unitOptions;
                             })()
-                        }
+                          }
                         value={filterSet.durationUnits.map(unit => ({ value: unit, label: unit }))}
                         onChange={(options) => {
                           const selectedValues = options ? options.map(opt => opt.value) : [];

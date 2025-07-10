@@ -1073,10 +1073,35 @@ export default function Dashboard() {
 
   // Filter options are now handled by the backend API
 
-  // Replace the getDropdownOptions function with the following:
-  const getDropdownOptions = (options: (Option | string)[], isMandatory: boolean): readonly Option[] => {
+  // Replace the getDropdownOptions function with a smarter version
+  const getDropdownOptions = (options: (Option | string)[], isMandatory: boolean, filterKey?: keyof Selections): Option[] => {
     const opts: Option[] = options.map(opt => (typeof opt === 'string' ? { value: opt, label: opt } : opt));
-    return isMandatory ? opts : [{ value: '-', label: '-' }, ...opts] as const;
+    
+    if (isMandatory) return opts;
+    
+    // Check if there are actually blank entries for this filter
+    const hasBlankEntries = filterKey ? checkForBlankEntries(filterKey) : false;
+    
+    return hasBlankEntries ? [{ value: '-', label: '-' }, ...opts] : opts;
+  };
+
+  // Helper function to check if there are blank entries for a given filter
+  const checkForBlankEntries = (filterKey: keyof Selections): boolean => {
+    if (!filterOptionsData || !filterOptionsData.combinations) return false;
+    
+    // Get combinations that match current primary filters
+    const filteredCombinations = filterOptionsData.combinations.filter(combo => {
+      // Check primary filters only (not the current filter being checked)
+      if (selections.service_category && combo.service_category !== selections.service_category) return false;
+      if (selections.state_name && combo.state_name !== selections.state_name) return false;
+      if (selections.service_code && combo.service_code !== selections.service_code) return false;
+      if (selections.service_description && combo.service_description !== selections.service_description) return false;
+      
+      return true;
+    });
+    
+    // Check if any combinations have blank values for this filter
+    return filteredCombinations.some(combo => !combo[filterKey] || combo[filterKey] === '');
   };
 
   // Add this after state declarations
@@ -1371,7 +1396,7 @@ export default function Dashboard() {
                   </label>
                   <Select
                     instanceId="program_select"
-                    options={getDropdownOptions(availablePrograms, false)}
+                    options={getDropdownOptions(availablePrograms, false, 'program')}
                     value={selections.program ? selections.program.split(',').map(p => ({ value: p.trim(), label: p.trim() })) : null}
                     onChange={(options) => handleSelectionChange('program', options ? options.map(opt => opt.value).join(',') : null)}
                     placeholder="Select Program"
@@ -1391,7 +1416,7 @@ export default function Dashboard() {
                   </label>
                   <Select
                     instanceId="location_region_select"
-                    options={getDropdownOptions(availableLocationRegions, false)}
+                    options={getDropdownOptions(availableLocationRegions, false, 'location_region')}
                     value={selections.location_region ? selections.location_region.split(',').map(l => ({ value: l.trim(), label: l.trim() })) : null}
                     onChange={(options) => handleSelectionChange('location_region', options ? options.map(opt => opt.value).join(',') : null)}
                     placeholder="Select Location/Region"
@@ -1411,7 +1436,7 @@ export default function Dashboard() {
                   </label>
                   <Select
                     instanceId="provider_type_select"
-                    options={getDropdownOptions(availableProviderTypes, false)}
+                    options={getDropdownOptions(availableProviderTypes, false, 'provider_type')}
                     value={selections.provider_type ? selections.provider_type.split(',').map(p => ({ value: p.trim(), label: p.trim() })) : null}
                     onChange={(options) => handleSelectionChange('provider_type', options ? options.map(opt => opt.value).join(',') : null)}
                     placeholder="Select Provider Type"
@@ -1431,7 +1456,7 @@ export default function Dashboard() {
                   </label>
                   <Select
                     instanceId="duration_unit_select"
-                    options={getDropdownOptions(availableDurationUnits, false)}
+                    options={getDropdownOptions(availableDurationUnits, false, 'duration_unit')}
                     value={selections.duration_unit ? selections.duration_unit.split(',').map(d => ({ value: d.trim(), label: d.trim() })) : null}
                     onChange={(options) => handleSelectionChange('duration_unit', options ? options.map(opt => opt.value).join(',') : null)}
                     placeholder="Select Duration Unit"
@@ -1451,7 +1476,7 @@ export default function Dashboard() {
                   </label>
                     <Select
                     instanceId="modifier_1_select"
-                    options={getDropdownOptions(modifierOptions, false)}
+                    options={getDropdownOptions(modifierOptions, false, 'modifier_1')}
                     value={selections.modifier_1 ? selections.modifier_1.split(',').map(m => {
                       const mod = modifierOptions.find(opt => opt.value === m.trim());
                       return mod || { value: m.trim(), label: m.trim() };
