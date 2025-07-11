@@ -218,9 +218,9 @@ function formatDate(dateString: string | undefined): string {
     day = parseInt(dayStr, 10);
   } else {
     // Fallback for unexpected formats - use timezone-safe parsing
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return dateString;
-    return `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}/${date.getFullYear()}`;
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return dateString;
+  return `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}/${date.getFullYear()}`;
   }
   
   // Validate the parsed values
@@ -1408,7 +1408,7 @@ export default function StatePaymentComparison() {
         // Skip duration unit filtering when looking for modifier, program, location, provider, service_code, or service_description options
         const isLookingForOptionalFilter = ['modifier_1', 'program', 'location_region', 'provider_type', 'service_code', 'service_description'].includes(filterKey as string);
         if (!isLookingForOptionalFilter && filterSet.durationUnits && filterSet.durationUnits.length > 0) {
-          if (!filterSet.durationUnits.includes(combo.duration_unit)) return false;
+        if (!filterSet.durationUnits.includes(combo.duration_unit)) return false;
         }
       }
       
@@ -1694,18 +1694,60 @@ export default function StatePaymentComparison() {
         for (const key of allKeys) {
           if (selectedSet.has(key)) selectedCount++;
         }
+        
+        // Apply the same deduplication logic as used in initialization and average calculation
+        const grouped: { [key: string]: ServiceData[] } = {};
+        allEntries.forEach(item => {
+          const key = JSON.stringify({
+            state_name: item.state_name,
+            service_category: item.service_category,
+            service_code: item.service_code,
+            service_description: item.service_description,
+            program: item.program,
+            location_region: item.location_region,
+            modifier_1: item.modifier_1,
+            modifier_1_details: item.modifier_1_details,
+            modifier_2: item.modifier_2,
+            modifier_2_details: item.modifier_2_details,
+            modifier_3: item.modifier_3,
+            modifier_3_details: item.modifier_3_details,
+            modifier_4: item.modifier_4,
+            modifier_4_details: item.modifier_4_details,
+            duration_unit: item.duration_unit,
+            provider_type: item.provider_type
+          });
+          if (!grouped[key]) grouped[key] = [];
+          grouped[key].push(item);
+        });
+        
+        // Only keep the latest entry for each group (same as DataTable and initialization)
+        const deduplicatedEntries = Object.values(grouped).map(entries => {
+          return entries.reduce((latest, current) => {
+            const latestDate = new Date(latest.rate_effective_date);
+            const currentDate = new Date(current.rate_effective_date);
+            return currentDate > latestDate ? current : latest;
+          });
+        });
+        
+        // Now calculate selectedCount using deduplicated entries
+        const deduplicatedKeys = deduplicatedEntries.map(entry => getRowKey(entry));
+        const deduplicatedTotal = deduplicatedKeys.length;
+        let deduplicatedSelectedCount = 0;
+        for (const key of deduplicatedKeys) {
+          if (selectedSet.has(key)) deduplicatedSelectedCount++;
+        }
         let barColor = '#36A2EB'; // default blue
         let selectionStatus = 'all';
         if (selected && selected.row && selected.row.rate) {
           barColor = 'green';
           selectionStatus = 'custom';
-        } else if (selectedCount === 0) {
+        } else if (deduplicatedSelectedCount === 0) {
           barColor = '#A0AEC0'; // gray for none
           selectionStatus = 'none';
-        } else if (selectedCount === 1) {
+        } else if (deduplicatedSelectedCount === 1) {
           barColor = '#FFB347'; // yellow/orange for single selection
           selectionStatus = 'single';
-        } else if (selectedCount > 1) {
+        } else if (deduplicatedSelectedCount > 1) {
           barColor = '#36A2EB'; // blue for multiple (average)
           selectionStatus = 'all';
         }
@@ -1716,8 +1758,8 @@ export default function StatePaymentComparison() {
             : (typeof avg === 'number' && !isNaN(avg) ? avg : undefined),
           itemStyle: { color: barColor },
           selectionStatus,
-          selectedCount,
-          total
+          selectedCount: deduplicatedSelectedCount,
+          total: deduplicatedTotal
         };
       });
       let sortedStatesWithData = [...statesWithData];

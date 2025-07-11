@@ -218,9 +218,9 @@ function formatDate(dateString: string | undefined): string {
     day = parseInt(dayStr, 10);
   } else {
     // Fallback for unexpected formats - use timezone-safe parsing
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return dateString;
-    return `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}/${date.getFullYear()}`;
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return dateString;
+  return `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}/${date.getFullYear()}`;
   }
   
   // Validate the parsed values
@@ -1245,7 +1245,7 @@ export default function StatePaymentComparison() {
         // Skip duration unit filtering when looking for modifier, program, location, provider, service_code, or service_description options
         const isLookingForOptionalFilter = ['modifier_1', 'program', 'location_region', 'provider_type', 'service_code', 'service_description'].includes(filterKey as string);
         if (!isLookingForOptionalFilter && filterSet.durationUnits && filterSet.durationUnits.length > 0) {
-          if (!filterSet.durationUnits.includes(combo.duration_unit)) return false;
+        if (!filterSet.durationUnits.includes(combo.duration_unit)) return false;
         }
       }
       

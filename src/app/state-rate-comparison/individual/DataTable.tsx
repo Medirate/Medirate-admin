@@ -482,9 +482,9 @@ function formatDate(dateString: string | undefined): string {
     day = parseInt(dayStr, 10);
   } else {
     // Fallback for unexpected formats - use timezone-safe parsing
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return dateString;
-    return `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}/${date.getFullYear()}`;
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return dateString;
+  return `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}/${date.getFullYear()}`;
   }
   
   // Validate the parsed values

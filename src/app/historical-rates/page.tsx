@@ -529,9 +529,9 @@ function formatDate(dateString: string | undefined): string {
     day = parseInt(dayStr, 10);
   } else {
     // Fallback for unexpected formats - use timezone-safe parsing
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return dateString;
-    return `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}/${date.getFullYear()}`;
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return dateString;
+  return `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}/${date.getFullYear()}`;
   }
   
   // Validate the parsed values
@@ -612,6 +612,7 @@ export default function HistoricalRates() {
   const [filterOptionsData, setFilterOptionsData] = useState<any>(null);
   const [isLoadingFilters, setIsLoadingFilters] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [dataQualityWarning, setDataQualityWarning] = useState<string | null>(null);
 
   // Replace individual filter states with selections state
   const [selections, setSelections] = useState<Selections>({
@@ -647,12 +648,17 @@ export default function HistoricalRates() {
     setSelections(newSelections);
     setCurrentPage(1); // Reset to first page when filter changes
     
-    // Clear selected entry when filters change to show table first instead of chart
+    // Clear selected entry and search state when filters change
     setSelectedEntry(null);
+    setHasSearched(false);
+    setData([]);
   };
 
   const filteredData = useMemo(() => {
-    if (!selections.service_category || !selections.state_name || (!selections.service_code && !selections.service_description)) return [];
+    // Only show data after a search has been performed
+    if (!hasSearched || !selections.service_category || !selections.state_name || (!selections.service_code && !selections.service_description)) return [];
+
+    console.log('🏁 TABLE DATA SOURCE (filteredData) - Starting with raw data:', data.length, 'entries');
 
     // First get all matching entries
     const allMatchingEntries = data.filter(item => {
@@ -691,6 +697,14 @@ export default function HistoricalRates() {
       return true;
     });
 
+    console.log('🏁 TABLE DATA - After filtering:', allMatchingEntries.length, 'entries');
+    console.log('🏁 TABLE DATA - Sample filtered entries:', allMatchingEntries.slice(0, 3).map(e => ({ 
+      rate: e.rate, 
+      date: e.rate_effective_date,
+      service_code: e.service_code,
+      program: e.program 
+    })));
+
     // Group entries by all fields except rate_effective_date and rate
     const groupedEntries = allMatchingEntries.reduce((acc, entry) => {
       const key = JSON.stringify({
@@ -718,6 +732,8 @@ export default function HistoricalRates() {
       return acc;
     }, {} as Record<string, ServiceData[]>);
 
+    console.log('🏁 TABLE DATA - Number of groups:', Object.keys(groupedEntries).length);
+
     // For each group, get the entry with the latest rate_effective_date
     const latestEntries = Object.values(groupedEntries).map(entries => {
       return entries.reduce((latest, current) => {
@@ -727,8 +743,17 @@ export default function HistoricalRates() {
       });
     });
 
+    console.log('🏁 TABLE DATA - Final table data:', latestEntries.length, 'entries');
+    console.log('🏁 TABLE DATA - Final entries:', latestEntries.map(e => ({ 
+      rate: e.rate, 
+      date: e.rate_effective_date,
+      service_code: e.service_code,
+      program: e.program 
+    })));
+
     return latestEntries;
   }, [
+    hasSearched,
     data,
     selections.service_category,
     selections.state_name,
@@ -1057,8 +1082,7 @@ export default function HistoricalRates() {
     setLocalError(null);
     setAuthError(null);
     setHasSearched(false);
-    setFilterOptionsData(null);
-    setIsLoadingFilters(false);
+    setComment(null);
     if (typeof refreshFilters === 'function') {
       await refreshFilters();
     }
@@ -1075,8 +1099,10 @@ export default function HistoricalRates() {
     return `$${numericRate.toFixed(2)}`;
   };
 
-  const getGraphData = () => {
+  const getGraphData = useMemo(() => {
     if (!selectedEntry) return { xAxis: [], series: [] };
+
+    console.log('📊 CHART - Generating chart for:', selectedEntry.service_description, 'Rate:', selectedEntry.rate);
 
     const entries = data.filter((item: ServiceData) => 
       item.state_name === selectedEntry.state_name &&
@@ -1097,8 +1123,65 @@ export default function HistoricalRates() {
       item.provider_type === selectedEntry.provider_type
     ).sort((a, b) => parseDateString(a.rate_effective_date).getTime() - parseDateString(b.rate_effective_date).getTime());
 
-    let xAxis = entries.map(entry => entry.rate_effective_date);
-    let series = entries.map(entry => {
+    console.log('📊 CHART - Selected Entry for filtering:', {
+      service_description: selectedEntry.service_description,
+      rate: selectedEntry.rate,
+      date: selectedEntry.rate_effective_date,
+      program: selectedEntry.program,
+      location_region: selectedEntry.location_region,
+      modifier_1: selectedEntry.modifier_1,
+      provider_type: selectedEntry.provider_type,
+      duration_unit: selectedEntry.duration_unit
+    });
+
+    console.log('📊 CHART - Found', entries.length, 'matching entries (before deduplication)');
+    
+    // Group entries by date to detect and resolve duplicates
+    const entriesByDate = entries.reduce((acc, entry) => {
+      const date = entry.rate_effective_date;
+      if (!acc[date]) {
+        acc[date] = [];
+      }
+      acc[date].push(entry);
+      return acc;
+    }, {} as Record<string, ServiceData[]>);
+
+    // Detect duplicates and choose the highest rate for each date
+    const deduplicatedEntries: ServiceData[] = [];
+    let hasDuplicates = false;
+    
+    Object.entries(entriesByDate).forEach(([date, dateEntries]) => {
+      if (dateEntries.length > 1) {
+        hasDuplicates = true;
+        console.log(`⚠️ DUPLICATE DETECTED for date ${date}:`, dateEntries.map(e => `$${e.rate}`).join(', '));
+        // Choose the entry with the highest rate
+        const highestRateEntry = dateEntries.reduce((highest, current) => {
+          const highestRate = parseFloat(highest.rate.replace('$', ''));
+          const currentRate = parseFloat(current.rate.replace('$', ''));
+          return currentRate > highestRate ? current : highest;
+        });
+        deduplicatedEntries.push(highestRateEntry);
+        console.log(`✅ Using highest rate: $${highestRateEntry.rate} for ${date}`);
+      } else {
+        deduplicatedEntries.push(dateEntries[0]);
+      }
+    });
+
+    // Sort the deduplicated entries by date
+    const finalEntries = deduplicatedEntries.sort((a, b) => 
+      parseDateString(a.rate_effective_date).getTime() - parseDateString(b.rate_effective_date).getTime()
+    );
+
+    console.log('📊 CHART - After deduplication:', finalEntries.length, 'entries');
+    if (hasDuplicates) {
+      console.log('⚠️ Data quality issue detected: Multiple rates found for the same date. Using highest rate for each date.');
+      setDataQualityWarning('Data quality issue detected: Multiple rates found for the same effective date. Chart shows the highest rate for each date.');
+    } else {
+      setDataQualityWarning(null);
+    }
+
+    let xAxis = finalEntries.map(entry => entry.rate_effective_date);
+    let series = finalEntries.map(entry => {
       const rateValue = typeof entry.rate === 'string' ? parseFloat(entry.rate.replace('$', '')) : 0;
       const durationUnit = entry.duration_unit?.toUpperCase();
       let value = rateValue;
@@ -1149,45 +1232,15 @@ export default function HistoricalRates() {
     }
 
     return { xAxis, series };
-  };
+  }, [selectedEntry, data, showRatePerHour]);
 
   // Derived loading state for service code options
   const serviceCodeOptionsLoading =
     loading ||
     (!!selections.service_category && !!selections.state_name && (!filterOptionsData || !filterOptionsData.combinations || filterOptionsData.combinations.length === 0));
 
-  // Replace the tableData logic with grouping by all fields except rate_effective_date and rate
-  const tableData = useMemo(() => {
-    if (!selections.service_category || !selections.state_name || !selections.service_code) return [];
-
-    // Group by all fields except rate_effective_date and rate
-    const grouped: { [key: string]: ServiceData } = {};
-    data.forEach(item => {
-      const key = JSON.stringify({
-        state_name: item.state_name,
-        service_category: item.service_category,
-        service_code: item.service_code,
-        service_description: item.service_description,
-        program: item.program,
-        location_region: item.location_region,
-        modifier_1: item.modifier_1,
-        modifier_1_details: item.modifier_1_details,
-        modifier_2: item.modifier_2,
-        modifier_2_details: item.modifier_2_details,
-        modifier_3: item.modifier_3,
-        modifier_3_details: item.modifier_3_details,
-        modifier_4: item.modifier_4,
-        modifier_4_details: item.modifier_4_details,
-        duration_unit: item.duration_unit,
-        provider_type: item.provider_type
-      });
-      if (!grouped[key] || parseDateString(item.rate_effective_date) > parseDateString(grouped[key].rate_effective_date)) {
-        grouped[key] = item;
-      }
-    });
-    // Return all latest entries for each unique combination
-    return Object.values(grouped) as ServiceData[];
-  }, [data, selections.service_category, selections.state_name, selections.service_code, selections.service_description, selections.program, selections.location_region, selections.modifier_1, selections.provider_type]);
+  // Use filteredData as tableData to ensure consistency
+  const tableData = filteredData;
 
   // Add this handler near other filter handlers
   const handleProviderTypeChange = async (providerType: string) => {
@@ -1500,20 +1553,47 @@ export default function HistoricalRates() {
                       )}
                     </div>
                   </div>
+                  {/* Search Button */}
+                  <div className="mt-6 flex items-center justify-end space-x-4">
+                    <button 
+                      onClick={async () => {
+                        if (areFiltersApplied) {
+                          setHasSearched(true);
+                          const filters: Record<string, string> = {};
+                          if (selections.service_category) filters.service_category = selections.service_category;
+                          if (selections.state_name) filters.state_name = selections.state_name;
+                          if (selections.service_code) filters.service_code = selections.service_code;
+                          if (selections.service_description) filters.service_description = selections.service_description;
+                          if (selections.program) filters.program = selections.program;
+                          if (selections.location_region) filters.location_region = selections.location_region;
+                          if (selections.provider_type) filters.provider_type = selections.provider_type;
+                          if (selections.duration_unit) filters.duration_unit = selections.duration_unit;
+                          if (selections.modifier_1) filters.modifier_1 = selections.modifier_1;
+                          filters.page = String(currentPage);
+                          filters.itemsPerPage = String(itemsPerPage);
+                          await refreshData(filters);
+                        }
+                      }}
+                      disabled={!areFiltersApplied || loading} 
+                      className="px-6 py-2 text-sm bg-[#012C61] text-white rounded-lg hover:bg-blue-800 disabled:bg-gray-400 transition-colors"
+                    >
+                      {loading ? 'Searching...' : 'Search'}
+                    </button>
+                  </div>
                 </>
               )}
             </div>
 
-            {!areFiltersApplied && (
+            {!hasSearched && (
               <div className="p-6 bg-white rounded-xl shadow-lg text-center">
                 <div className="flex justify-center items-center mb-4">
                   <FaFilter className="h-8 w-8 text-blue-500" />
                 </div>
                 <p className="text-lg font-medium text-gray-700 mb-2">
-                  Please select filters to view historical rates
+                  Please select filters and click Search to view historical rates
                 </p>
                 <p className="text-sm text-gray-500">
-                  Choose a service line, state, and service code to see available rate history
+                  Choose a service line, state, and service code or service description, then click Search to see available rate history
                 </p>
               </div>
             )}
@@ -1530,6 +1610,15 @@ export default function HistoricalRates() {
 
                 <div className="p-6 bg-white rounded-xl shadow-lg">
                   <h2 className="text-xl font-semibold mb-4 text-gray-800">Rate History</h2>
+                  
+                  {/* Helpful explanation */}
+                  <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm text-blue-700">
+                      <strong>📊 Chart Explanation:</strong> This chart shows how the rate for <strong>"{selectedEntry.service_description}"</strong> has changed over time. 
+                      Each point represents a different effective date when the rate was updated. This is the complete historical progression for this specific service.
+                    </p>
+                  </div>
+                  
                   <div className="w-full h-80">
                     <ReactECharts
                       option={{
@@ -1563,7 +1652,7 @@ export default function HistoricalRates() {
                         },
                         xAxis: {
                           type: 'category',
-                          data: getGraphData().xAxis,
+                          data: getGraphData.xAxis,
                           name: 'Effective Date',
                           nameLocation: 'middle',
                           nameGap: 30,
@@ -1585,7 +1674,7 @@ export default function HistoricalRates() {
                         },
                         series: [
                           {
-                            data: getGraphData().series,
+                            data: getGraphData.series,
                             type: 'line',
                             smooth: false,
                             itemStyle: {
@@ -1605,13 +1694,13 @@ export default function HistoricalRates() {
                             }
                           }
                         ],
-                        graphic: getGraphData().series.some(data => data.displayValue) ? [
+                        graphic: getGraphData.series.some(data => data.displayValue) ? [
                           {
                             type: 'text',
                             left: 'center',
                             top: 'middle',
                             style: {
-                              text: `Hourly equivalent rates not available as the duration unit is "${getGraphData().series.find(data => data.displayValue)?.durationUnit || 'Unknown'}"`,
+                              text: `Hourly equivalent rates not available as the duration unit is "${getGraphData.series.find(data => data.displayValue)?.durationUnit || 'Unknown'}"`,
                               fontSize: 16,
                               fontWeight: 'bold',
                               fill: '#666'
