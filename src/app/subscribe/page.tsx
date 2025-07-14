@@ -325,7 +325,7 @@ const StripePricingTableWithFooter = () => {
               rel="noopener noreferrer"
               className="bg-[#012C61] text-white px-8 py-3 rounded-lg transition-all duration-300 hover:bg-transparent hover:border hover:border-[#012C61] hover:text-[#012C61]"
             >
-              Schedule a Demo
+              Schedule a Live Presentation
             </a>
           </div>
         </div>

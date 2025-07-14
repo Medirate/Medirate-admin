@@ -41,7 +41,7 @@ export default function Home() {
                   "bg-[#012C61] text-white px-6 py-3 rounded-md border border-transparent transition-colors duration-300 hover:bg-transparent hover:border-white hover:text-white",
               })}
             >
-              <span>Schedule a Demo</span>
+              <span>Schedule a Live Presentation</span>
               <ArrowRight className="ml-2 h-5 w-5" />
             </Link>
           </div>
@@ -90,7 +90,7 @@ export default function Home() {
           rel="noopener noreferrer"
           className="bg-[#012C61] text-white px-6 py-3 rounded-md transition-colors duration-300 hover:bg-transparent hover:border hover:border-[#012C61] hover:text-[#012C61]"
         >
-          Schedule a Demo
+          Schedule a Live Presentation
         </a>
         <a
           href="/oursolution"
@@ -162,8 +162,7 @@ export default function Home() {
           {/* Additional Information Section */}
           <div className="mt-8 text-lg">
             <p className="leading-relaxed text-white text-center">
-              Having worked directly with these organizations as consulting
-              clients, MediRate's leadership is aware of the complexity involved
+              MediRate understands the complexity involved
               in finding and tracking Medicaid payment rates and the frustration
               created by unexpected reimbursement changes. Our goal is to improve
               Medicaid payment rate transparency and support strategic
@@ -180,7 +179,7 @@ export default function Home() {
                     "bg-[#1a1a1a] text-white px-6 py-3 rounded-md border border-transparent transition-colors duration-300 hover:bg-transparent hover:border-white hover:text-white",
                 })}
               >
-                <span>Schedule a Demo</span>
+                <span>Schedule a Live Presentation</span>
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Link>
             </div>

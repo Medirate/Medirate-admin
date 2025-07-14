@@ -20,26 +20,16 @@ import {
 export default function OurSolution() {
   return (
     <div className="text-center">
-      {/* Hero Section */}
-      <section className="relative w-full h-[400px] md:h-[500px]">
-        <Image
-          src="/images/our solution screenshot.png"
-          alt="People looking at dashboard"
-          layout="fill"
-          objectFit="cover"
-          className="brightness-75"
-          priority
-        />
-        <div className="absolute inset-0 flex items-center justify-center">
-          <h1 className="text-4xl md:text-5xl text-[#012C61] font-lemonMilkRegular uppercase tracking-wide">
-            The MediRate Platform
-          </h1>
-        </div>
-      </section>
-
       {/* Main Content */}
       <section className="py-12 px-6 bg-gradient-to-r from-[#f0f4f8] to-[#e0e6ed] text-lg">
         <div className="max-w-7xl mx-auto">
+          {/* Page Heading */}
+          <div className="text-center mb-12">
+            <h1 className="text-4xl md:text-5xl text-[#012C61] font-lemonMilkRegular uppercase tracking-wide mb-4">
+              The MediRate Platform
+            </h1>
+          </div>
+
           {/* Introductory Content */}
           <div className="text-left ml-4 mb-8 space-y-8">
             {/* Section: MediRate's Mission */}
@@ -245,6 +235,41 @@ export default function OurSolution() {
             </div>
           </div>
 
+          {/* Demo Video Section */}
+          <div className="mt-12">
+            <div className="w-full bg-white/90 p-8 rounded-lg shadow-sm">
+              <div className="text-center mb-8">
+                <h3 className="text-2xl font-lemonMilkRegular text-[#012C61] mb-4">
+                  See MediRate in Action
+                </h3>
+                <p className="text-gray-600 text-lg leading-relaxed max-w-3xl mx-auto">
+                  Watch our comprehensive demo to see how MediRate makes Medicaid payment rate tracking simple, 
+                  efficient, and insightful for healthcare providers and stakeholders.
+                </p>
+              </div>
+              
+              {/* YouTube Video Embed */}
+              <div className="relative w-full max-w-4xl mx-auto">
+                <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+                  <iframe
+                    src="https://www.youtube.com/embed/XY-OKKYMhPE"
+                    title="MediRate Platform Demo"
+                    className="absolute top-0 left-0 w-full h-full rounded-lg shadow-lg"
+                    frameBorder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  ></iframe>
+                </div>
+              </div>
+              
+              <div className="text-center mt-6">
+                <p className="text-sm text-gray-500">
+                  Learn how to search, compare, and monitor Medicaid payment rates across all 50 states
+                </p>
+              </div>
+            </div>
+          </div>
+
           {/* Video and Table Section */}
           <div className="mt-12">
             <div className="w-full bg-white/90 p-6 rounded-lg shadow-sm">
@@ -299,7 +324,7 @@ export default function OurSolution() {
             <div className="relative z-10 flex items-center space-x-2">
               <Mail className="w-6 h-6 group-hover:text-[#012C61] transition-colors duration-300" />
               <span className="group-hover:text-[#012C61] transition-colors duration-300">
-                Schedule a Demo
+                Schedule a Live Presentation
               </span>
             </div>
             
