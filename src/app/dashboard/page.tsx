@@ -770,7 +770,7 @@ export default function Dashboard() {
     setLocalError(null);
     setAuthError(null);
     setPendingFilters(new Set());
-    setFilterOptionsData(null);
+    // setFilterOptionsData(null); // Do NOT clear filter options, so the filter UI remains visible
     setIsLoadingFilters(false);
     setIsUpdatingFilters(false);
   };
