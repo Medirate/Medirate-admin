@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { FaSpinner, FaExclamationCircle, FaSearch, FaSort, FaSortUp, FaSortDown, FaFilter, FaChartLine } from 'react-icons/fa';
 import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
 import { supabase } from "@/lib/supabase";
+import { createPortal } from "react-dom";
 
 // Define the type for the datasets
 interface Alert {
@@ -109,6 +110,7 @@ interface DropdownProps {
 function CustomDropdown({ value, onChange, options, placeholder }: DropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0, width: 0 });
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -121,11 +123,23 @@ function CustomDropdown({ value, onChange, options, placeholder }: DropdownProps
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Update menu position when opening
+  useEffect(() => {
+    if (isOpen && dropdownRef.current) {
+      const rect = dropdownRef.current.getBoundingClientRect();
+      setMenuPosition({
+        top: rect.bottom + window.scrollY,
+        left: rect.left + window.scrollX,
+        width: rect.width
+      });
+    }
+  }, [isOpen]);
+
   const selectedOption = options.find(opt => opt.value === value);
 
   return (
     <div className="relative" ref={dropdownRef}>
-      <div className="w-full px-4 py-2 bg-[#4682d1] rounded-md text-white focus:outline-none cursor-pointer flex justify-between items-center"
+      <div className="w-full px-4 py-2 bg-white border border-blue-300 rounded-md text-gray-800 focus:outline-none cursor-pointer flex justify-between items-center"
            onClick={() => setIsOpen(!isOpen)}>
         <span>{selectedOption?.label || placeholder}</span>
         <div className="flex items-center">
@@ -156,13 +170,22 @@ function CustomDropdown({ value, onChange, options, placeholder }: DropdownProps
           <span>▼</span>
         </div>
       </div>
-      {isOpen && (
-        <div className="absolute w-full mt-1 bg-[#4682d1] border border-[#4682d1] rounded-md shadow-lg z-50">
+      {isOpen && typeof window !== 'undefined' && createPortal(
+        <div 
+          className="fixed bg-white border border-blue-300 rounded-md shadow-lg z-[99999]" 
+          style={{
+            top: menuPosition.top,
+            left: menuPosition.left,
+            width: menuPosition.width,
+            backgroundColor: '#fff'
+          }}
+        >
           <div className="max-h-[200px] overflow-y-auto">
             {options.map((option) => (
               <div
                 key={option.value}
-                className="px-4 py-2 cursor-pointer hover:bg-[#004aad] text-white"
+                className="px-4 py-2 cursor-pointer hover:bg-blue-100 text-gray-800 bg-white"
+                style={{backgroundColor: '#fff'}}
                 onClick={() => {
                   onChange(option.value);
                   setIsOpen(false);
@@ -172,7 +195,8 @@ function CustomDropdown({ value, onChange, options, placeholder }: DropdownProps
               </div>
             ))}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -185,19 +209,19 @@ function SearchBar({ value, onChange, placeholder }: {
 }) {
   return (
     <div className="flex items-center w-full">
-      <div className="flex items-center w-full px-4 py-2 bg-[#4682d1] rounded-md">
-        <Search size={20} className="text-white mr-2" />
+      <div className="flex items-center w-full px-4 py-2 bg-white border border-blue-300 rounded-md">
+        <Search size={20} className="text-gray-800 mr-2" />
         <input
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className="flex-1 bg-transparent border-none placeholder-white text-white focus:outline-none"
+          className="flex-1 bg-transparent border-none placeholder-gray-600 text-gray-800 focus:outline-none"
         />
         {value && (
           <button
             onClick={() => onChange("")}
-            className="text-white hover:text-gray-200 focus:outline-none"
+            className="text-gray-800 hover:text-gray-200 focus:outline-none"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -473,7 +497,8 @@ export default function RateDevelopments() {
   // Update the filtered data logic to use sorted arrays
   const filteredProviderAlerts = sortedProviderAlerts.filter((alert) => {
     const matchesSearch = !providerSearch || searchInFields(providerSearch, [
-      alert.subject
+      alert.subject,
+      alert.summary
     ]);
 
     const matchesState = !selectedState || 
@@ -588,32 +613,23 @@ export default function RateDevelopments() {
       </h1>
 
       {/* Search Bars and Filters Container */}
-      <div className="p-4 rounded-lg mb-6" style={{ backgroundColor: "#004aad" }}>
-        <div className="flex flex-col gap-4">
-          {/* Search Bars Row - Make it responsive */}
-          <div className="flex flex-col md:flex-row gap-4">
-            {/* Provider Search */}
-            <div className="flex-1 min-w-0">
-              <SearchBar
+      <div className="mb-10 p-6 sm:p-10 bg-white rounded-3xl shadow-2xl border border-blue-200 transition-transform duration-200 hover:scale-[1.015] hover:shadow-[0_8px_32px_0_rgba(31,38,135,0.15)]">
+        <div className="flex flex-col md:flex-row gap-10">
+          {/* Left Column: Provider Alerts Filters */}
+          <div className="flex-1 flex flex-col gap-5">
+            <span className="text-xs uppercase tracking-wider text-[#012C61] font-lemonMilkRegular mb-1 ml-1">Provider Alerts Filters</span>
+            <div className="relative">
+              <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400" />
+              <input
+                type="text"
                 value={providerSearch}
-                onChange={setProviderSearch}
-                placeholder="Search Provider Alerts by subject"
+                onChange={e => setProviderSearch(e.target.value)}
+                placeholder="Search Provider Alerts by subject or summary"
+                className="w-full pl-10 pr-4 py-3 bg-white border border-blue-300 rounded-xl text-gray-800 focus:ring-2 focus:ring-blue-300 focus:border-blue-400 transition-all placeholder-gray-500 text-base shadow-sm"
               />
             </div>
-
-            {/* Legislative Search */}
-            <div className="flex-1 min-w-0">
-              <SearchBar
-                value={legislativeSearch}
-                onChange={setLegislativeSearch}
-                placeholder="Search Legislative Updates by Bill Name or Bill Number"
-              />
-            </div>
-          </div>
-
-          {/* Filters Row - Make it responsive */}
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1 min-w-0">
+            <div className="relative pl-10">
+              <FaFilter className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400" />
               <CustomDropdown
                 value={selectedState}
                 onChange={setSelectedState}
@@ -627,8 +643,26 @@ export default function RateDevelopments() {
                 placeholder="All States"
               />
             </div>
+          </div>
 
-            <div className="flex-1 min-w-0">
+          {/* Divider for md+ screens */}
+          <div className="hidden md:block w-px bg-blue-100 mx-4 my-2 rounded-full" />
+
+          {/* Right Column: Legislative Updates Filters */}
+          <div className="flex-1 flex flex-col gap-5">
+            <span className="text-xs uppercase tracking-wider text-[#012C61] font-lemonMilkRegular mb-1 ml-1">Legislative Updates Filters</span>
+            <div className="relative">
+              <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400" />
+              <input
+                type="text"
+                value={legislativeSearch}
+                onChange={e => setLegislativeSearch(e.target.value)}
+                placeholder="Search Legislative Updates by Bill Name or Bill Number"
+                className="w-full pl-10 pr-4 py-3 bg-white border border-blue-300 rounded-xl text-gray-800 focus:ring-2 focus:ring-blue-300 focus:border-blue-400 transition-all placeholder-gray-500 text-base shadow-sm"
+              />
+            </div>
+            <div className="relative pl-10">
+              <FaChartLine className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400" />
               <CustomDropdown
                 value={selectedServiceLine}
                 onChange={setSelectedServiceLine}
@@ -639,29 +673,35 @@ export default function RateDevelopments() {
                 placeholder="All Service Lines"
               />
             </div>
-
-            {/* Add this new dropdown for bill progress */}
-            {activeTable === "legislative" && (
-              <div className="flex-1 min-w-0">
-                <CustomDropdown
-                  value={selectedBillProgress}
-                  onChange={setSelectedBillProgress}
-                  options={[
-                    { value: "", label: "All Bill Progress" },
-                    { value: "Introduced", label: "Introduced" },
-                    { value: "In Committee", label: "In Committee" },
-                    { value: "Passed", label: "Passed" },
-                    { value: "Failed", label: "Failed" },
-                    { value: "Vetoed", label: "Vetoed" },
-                    { value: "Enacted", label: "Enacted" }
-                  ]}
-                  placeholder="All Bill Progress"
-                />
-              </div>
-            )}
+            <div className="relative pl-10">
+              <LayoutList className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400" />
+              <CustomDropdown
+                value={selectedBillProgress}
+                onChange={setSelectedBillProgress}
+                options={[
+                  { value: "", label: "All Bill Progress" },
+                  { value: "Introduced", label: "Introduced" },
+                  { value: "In Committee", label: "In Committee" },
+                  { value: "Passed", label: "Passed" },
+                  { value: "Failed", label: "Failed" },
+                  { value: "Vetoed", label: "Vetoed" },
+                  { value: "Enacted", label: "Enacted" }
+                ]}
+                placeholder="All Bill Progress"
+              />
+            </div>
           </div>
         </div>
       </div>
+      <style jsx>{`
+        .search-bar-input, .custom-dropdown {
+          font-size: 1.1rem;
+          padding: 0.75rem 1rem;
+        }
+        @media (max-width: 768px) {
+          .rounded-3xl { border-radius: 1.25rem !important; }
+        }
+      `}</style>
 
       {/* Layout Toggle Buttons, Filters, and Table Switch */}
       <div className="flex justify-between items-center mb-6">
@@ -689,9 +729,9 @@ export default function RateDevelopments() {
         </div>
 
         {/* Table Switch */}
-        <div className={`flex items-center space-x-2 ${
-          layout === "horizontal" ? "visible" : "invisible"
-        }`}>
+        <div className={`flex items-center space-x-2 z-10 relative`}
+          style={{ zIndex: 10 }}
+        >
           <span className="text-sm text-gray-700">Provider Alerts</span>
           <button
             onClick={() =>
