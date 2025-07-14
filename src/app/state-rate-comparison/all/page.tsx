@@ -308,8 +308,21 @@ export default function StatePaymentComparison() {
         if (value) params.append(key, value);
       });
       const url = `/api/state-payment-comparison?${params.toString()}`;
+      
+      console.log('🌐 RefreshData API Call:', url);
+      
       const response = await fetch(url);
       const result = await response.json();
+      
+      console.log('✅ RefreshData API Response:', {
+        dataLength: result?.data?.length || 0,
+        sampleData: result?.data?.slice(0, 3) || [],
+        minnesotaInData: result?.data?.filter((item: any) => 
+          item.state_name?.toLowerCase().includes('minnesota') || 
+          item.state_name?.toLowerCase().includes('mn')
+        ).length || 0
+      });
+      
       if (result && Array.isArray(result.data)) {
         setData(result.data);
         return result;
@@ -927,9 +940,43 @@ export default function StatePaymentComparison() {
         }
       }
       
+      // Also check selections state for additional filters
+      if (selections.duration_unit && selections.duration_unit !== '-') {
+        const selectedUnits = selections.duration_unit.split(',').map(unit => unit.trim());
+        selectedUnits.forEach(unit => params.append('durationUnit', unit));
+      }
+      if (selections.program && selections.program !== '-') {
+        params.append('program', selections.program);
+      }
+      if (selections.location_region && selections.location_region !== '-') {
+        params.append('locationRegion', selections.location_region);
+      }
+      if (selections.provider_type && selections.provider_type !== '-') {
+        params.append('providerType', selections.provider_type);
+      }
+      if (selections.modifier_1 && selections.modifier_1 !== '-') {
+        params.append('modifier', selections.modifier_1);
+      }
+      
+      console.log('🌍 API Call 1 - State Averages:', `/api/state-payment-comparison?${params.toString()}`);
+      
       const res = await fetch(`/api/state-payment-comparison?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to fetch state averages');
       const data = await res.json();
+      
+      console.log('✅ API Response 1 - State Averages:', data.stateAverages?.length || 0, 'entries');
+      
+      // Check if state averages contain unexpected states for specific service codes
+      if (data.stateAverages && serviceCode === 'S5116 U6') {
+        console.log('🚨 S5116 U6 STATE AVERAGES CHECK:', {
+          statesWithAverages: data.stateAverages.map((s: any) => s.state_name),
+          averagesByState: data.stateAverages.reduce((acc: any, s: any) => {
+            acc[s.state_name] = s.avg_rate;
+            return acc;
+          }, {})
+        });
+      }
+      
       setAllStatesAverages(data.stateAverages || []);
       
       // Also fetch the individual entries that contribute to each state's average
@@ -951,10 +998,67 @@ export default function StatePaymentComparison() {
         }
       }
       
+      // Also check selections state for additional filters
+      if (selections.duration_unit && selections.duration_unit !== '-') {
+        const selectedUnits = selections.duration_unit.split(',').map(unit => unit.trim());
+        selectedUnits.forEach(unit => entriesParams.append('durationUnit', unit));
+      }
+      if (selections.program && selections.program !== '-') {
+        entriesParams.append('program', selections.program);
+      }
+      if (selections.location_region && selections.location_region !== '-') {
+        entriesParams.append('locationRegion', selections.location_region);
+      }
+      if (selections.provider_type && selections.provider_type !== '-') {
+        entriesParams.append('providerType', selections.provider_type);
+      }
+      if (selections.modifier_1 && selections.modifier_1 !== '-') {
+        entriesParams.append('modifier', selections.modifier_1);
+      }
+      
+      console.log('🌍 API Call 2 - Individual Entries:', `/api/state-payment-comparison?${entriesParams.toString()}`);
+      
       const entriesRes = await fetch(`/api/state-payment-comparison?${entriesParams.toString()}`);
       if (entriesRes.ok) {
         const entriesData = await entriesRes.json();
-        const entries = entriesData.data || [];
+        const entries: ServiceData[] = entriesData.data || [];
+        
+        // Check for potential data contamination - look for specific service codes in unexpected states
+        const s5116Entries = entries.filter(e => e.service_code === 'S5116 U6');
+        if (s5116Entries.length > 0) {
+          console.log('🚨 S5116 U6 DATA QUALITY CHECK:', {
+            totalS5116Entries: s5116Entries.length,
+            statesWithS5116: [...new Set(s5116Entries.map(e => e.state_name))],
+            entriesByState: s5116Entries.reduce((acc, e) => {
+              const state = e.state_name || 'UNKNOWN';
+              if (!acc[state]) acc[state] = [];
+              acc[state].push({
+                rate: e.rate,
+                duration_unit: e.duration_unit,
+                program: e.program,
+                rate_effective_date: e.rate_effective_date
+              });
+              return acc;
+            }, {} as Record<string, any[]>)
+          });
+        }
+        
+        const minnesotaEntries = entries.filter(e => e.state_name?.toLowerCase().includes('minnesota') || e.state_name?.toLowerCase().includes('mn'));
+        console.log('✅ API Response 2 - Individual Entries:', entries.length, 'total,', minnesotaEntries.length, 'for Minnesota');
+        
+        if (minnesotaEntries.length > 0) {
+          console.log('🔍 Minnesota raw entries (full data):', minnesotaEntries);
+          console.log('🔍 Minnesota rates specifically:', minnesotaEntries.map(e => ({
+            state: e.state_name,
+            rate: e.rate,
+            rate_typeof: typeof e.rate,
+            rate_per_hour: e.rate_per_hour,
+            rate_per_hour_typeof: typeof e.rate_per_hour,
+            duration_unit: e.duration_unit,
+            service_code: e.service_code,
+            program: e.program
+          })));
+        }
         
         // Group entries by state and find the latest entry for each state
         const stateEntries: { [state: string]: ServiceData[] } = {};
@@ -976,18 +1080,8 @@ export default function StatePaymentComparison() {
         // Set the entries that contribute to each state's average
         setStateAverageEntries(stateEntries);
         
-        console.log('📊 State Average Entries populated:', {
-          totalStates: Object.keys(stateEntries).length,
-          entriesPerState: Object.entries(stateEntries).map(([state, entries]) => ({
-            state,
-            count: entries.length,
-            sampleEntries: entries.slice(0, 3).map(entry => ({
-              rate: entry.rate,
-              program: entry.program,
-              location_region: entry.location_region
-            }))
-          }))
-        });
+        const statesWithData = Object.keys(stateEntries).filter(state => stateEntries[state].length > 0);
+        console.log('📊 State Average Entries populated:', statesWithData.length, 'states with data');
         
         // Initialize selected entries for average calculation (all entries are selected by default)
         const initialSelected: { [state: string]: Set<string> } = {};
@@ -1037,7 +1131,7 @@ export default function StatePaymentComparison() {
       setAllStatesAverages([]);
       console.error('Error fetching state averages:', err);
     }
-  }, [filterSets]);
+  }, [filterSets, selections]);
 
   // Filter data based on filterSets (core filters) and selections (refinement filters)
   const filteredData = useMemo(() => {
@@ -1213,32 +1307,38 @@ export default function StatePaymentComparison() {
     const stateEntries = stateAverageEntries[state] || [];
     const selectedKeys = stateSelectedForAverage[state] || new Set();
     
+    // Special logging for Minnesota
+    const isMinnesota = state.toLowerCase().includes('minnesota') || state.toLowerCase().includes('mn');
+    if (isMinnesota) {
+      console.log(`🔍 MINNESOTA DEBUG - calculateStateAverage for ${state}:`, {
+        stateEntries: stateEntries.length,
+      selectedKeys: Array.from(selectedKeys),
+        selectedKeysSize: selectedKeys.size,
+        rawStateEntries: stateEntries.map(entry => ({
+        state: entry.state_name,
+          serviceCode: entry.service_code,
+          durationUnit: entry.duration_unit,
+        rate: entry.rate,
+        program: entry.program,
+          location_region: entry.location_region,
+          rowKey: getRowKey(entry)
+      }))
+    });
+    }
+    
     // Get the latest entries (what's shown in the table) for comparison
     const latestEntriesForState = latestRates.filter(item => item.state_name === state);
     
-    console.log(`🔍 Calculating average for ${state}:`, {
-      totalEntries: stateEntries.length,
-      latestEntriesInTable: latestEntriesForState.length,
-      selectedKeys: Array.from(selectedKeys),
-      selectedEntriesCount: selectedKeys.size,
-      allStateEntries: stateEntries.map(entry => ({
-        key: getRowKey(entry),
-        state: entry.state_name,
-        rate: entry.rate,
-        program: entry.program,
-        location_region: entry.location_region
-      })),
-      tableEntries: latestEntriesForState.map(entry => ({
-        key: getRowKey(entry),
-        state: entry.state_name,
-        rate: entry.rate,
-        program: entry.program,
-        location_region: entry.location_region
-      }))
-    });
+    // Only log for states with no entries or for debugging specific states
+    const isDebugState = state.toLowerCase().includes('minnesota') || state.toLowerCase().includes('mn');
+    if (isDebugState) {
+      console.log(`🔍 ${state}: ${stateEntries.length} entries, ${selectedKeys.size} selected, showRatePerHour=${showRatePerHour}`);
+    }
     
     if (stateEntries.length === 0 || selectedKeys.size === 0) {
-      console.log(`❌ No entries or selections for ${state}`);
+      if (isDebugState) {
+        console.log(`❌ No entries/selections for ${state}`);
+      }
       return 0;
     }
     
@@ -1280,49 +1380,66 @@ export default function StatePaymentComparison() {
     const selectedEntries = deduplicatedEntries.filter(entry => selectedKeys.has(getRowKey(entry)));
     
     if (selectedEntries.length === 0) {
+      if (isDebugState) {
       console.log(`❌ No selected entries found for ${state} after deduplication`);
+      }
       return 0;
     }
     
-    console.log(`📋 Selected entries for ${state} (after deduplication):`, selectedEntries.map(entry => ({
-      state: entry.state_name,
-      rate: entry.rate,
-      duration_unit: entry.duration_unit,
-      modifier_1: entry.modifier_1,
-      program: entry.program,
-      location_region: entry.location_region,
-      rowKey: getRowKey(entry)
-    })));
+    if (isDebugState) {
+      console.log(`📋 ${state}: ${selectedEntries.length} selected entries after deduplication`);
+    }
     
     const rates = selectedEntries.map(entry => {
-      let rateValue = parseFloat(entry.rate?.replace('$', '') || '0');
+      // Try rate field first, then rate_per_hour as fallback
+      const rateToUse = entry.rate || entry.rate_per_hour;
+      let rateValue = parseFloat(rateToUse?.replace('$', '') || '0');
       const durationUnit = entry.duration_unit?.toUpperCase();
+      
+      if (isDebugState) {
+        console.log(`💰 ${state} Rate Processing:`, {
+          originalRate: entry.rate,
+          ratePerHour: entry.rate_per_hour,
+          rateToUse: rateToUse,
+          parsedRate: rateValue,
+          durationUnit: durationUnit,
+          showRatePerHour: showRatePerHour
+        });
+      }
       
       if (showRatePerHour) {
         if (durationUnit === '15 MINUTES') {
           rateValue *= 4;
-        } else if (durationUnit !== 'PER HOUR') {
+        } else if (durationUnit === '30 MINUTES') {
+          rateValue *= 2;
+        } else if (durationUnit !== 'PER HOUR' && durationUnit !== 'PER SESSION') {
+          // Only set to 0 for duration units we can't handle, but keep PER SESSION rates as-is
+          if (isDebugState) {
+            console.log(`⚠️ ${state}: Setting rate to 0 because duration unit "${durationUnit}" cannot be converted to hourly`);
+          }
           rateValue = 0;
         }
+        // For PER SESSION, keep the original rate (don't convert)
+      }
+      
+      if (isDebugState) {
+        console.log(`💰 ${state} Final rate value:`, rateValue);
       }
       
       return rateValue;
     }).filter(rate => rate > 0);
     
     if (rates.length === 0) {
+      if (isDebugState) {
       console.log(`❌ No valid rates found for ${state}`);
+      }
       return 0;
     }
     
     const average = rates.reduce((sum, rate) => sum + rate, 0) / rates.length;
-    console.log(`✅ Final average for ${state}:`, {
-      rates: rates,
-      average: average,
-      showRatePerHour: showRatePerHour,
-      selectedEntriesCount: selectedEntries.length,
-      totalStateEntries: stateEntries.length,
-      deduplicatedEntriesCount: deduplicatedEntries.length
-    });
+    if (isDebugState) {
+      console.log(`✅ ${state}: avg=$${average.toFixed(2)} from ${rates.length} rates`);
+    }
     
     return average;
   }, [stateAverageEntries, stateSelectedForAverage, showRatePerHour, latestRates]);
@@ -1680,6 +1797,11 @@ export default function StatePaymentComparison() {
         const avg = calculateStateAverage(state);
         return typeof avg === 'number' && !isNaN(avg) && avg > 0;
       });
+      
+      const minnesotaIncluded = statesWithData.some(s => s.toLowerCase().includes('minnesota') || s.toLowerCase().includes('mn'));
+      console.log('📊 Chart:', statesWithData.length, 'states with data' + (minnesotaIncluded ? ', including Minnesota' : ''));
+      
+      // Only process chart data for states that actually have valid rates
       const chartData = statesWithData.map((state: any) => {
         const stateKey = state.trim().toUpperCase();
         const selected = allStatesSelectedRows[stateKey];
@@ -2208,13 +2330,16 @@ export default function StatePaymentComparison() {
   // Calculate highest and lowest among currently selected bars
   const selectedRates = useMemo(() => {
     if (isAllStatesSelected && filterSets[0]?.serviceCode && allStatesAverages) {
-      // Use the chartData for metrics (matches the bars shown)
-      const statesList = filterOptions.states;
-      const chartData = statesList.map((state: any) => {
+      // Use the same filtering as the chart
+      const statesWithData = filterOptions.states.filter((state) => {
+        const avg = calculateStateAverage(state);
+        return typeof avg === 'number' && !isNaN(avg) && avg > 0;
+      });
+      const chartData = statesWithData.map((state) => {
         const avg = calculateStateAverage(state);
         return typeof avg === 'number' && !isNaN(avg) ? avg : undefined;
       });
-      return chartData.filter((rate: any): rate is number => typeof rate === 'number' && !isNaN(rate));
+      return chartData.filter((rate) => typeof rate === 'number' && !isNaN(rate));
     }
     // Flatten all selected entries and extract the rate value as a number
     return Object.values(selectedEntries)
@@ -2454,6 +2579,17 @@ export default function StatePaymentComparison() {
             });
             combinations.push(combo);
           }
+          
+          // Check for potential data contamination in the combinations data
+          const s5116Combinations = combinations.filter(c => c.service_code === 'S5116 U6');
+          if (s5116Combinations.length > 0) {
+            console.log('🚨 S5116 U6 COMBINATIONS DATA CHECK:', {
+              totalS5116Combinations: s5116Combinations.length,
+              statesInCombinations: [...new Set(s5116Combinations.map(c => c.state_name))],
+              sampleCombinations: s5116Combinations.slice(0, 3)
+            });
+          }
+          
           // Extract unique values for each filter
           const filters: Record<string, string[]> = {};
           columns.forEach((col: string) => {
@@ -2589,16 +2725,34 @@ export default function StatePaymentComparison() {
           if (isAllStatesSelected && index === 0) {
             console.log('🌍 Fetching all states averages...');
             await fetchAllStatesAverages(filterSet.serviceCategory, filterSet.serviceCode);
-            const result = await refreshData({
+            const refreshParams: Record<string, string> = {
               serviceCategory: filterSet.serviceCategory,
               serviceCode: filterSet.serviceCode,
               itemsPerPage: '1000'
-            });
+            };
+            
+            // Add duration unit and other selection filters
+            if (selections.duration_unit && selections.duration_unit !== '-') {
+              refreshParams.durationUnit = selections.duration_unit;
+            }
+            if (selections.program && selections.program !== '-') {
+              refreshParams.program = selections.program;
+            }
+            if (selections.location_region && selections.location_region !== '-') {
+              refreshParams.locationRegion = selections.location_region;
+            }
+            if (selections.provider_type && selections.provider_type !== '-') {
+              refreshParams.providerType = selections.provider_type;
+            }
+            if (selections.modifier_1 && selections.modifier_1 !== '-') {
+              refreshParams.modifier = selections.modifier_1;
+            }
+            
+            console.log('🔍 HandleSearch - All States mode');
+            
+            const result = await refreshData(refreshParams);
             if (result) {
-              console.log(`✅ All states data fetched:`, {
-                dataLength: result.data.length,
-                sampleEntries: result.data.slice(0, 3)
-              });
+              console.log(`✅ All states data fetched:`, result.data.length, 'entries');
               setFilterSetData(prev => ({ ...prev, [index]: result.data }));
               success = true;
             }
@@ -2610,11 +2764,7 @@ export default function StatePaymentComparison() {
               itemsPerPage: '1000'
             });
             if (result) {
-              console.log(`✅ Individual state data fetched:`, {
-                state: filterSet.states[0],
-                dataLength: result.data.length,
-                sampleEntries: result.data.slice(0, 3)
-              });
+              console.log(`✅ Individual state data fetched:`, filterSet.states[0], result.data.length, 'entries');
               setFilterSetData(prev => ({ ...prev, [index]: result.data }));
               success = true;
             }
@@ -3218,34 +3368,60 @@ export default function StatePaymentComparison() {
                         </div>
                       </div>
                     )}
-            <div style={{ overflowX: 'auto', width: '100%' }}>
-              <ReactECharts
-                ref={chartRef}
-                key={`all-states-${filterSets[0]?.serviceCategory || ''}-${filterSets[0]?.serviceCode || ''}`}
-                option={echartOptions}
-                        style={{ height: '400px', width: '100%' }}
-                onEvents={{
-                  click: (params: any) => {
-                    console.log('Chart click event:', params);
-                    console.log('isAllStatesSelected:', isAllStatesSelected);
-                    console.log('clickedStates before:', clickedStates);
-                    // Try to handle all click events first
-                    if (params.componentType === 'series' && params.seriesType === 'bar') {
-                      const stateName = params.name;
-                      console.log('Bar clicked for state:', stateName);
-                      // Toggle the state in the array
-                      setClickedStates(prev => {
-                        if (prev.includes(stateName)) {
-                          return prev.filter(s => s !== stateName);
-                        } else {
-                          return [...prev, stateName];
-                        }
+                    
+                    {/* Check if there are any states with data */}
+                    {isAllStatesSelected && filterSets[0]?.serviceCode && allStatesAverages && (() => {
+                      const statesWithData = filterOptions.states.filter((state: any) => {
+                        const avg = calculateStateAverage(state);
+                        return typeof avg === 'number' && !isNaN(avg) && avg > 0;
                       });
-                    }
-                  }
-                }}
-              />
-            </div>
+                      
+                      if (statesWithData.length === 0) {
+                        return (
+                          <div className="flex items-center justify-center h-64">
+                            <div className="text-center">
+                              <FaChartBar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                              <p className="text-gray-600 mb-2 font-medium">No data available for selected criteria</p>
+                              <p className="text-sm text-gray-500">
+                                No states have rates for the selected service code "{filterSets[0].serviceCode}". 
+                                Try selecting a different service code or adjusting your filters.
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      }
+                      
+                      return (
+                        <div style={{ overflowX: 'auto', width: '100%' }}>
+                          <ReactECharts
+                            ref={chartRef}
+                            key={`all-states-${filterSets[0]?.serviceCategory || ''}-${filterSets[0]?.serviceCode || ''}`}
+                            option={echartOptions}
+                            style={{ height: '400px', width: '100%' }}
+                            onEvents={{
+                              click: (params: any) => {
+                                console.log('Chart click event:', params);
+                                console.log('isAllStatesSelected:', isAllStatesSelected);
+                                console.log('clickedStates before:', clickedStates);
+                                // Try to handle all click events first
+                                if (params.componentType === 'series' && params.seriesType === 'bar') {
+                                  const stateName = params.name;
+                                  console.log('Bar clicked for state:', stateName);
+                                  // Toggle the state in the array
+                                  setClickedStates(prev => {
+                                    if (prev.includes(stateName)) {
+                                      return prev.filter(s => s !== stateName);
+                                    } else {
+                                      return [...prev, stateName];
+                                    }
+                                  });
+                                }
+                              }
+                            }}
+                          />
+                        </div>
+                      );
+                    })()}
                   </>
                 ) : (
                   <div className="flex items-center justify-center h-64">
@@ -3297,11 +3473,9 @@ export default function StatePaymentComparison() {
                       const stateKey = state.trim().toUpperCase();
                       // Get all entries for this state from data (not filteredData)
                       const stateEntries = data.filter(item => item.state_name?.trim().toUpperCase() === stateKey);
-                      console.log('Processing state:', state, 'stateKey:', stateKey, 'stateEntries.length:', stateEntries.length);
                       if (stateEntries.length === 0) return null;
                       
                       // Only show the table if this state is clicked
-                      console.log('Checking state:', state, 'clickedStates:', clickedStates, 'should show:', clickedStates.includes(state));
                       if (!clickedStates.includes(state)) return null;
                       
                       // Pagination

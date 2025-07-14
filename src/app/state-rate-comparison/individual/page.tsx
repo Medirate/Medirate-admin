@@ -1224,6 +1224,32 @@ export default function StatePaymentComparison() {
     const filterSet = filterSets[filterSetIndex];
     if (!filterSet) return [];
     
+    const isDebugState = filterSet.states.some(state => state.toLowerCase().includes('minnesota') || state.toLowerCase().includes('mn'));
+    
+    if (isDebugState && filterKey === 'service_code') {
+      // Check for Minnesota + HCBS combinations in raw data
+      const minnesotaHCBSCombos = filterOptionsData.combinations.filter(combo => 
+        combo.state_name && combo.state_name.toLowerCase().includes('minnesota') &&
+        combo.service_category && combo.service_category.toLowerCase().includes('home and community based')
+      );
+      
+      console.log('🔍 Individual Page - getAvailableOptionsForFilterSet DEBUG:', {
+        filterKey,
+        filterSetIndex,
+        filterSet,
+        totalCombinations: filterOptionsData.combinations.length,
+        serviceCategory: filterSet.serviceCategory,
+        states: filterSet.states,
+        minnesotaHCBSCombosFound: minnesotaHCBSCombos.length,
+        sampleMinnesotaHCBSCombos: minnesotaHCBSCombos.slice(0, 3).map(c => ({
+          state_name: c.state_name,
+          service_category: c.service_category,
+          service_code: c.service_code,
+          duration_unit: c.duration_unit
+        }))
+      });
+    }
+    
     // Build filter conditions based on the current filterSet
     const filteredCombinations = filterOptionsData.combinations.filter(combo => {
       // Always apply CORE REQUIRED filters - these define the base service
@@ -1251,6 +1277,23 @@ export default function StatePaymentComparison() {
       
       return true;
     });
+    
+    if (isDebugState && filterKey === 'service_code') {
+      console.log('🔍 Individual Page - After filtering combinations:', {
+        filteredCount: filteredCombinations.length,
+        sampleCombinations: filteredCombinations.slice(0, 5).map(c => ({
+          service_category: c.service_category,
+          state_name: c.state_name,
+          service_code: c.service_code,
+          duration_unit: c.duration_unit
+        })),
+        serviceCodes: Array.from(new Set(
+          filteredCombinations
+            .map(c => c[filterKey])
+            .filter(Boolean)
+        )).sort()
+      });
+    }
     
     // Get unique values for the requested filter
     return Array.from(new Set(
@@ -1523,8 +1566,21 @@ export default function StatePaymentComparison() {
       const avgMap = new Map(
         allStatesAverages.map(row => [row.state_name.trim().toUpperCase(), Number(row.avg_rate)])
       );
+      
+      // Filter states to only include those with valid rates
+      const statesWithValidRates = statesList.filter((state: any) => {
+        const stateKey = state.trim().toUpperCase();
+        const selected = allStatesSelectedRows[stateKey];
+        if (selected && selected.row && selected.row.rate) {
+          const rate = parseFloat((selected.row.rate || '').replace(/[^\d.-]/g, ''));
+          return !isNaN(rate) && rate > 0;
+        }
+        const avg = avgMap.get(stateKey);
+        return typeof avg === 'number' && !isNaN(avg) && avg > 0;
+      });
+      
       // Use selected row if present, otherwise average
-      const chartData = statesList.map((state: any) => {
+      const chartData = statesWithValidRates.map((state: any) => {
         const stateKey = state.trim().toUpperCase();
         const selected = allStatesSelectedRows[stateKey];
         if (selected && selected.row && selected.row.rate) {
@@ -2755,59 +2811,151 @@ export default function StatePaymentComparison() {
           </div>
         )}
                     
-                    {/* Chart Sorting Controls */}
-                    <div className="mb-4 flex items-center justify-between bg-white p-4 rounded-lg shadow-sm border">
-                      <div className="text-xs text-gray-500">
-                        {sortOrder === 'default' && 'Original order'}
-                        {sortOrder === 'asc' && 'Sorted by rate (lowest first)'}
-                        {sortOrder === 'desc' && 'Sorted by rate (highest first)'}
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-sm font-medium text-gray-700">Sort Chart:</span>
-                        <div className="flex items-center bg-gray-100 rounded-full p-1 transition-all" style={{ minWidth: 220 }}>
-                          <button
-                            onClick={() => setSortOrder('default')}
-                            className={`px-4 py-1 rounded-full text-sm font-semibold focus:outline-none transition-all duration-150 ${
-                              sortOrder === 'default'
-                                ? 'bg-white text-blue-600 shadow font-bold'
-                                : 'bg-transparent text-gray-600 hover:text-blue-600'
-                            }`}
-                            style={{ minWidth: 80 }}
-                          >
-                            Default
-                          </button>
-                          <button
-                            onClick={() => setSortOrder('asc')}
-                            className={`px-4 py-1 rounded-full text-sm font-semibold focus:outline-none transition-all duration-150 ${
-                              sortOrder === 'asc'
-                                ? 'bg-white text-green-600 shadow font-bold'
-                                : 'bg-transparent text-gray-600 hover:text-green-600'
-                            }`}
-                            style={{ minWidth: 80 }}
-                          >
-                            Low → High
-                          </button>
-                          <button
-                            onClick={() => setSortOrder('desc')}
-                            className={`px-4 py-1 rounded-full text-sm font-semibold focus:outline-none transition-all duration-150 ${
-                              sortOrder === 'desc'
-                                ? 'bg-white text-red-600 shadow font-bold'
-                                : 'bg-transparent text-gray-600 hover:text-red-600'
-                            }`}
-                            style={{ minWidth: 80 }}
-                          >
-                            High → Low
-                          </button>
-                        </div>
-                      </div>
-                    </div>
+                    {/* Check if there are any states with data for All States mode */}
+                    {isAllStatesSelected && filterSets[0]?.serviceCode && allStatesAverages && (() => {
+                      const statesWithValidRates = filterOptions.states.filter((state: any) => {
+                        const stateKey = state.trim().toUpperCase();
+                        const selected = allStatesSelectedRows[stateKey];
+                        if (selected && selected.row && selected.row.rate) {
+                          const rate = parseFloat((selected.row.rate || '').replace(/[^\d.-]/g, ''));
+                          return !isNaN(rate) && rate > 0;
+                        }
+                        const avg = allStatesAverages.find(row => row.state_name.trim().toUpperCase() === stateKey)?.avg_rate;
+                        return typeof avg === 'number' && !isNaN(avg) && avg > 0;
+                      });
+                      
+                      if (statesWithValidRates.length === 0) {
+                        return (
+                          <div className="flex items-center justify-center h-64">
+                            <div className="text-center">
+                              <FaChartBar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                              <p className="text-gray-600 mb-2 font-medium">No data available for selected criteria</p>
+                              <p className="text-sm text-gray-500">
+                                No states have rates for the selected service code "{filterSets[0].serviceCode}". 
+                                Try selecting a different service code or adjusting your filters.
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      }
+                      
+                      return (
+                        <>
+                          {/* Chart Sorting Controls */}
+                          <div className="mb-4 flex items-center justify-between bg-white p-4 rounded-lg shadow-sm border">
+                            <div className="text-xs text-gray-500">
+                              {sortOrder === 'default' && 'Original order'}
+                              {sortOrder === 'asc' && 'Sorted by rate (lowest first)'}
+                              {sortOrder === 'desc' && 'Sorted by rate (highest first)'}
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <span className="text-sm font-medium text-gray-700">Sort Chart:</span>
+                              <div className="flex items-center bg-gray-100 rounded-full p-1 transition-all" style={{ minWidth: 220 }}>
+                                <button
+                                  onClick={() => setSortOrder('default')}
+                                  className={`px-4 py-1 rounded-full text-sm font-semibold focus:outline-none transition-all duration-150 ${
+                                    sortOrder === 'default'
+                                      ? 'bg-white text-blue-600 shadow font-bold'
+                                      : 'bg-transparent text-gray-600 hover:text-blue-600'
+                                  }`}
+                                  style={{ minWidth: 80 }}
+                                >
+                                  Default
+                                </button>
+                                <button
+                                  onClick={() => setSortOrder('asc')}
+                                  className={`px-4 py-1 rounded-full text-sm font-semibold focus:outline-none transition-all duration-150 ${
+                                    sortOrder === 'asc'
+                                      ? 'bg-white text-green-600 shadow font-bold'
+                                      : 'bg-transparent text-gray-600 hover:text-green-600'
+                                  }`}
+                                  style={{ minWidth: 80 }}
+                                >
+                                  Low → High
+                                </button>
+                                <button
+                                  onClick={() => setSortOrder('desc')}
+                                  className={`px-4 py-1 rounded-full text-sm font-semibold focus:outline-none transition-all duration-150 ${
+                                    sortOrder === 'desc'
+                                      ? 'bg-white text-red-600 shadow font-bold'
+                                      : 'bg-transparent text-gray-600 hover:text-red-600'
+                                  }`}
+                                  style={{ minWidth: 80 }}
+                                >
+                                  High → Low
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Chart component */}
+                          <ReactECharts
+                            key={`${isAllStatesSelected ? 'all-states-' : 'selected-'}${JSON.stringify(Object.keys(selectedEntries).sort())}-${chartRefreshKey}-${allStatesAverages ? allStatesAverages.length : 0}-${sortOrder}`}
+                            option={echartOptions}
+                            style={{ height: '400px', width: '100%' }}
+                          />
+                        </>
+                      );
+                    })()}
                     
-                    {/* Chart component */}
-            <ReactECharts
-                      key={`${isAllStatesSelected ? 'all-states-' : 'selected-'}${JSON.stringify(Object.keys(selectedEntries).sort())}-${chartRefreshKey}-${allStatesAverages ? allStatesAverages.length : 0}-${sortOrder}`}
-                      option={echartOptions}
-              style={{ height: '400px', width: '100%' }}
-            />
+                    {/* For selected entries mode, show chart normally */}
+                    {!isAllStatesSelected && Object.values(selectedEntries).length > 0 && (
+                      <>
+                        {/* Chart Sorting Controls */}
+                        <div className="mb-4 flex items-center justify-between bg-white p-4 rounded-lg shadow-sm border">
+                          <div className="text-xs text-gray-500">
+                            {sortOrder === 'default' && 'Original order'}
+                            {sortOrder === 'asc' && 'Sorted by rate (lowest first)'}
+                            {sortOrder === 'desc' && 'Sorted by rate (highest first)'}
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <span className="text-sm font-medium text-gray-700">Sort Chart:</span>
+                            <div className="flex items-center bg-gray-100 rounded-full p-1 transition-all" style={{ minWidth: 220 }}>
+                              <button
+                                onClick={() => setSortOrder('default')}
+                                className={`px-4 py-1 rounded-full text-sm font-semibold focus:outline-none transition-all duration-150 ${
+                                  sortOrder === 'default'
+                                    ? 'bg-white text-blue-600 shadow font-bold'
+                                    : 'bg-transparent text-gray-600 hover:text-blue-600'
+                                }`}
+                                style={{ minWidth: 80 }}
+                              >
+                                Default
+                              </button>
+                              <button
+                                onClick={() => setSortOrder('asc')}
+                                className={`px-4 py-1 rounded-full text-sm font-semibold focus:outline-none transition-all duration-150 ${
+                                  sortOrder === 'asc'
+                                    ? 'bg-white text-green-600 shadow font-bold'
+                                    : 'bg-transparent text-gray-600 hover:text-green-600'
+                                }`}
+                                style={{ minWidth: 80 }}
+                              >
+                                Low → High
+                              </button>
+                              <button
+                                onClick={() => setSortOrder('desc')}
+                                className={`px-4 py-1 rounded-full text-sm font-semibold focus:outline-none transition-all duration-150 ${
+                                  sortOrder === 'desc'
+                                    ? 'bg-white text-red-600 shadow font-bold'
+                                    : 'bg-transparent text-gray-600 hover:text-red-600'
+                                }`}
+                                style={{ minWidth: 80 }}
+                              >
+                                High → Low
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Chart component */}
+                        <ReactECharts
+                          key={`${isAllStatesSelected ? 'all-states-' : 'selected-'}${JSON.stringify(Object.keys(selectedEntries).sort())}-${chartRefreshKey}-${allStatesAverages ? allStatesAverages.length : 0}-${sortOrder}`}
+                          option={echartOptions}
+                          style={{ height: '400px', width: '100%' }}
+                        />
+                      </>
+                    )}
                   </>
                 ) : null}
 
