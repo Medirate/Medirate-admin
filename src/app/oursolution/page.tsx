@@ -54,7 +54,7 @@ export default function OurSolution() {
 
             {/* Section: Key Questions We Answer */}
             <div className="bg-white/90 p-6 rounded-lg shadow-sm">
-              <h2 className="text-2xl font-lemonMilkRegular text-[#012C61] mb-6">Key Questions We Answer</h2>
+              <h2 className="text-2xl font-lemonMilkRegular text-[#012C61] mb-6">MediRate Answers Your Key Questions</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {[
                   "Are we being reimbursed accurately for the services we offer and populations we serve?",
