@@ -250,16 +250,16 @@ export default function OurSolution() {
               
               {/* YouTube Video Embed */}
               <div className="relative w-full max-w-4xl mx-auto">
-                <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
-                  <iframe
-                    src="https://www.youtube.com/embed/XY-OKKYMhPE"
-                    title="MediRate Platform Demo"
-                    className="absolute top-0 left-0 w-full h-full rounded-lg shadow-lg"
-                    frameBorder="0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                  ></iframe>
-                </div>
+                              <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+                <iframe
+                  src="https://www.youtube.com/embed/i_agfm1GaK8"
+                  title="MediRate Platform Demo"
+                  className="absolute top-0 left-0 w-full h-full rounded-lg shadow-lg"
+                  frameBorder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                ></iframe>
+              </div>
               </div>
               
               <div className="text-center mt-6">
