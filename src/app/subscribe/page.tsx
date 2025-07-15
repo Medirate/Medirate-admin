@@ -279,7 +279,7 @@ const StripePricingTableWithFooter = () => {
               <h3 className="text-2xl font-bold mb-6 text-[#012C61] font-lemonMilkRegular tracking-wide text-center">Professional Plan</h3>
               <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-sm text-blue-800 text-center">
-                  <strong>Annual Payment Discount:</strong> Save 15% when you pay for a full year upfront - <strong>$7,640</strong>
+                  <strong>Annual Payment Discount:</strong> Save 10% when you pay for a full year upfront - <strong>$8,100</strong>
                 </p>
               </div>
               <ul className="space-y-5 w-full max-w-md">
