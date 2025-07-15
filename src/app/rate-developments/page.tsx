@@ -8,6 +8,7 @@ import { FaSpinner, FaExclamationCircle, FaSearch, FaSort, FaSortUp, FaSortDown,
 import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
 import { supabase } from "@/lib/supabase";
 import { createPortal } from "react-dom";
+import Select from 'react-select';
 
 // Define the type for the datasets
 interface Alert {
@@ -106,6 +107,79 @@ interface DropdownProps {
   placeholder: string;
 }
 
+interface MultiSelectDropdownProps {
+  values: string[];
+  onChange: (values: string[]) => void;
+  options: { label: string; value: string }[];
+  placeholder: string;
+}
+
+// React Select Multi Dropdown Component
+function ReactSelectMultiDropdown({ values, onChange, options, placeholder }: MultiSelectDropdownProps) {
+  const selectedOptions = options.filter(option => values.includes(option.value));
+  
+  return (
+    <Select
+      isMulti
+      value={selectedOptions}
+      onChange={(selected) => {
+        const newValues = selected ? selected.map(option => option.value) : [];
+        onChange(newValues);
+      }}
+      options={options}
+      placeholder={placeholder}
+      className="w-full"
+      classNamePrefix="react-select"
+      styles={{
+        control: (provided, state) => ({
+          ...provided,
+          backgroundColor: 'white',
+          borderColor: state.isFocused ? '#3b82f6' : '#93c5fd',
+          borderRadius: '0.5rem',
+          minHeight: '48px',
+          boxShadow: state.isFocused ? '0 0 0 1px #3b82f6' : 'none',
+          '&:hover': {
+            borderColor: '#3b82f6'
+          }
+        }),
+        menu: (provided) => ({
+          ...provided,
+          backgroundColor: 'white',
+          border: '1px solid #93c5fd',
+          borderRadius: '0.5rem',
+          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+          zIndex: 9999
+        }),
+        option: (provided, state) => ({
+          ...provided,
+          backgroundColor: state.isSelected ? '#eff6ff' : state.isFocused ? '#f1f5f9' : 'white',
+          color: '#1f2937',
+          '&:hover': {
+            backgroundColor: state.isSelected ? '#eff6ff' : '#f1f5f9'
+          }
+        }),
+        multiValue: (provided) => ({
+          ...provided,
+          backgroundColor: '#eff6ff',
+          border: '1px solid #93c5fd'
+        }),
+        multiValueLabel: (provided) => ({
+          ...provided,
+          color: '#1f2937'
+        }),
+        multiValueRemove: (provided) => ({
+          ...provided,
+          color: '#6b7280',
+          '&:hover': {
+            backgroundColor: '#dbeafe',
+            color: '#1f2937'
+          }
+        })
+      }}
+    />
+  );
+}
+
 // Add this new component before your main component
 function CustomDropdown({ value, onChange, options, placeholder }: DropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -201,6 +275,9 @@ function CustomDropdown({ value, onChange, options, placeholder }: DropdownProps
     </div>
   );
 }
+
+// Add multi-select dropdown component
+// Old MultiSelectDropdown component removed - replaced with ReactSelectMultiDropdown above
 
 function SearchBar({ value, onChange, placeholder }: { 
   value: string; 
@@ -315,6 +392,10 @@ export default function RateDevelopments() {
 
   const [selectedState, setSelectedState] = useState<string>("");
   const [selectedServiceLine, setSelectedServiceLine] = useState<string>("");
+  const [selectedProviderStates, setSelectedProviderStates] = useState<string[]>([]);
+  const [selectedProviderServiceLines, setSelectedProviderServiceLines] = useState<string[]>([]);
+  const [selectedLegislativeStates, setSelectedLegislativeStates] = useState<string[]>([]);
+  const [selectedLegislativeServiceLines, setSelectedLegislativeServiceLines] = useState<string[]>([]);
 
   const [selectedBillProgress, setSelectedBillProgress] = useState<string>("");
 
@@ -343,6 +424,94 @@ export default function RateDevelopments() {
   }, []);
 
   const uniqueServiceLines = useMemo(() => Array.from(new Set(serviceLines)), [serviceLines]);
+
+  // Dynamic service lines based on selected states
+  const availableProviderServiceLines = useMemo(() => {
+    console.log('Calculating available provider service lines:', {
+      selectedProviderStates,
+      alertsCount: alerts.length,
+      uniqueServiceLinesCount: uniqueServiceLines.length
+    });
+    
+    if (selectedProviderStates.length === 0) {
+      return uniqueServiceLines;
+    }
+    
+    const serviceLinesInSelectedStates = new Set<string>();
+    
+    alerts.forEach(alert => {
+      // Check if alert is in selected states
+      const alertStateCode = reverseStateMap[alert.state || ''] || alert.state;
+      const isInSelectedState = selectedProviderStates.includes(alertStateCode) || 
+                               selectedProviderStates.includes(alert.state || '') ||
+                               (alert.state && selectedProviderStates.some(selectedState => 
+                                 reverseStateMap[selectedState] === alert.state
+                               ));
+      
+      console.log('Alert state check:', {
+        alertState: alert.state,
+        alertStateCode,
+        selectedStates: selectedProviderStates,
+        isInSelectedState
+      });
+      
+      if (isInSelectedState) {
+        // Add service lines from this alert
+        const alertServiceLines = [alert.service_lines_impacted, alert.service_lines_impacted_1, alert.service_lines_impacted_2, alert.service_lines_impacted_3]
+          .filter((line): line is string => line !== null && line !== undefined && line.toUpperCase() !== 'NULL');
+        
+        console.log('Adding service lines from alert:', {
+          alertSubject: alert.subject,
+          alertServiceLines
+        });
+        
+        alertServiceLines.forEach(line => serviceLinesInSelectedStates.add(line));
+      }
+    });
+    
+    const result = Array.from(serviceLinesInSelectedStates);
+    console.log('Final available provider service lines:', result);
+    
+    return result;
+  }, [alerts, selectedProviderStates, uniqueServiceLines]);
+
+  const availableLegislativeServiceLines = useMemo(() => {
+    if (selectedLegislativeStates.length === 0) {
+      return uniqueServiceLines;
+    }
+    
+    const serviceLinesInSelectedStates = new Set<string>();
+    
+    bills.forEach(bill => {
+      // Check if bill is in selected states
+      const billStateCode = reverseStateMap[bill.state || ''] || bill.state;
+      const isInSelectedState = selectedLegislativeStates.includes(billStateCode) || 
+                               selectedLegislativeStates.includes(bill.state || '') ||
+                               (bill.state && selectedLegislativeStates.some(selectedState => 
+                                 reverseStateMap[selectedState] === bill.state
+                               ));
+      
+      if (isInSelectedState) {
+        // Add service lines from this bill
+        [bill.service_lines_impacted, bill.service_lines_impacted_1, bill.service_lines_impacted_2, bill.service_lines_impacted_3]
+          .filter((line): line is string => line !== null && line !== undefined && line.toUpperCase() !== 'NULL')
+          .forEach(line => serviceLinesInSelectedStates.add(line));
+      }
+    });
+    
+    return Array.from(serviceLinesInSelectedStates);
+  }, [bills, selectedLegislativeStates, uniqueServiceLines]);
+
+  // Reset all filters function
+  const resetAllFilters = () => {
+    setProviderSearch("");
+    setLegislativeSearch("");
+    setSelectedProviderStates([]);
+    setSelectedProviderServiceLines([]);
+    setSelectedLegislativeStates([]);
+    setSelectedLegislativeServiceLines([]);
+    setSelectedBillProgress("");
+  };
 
   // Add subscription check function
   const checkSubscriptionAndSubUser = async () => {
@@ -495,50 +664,89 @@ export default function RateDevelopments() {
   }, [bills, sortDirection]);
 
   // Update the filtered data logic to use sorted arrays
-  const filteredProviderAlerts = sortedProviderAlerts.filter((alert) => {
-    const matchesSearch = !providerSearch || searchInFields(providerSearch, [
-      alert.subject,
-      alert.summary
-    ]);
+  const filteredProviderAlerts = useMemo(() => {
+    console.log('Filtering provider alerts:', { selectedProviderStates, selectedProviderServiceLines });
+    return sortedProviderAlerts.filter((alert) => {
+      const matchesSearch = !providerSearch || searchInFields(providerSearch, [
+        alert.subject,
+        alert.summary
+      ]);
 
-    const matchesState = !selectedState || 
-      alert.state === reverseStateMap[selectedState];
+      // Fix state matching logic - handle both state codes and full names
+      const matchesState = selectedProviderStates.length === 0 || 
+        (alert.state && (
+          selectedProviderStates.includes(alert.state) || // Direct match
+          selectedProviderStates.some(selectedState => 
+            reverseStateMap[selectedState] === alert.state // Match state code to full name
+          )
+        ));
 
-    const matchesServiceLine = !selectedServiceLine || 
-      [
-        alert.service_lines_impacted,
-        alert.service_lines_impacted_1,
-        alert.service_lines_impacted_2,
-        alert.service_lines_impacted_3,
-      ].some(line => line?.includes(selectedServiceLine));
+      const matchesServiceLine = selectedProviderServiceLines.length === 0 || 
+        [
+          alert.service_lines_impacted,
+          alert.service_lines_impacted_1,
+          alert.service_lines_impacted_2,
+          alert.service_lines_impacted_3,
+        ].some(line => line && selectedProviderServiceLines.some(selectedLine => line.includes(selectedLine)));
 
-    return matchesSearch && matchesState && matchesServiceLine;
-  });
+      console.log('Alert filtering:', {
+        alertState: alert.state,
+        selectedStates: selectedProviderStates,
+        matchesState,
+        alertServiceLines: [alert.service_lines_impacted, alert.service_lines_impacted_1, alert.service_lines_impacted_2, alert.service_lines_impacted_3],
+        selectedServiceLines: selectedProviderServiceLines,
+        matchesServiceLine
+      });
+
+      return matchesSearch && matchesState && matchesServiceLine;
+    });
+  }, [sortedProviderAlerts, providerSearch, selectedProviderStates, selectedProviderServiceLines]);
 
   // Update the filteredLegislativeUpdates logic to include bill progress filter
-  const filteredLegislativeUpdates = sortedLegislativeUpdates.filter((bill) => {
-    const matchesSearch = !legislativeSearch || searchInFields(legislativeSearch, [
-      bill.name,
-      bill.bill_number,
-      bill.last_action,
-      ...(bill.sponsor_list || [])
-    ]);
+  const filteredLegislativeUpdates = useMemo(() => {
+    console.log('Filtering legislative updates:', { selectedLegislativeStates, selectedLegislativeServiceLines, selectedBillProgress });
+    return sortedLegislativeUpdates.filter((bill) => {
+      const matchesSearch = !legislativeSearch || searchInFields(legislativeSearch, [
+        bill.name,
+        bill.bill_number,
+        bill.last_action,
+        ...(bill.sponsor_list || [])
+      ]);
 
-    const matchesState = !selectedState || 
-      bill.state === selectedState;
+      // Fix state matching logic - handle both state codes and full names
+      const matchesState = selectedLegislativeStates.length === 0 || 
+        (bill.state && (
+          selectedLegislativeStates.includes(bill.state) || // Direct match
+          selectedLegislativeStates.some(selectedState => 
+            reverseStateMap[selectedState] === bill.state // Match state code to full name
+          )
+        ));
 
-    const matchesServiceLine = !selectedServiceLine || 
-      [
-        bill.service_lines_impacted,
-        bill.service_lines_impacted_1,
-        bill.service_lines_impacted_2
-      ].some(line => line?.includes(selectedServiceLine));
+      const matchesServiceLine = selectedLegislativeServiceLines.length === 0 || 
+        [
+          bill.service_lines_impacted,
+          bill.service_lines_impacted_1,
+          bill.service_lines_impacted_2
+        ].some(line => line && selectedLegislativeServiceLines.some(selectedLine => line.includes(selectedLine)));
 
-    const matchesBillProgress = !selectedBillProgress || 
-      bill.bill_progress?.includes(selectedBillProgress);
+      const matchesBillProgress = !selectedBillProgress || 
+        bill.bill_progress?.includes(selectedBillProgress);
 
-    return matchesSearch && matchesState && matchesServiceLine && matchesBillProgress;
-  });
+      console.log('Bill filtering:', {
+        billState: bill.state,
+        selectedStates: selectedLegislativeStates,
+        matchesState,
+        billServiceLines: [bill.service_lines_impacted, bill.service_lines_impacted_1, bill.service_lines_impacted_2],
+        selectedServiceLines: selectedLegislativeServiceLines,
+        matchesServiceLine,
+        billProgress: bill.bill_progress,
+        selectedProgress: selectedBillProgress,
+        matchesBillProgress
+      });
+
+      return matchesSearch && matchesState && matchesServiceLine && matchesBillProgress;
+    });
+  }, [sortedLegislativeUpdates, legislativeSearch, selectedLegislativeStates, selectedLegislativeServiceLines, selectedBillProgress]);
 
   const getServiceLines = (bill: Bill) => {
     return [
@@ -613,7 +821,16 @@ export default function RateDevelopments() {
       </h1>
 
       {/* Search Bars and Filters Container */}
-      <div className="mb-10 p-6 sm:p-10 bg-white rounded-3xl shadow-2xl border border-blue-200 transition-transform duration-200 hover:scale-[1.015] hover:shadow-[0_8px_32px_0_rgba(31,38,135,0.15)]">
+      <div className="mb-10 p-6 sm:p-10 bg-white rounded-3xl shadow-2xl border border-blue-200">
+        {/* Reset Filters Button */}
+        <div className="flex items-center mb-6">
+          <button
+            onClick={resetAllFilters}
+            className="px-6 py-2 text-sm bg-[#012C61] text-white rounded-lg hover:bg-blue-800 transition-colors disabled:bg-gray-400 font-semibold shadow-sm"
+          >
+            Reset All Filters
+          </button>
+        </div>
         <div className="flex flex-col md:flex-row gap-10">
           {/* Left Column: Provider Alerts Filters */}
           <div className="flex-1 flex flex-col gap-5">
@@ -630,17 +847,23 @@ export default function RateDevelopments() {
             </div>
             <div className="relative pl-10">
               <FaFilter className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400" />
-              <CustomDropdown
-                value={selectedState}
-                onChange={setSelectedState}
-                options={[
-                  { value: "", label: "All States" },
-                  ...Object.entries(stateMap).map(([name, code]) => ({
-                    value: code,
-                    label: `${name} [${code}]`
-                  }))
-                ]}
+              <ReactSelectMultiDropdown
+                values={selectedProviderStates}
+                onChange={setSelectedProviderStates}
+                options={Object.entries(stateMap).map(([name, code]) => ({
+                  value: code,
+                  label: `${name} [${code}]`
+                }))}
                 placeholder="All States"
+              />
+            </div>
+            <div className="relative pl-10">
+              <FaChartLine className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400" />
+              <ReactSelectMultiDropdown
+                values={selectedProviderServiceLines}
+                onChange={setSelectedProviderServiceLines}
+                options={availableProviderServiceLines.map(line => ({ value: line, label: line }))}
+                placeholder="All Service Lines"
               />
             </div>
           </div>
@@ -662,22 +885,31 @@ export default function RateDevelopments() {
               />
             </div>
             <div className="relative pl-10">
+              <FaFilter className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400" />
+              <ReactSelectMultiDropdown
+                values={selectedLegislativeStates}
+                onChange={setSelectedLegislativeStates}
+                options={Object.entries(stateMap).map(([name, code]) => ({
+                  value: code,
+                  label: `${name} [${code}]`
+                }))}
+                placeholder="All States"
+              />
+            </div>
+            <div className="relative pl-10">
               <FaChartLine className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400" />
-              <CustomDropdown
-                value={selectedServiceLine}
-                onChange={setSelectedServiceLine}
-                options={[
-                  { value: "", label: "All Service Lines" },
-                  ...uniqueServiceLines.map(line => ({ value: line, label: line }))
-                ]}
+              <ReactSelectMultiDropdown
+                values={selectedLegislativeServiceLines}
+                onChange={setSelectedLegislativeServiceLines}
+                options={availableLegislativeServiceLines.map(line => ({ value: line, label: line }))}
                 placeholder="All Service Lines"
               />
             </div>
             <div className="relative pl-10">
               <LayoutList className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400" />
-              <CustomDropdown
-                value={selectedBillProgress}
-                onChange={setSelectedBillProgress}
+              <Select
+                value={selectedBillProgress ? { value: selectedBillProgress, label: selectedBillProgress } : null}
+                onChange={(option) => setSelectedBillProgress(option?.value || "")}
                 options={[
                   { value: "", label: "All Bill Progress" },
                   { value: "Introduced", label: "Introduced" },
@@ -688,6 +920,37 @@ export default function RateDevelopments() {
                   { value: "Enacted", label: "Enacted" }
                 ]}
                 placeholder="All Bill Progress"
+                className="w-full"
+                classNamePrefix="react-select"
+                styles={{
+                  control: (provided, state) => ({
+                    ...provided,
+                    backgroundColor: 'white',
+                    borderColor: state.isFocused ? '#3b82f6' : '#93c5fd',
+                    borderRadius: '0.5rem',
+                    minHeight: '48px',
+                    boxShadow: state.isFocused ? '0 0 0 1px #3b82f6' : 'none',
+                    '&:hover': {
+                      borderColor: '#3b82f6'
+                    }
+                  }),
+                  menu: (provided) => ({
+                    ...provided,
+                    backgroundColor: 'white',
+                    border: '1px solid #93c5fd',
+                    borderRadius: '0.5rem',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                    zIndex: 9999
+                  }),
+                  option: (provided, state) => ({
+                    ...provided,
+                    backgroundColor: state.isSelected ? '#eff6ff' : state.isFocused ? '#f1f5f9' : 'white',
+                    color: '#1f2937',
+                    '&:hover': {
+                      backgroundColor: state.isSelected ? '#eff6ff' : '#f1f5f9'
+                    }
+                  })
+                }}
               />
             </div>
           </div>
