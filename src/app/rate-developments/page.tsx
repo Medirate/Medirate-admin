@@ -442,10 +442,10 @@ export default function RateDevelopments() {
     alerts.forEach(alert => {
       // Check if alert is in selected states
       const alertStateCode = reverseStateMap[alert.state || ''] || alert.state;
-      const isInSelectedState = selectedProviderStates.includes(alertStateCode) || 
+      const isInSelectedState = (alertStateCode && selectedProviderStates.includes(alertStateCode)) || 
                                selectedProviderStates.includes(alert.state || '') ||
                                (alert.state && selectedProviderStates.some(selectedState => 
-                                 reverseStateMap[selectedState] === alert.state
+                                 selectedState && selectedState in reverseStateMap && reverseStateMap[selectedState as keyof typeof reverseStateMap] === alert.state
                                ));
       
       console.log('Alert state check:', {
@@ -488,7 +488,7 @@ export default function RateDevelopments() {
       const isInSelectedState = selectedLegislativeStates.includes(billStateCode) || 
                                selectedLegislativeStates.includes(bill.state || '') ||
                                (bill.state && selectedLegislativeStates.some(selectedState => 
-                                 reverseStateMap[selectedState] === bill.state
+                                 selectedState && reverseStateMap[selectedState] === bill.state
                                ));
       
       if (isInSelectedState) {
