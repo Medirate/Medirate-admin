@@ -1615,7 +1615,7 @@ export default function HistoricalRates() {
                   <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                     <p className="text-sm text-blue-700">
                       <strong>📊 Chart Explanation:</strong> This chart shows how the rate for <strong>"{selectedEntry.service_description}"</strong> has changed over time. 
-                      Each point represents a different effective date when the rate was updated. This is the complete historical progression for this specific service.
+                      Each point represents a different effective date when the rate was updated.
                     </p>
                   </div>
                   
