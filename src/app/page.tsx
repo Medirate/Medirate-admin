@@ -53,7 +53,7 @@ export default function Home() {
   <div className="max-w-7xl mx-auto px-6 lg:flex lg:items-center lg:justify-between">
     {/* Text Content */}
     <div className="lg:w-1/2 text-lg text-left ml-4">
-      <h2 className="text-4xl text-[#012C61] mb-6 font-lemonMilkRegular"> 
+      <h2 className="text-5xl text-[#012C61] mb-6 font-lemonMilkRegular"> 
         ABOUT MEDIRATE
       </h2>
       <p className="text-gray-700 leading-[1.2] mb-6"> 

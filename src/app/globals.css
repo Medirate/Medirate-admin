@@ -111,7 +111,36 @@
     background-color: var(--app-background); /* Set universal background */
     margin: 0;
     padding: 0;
+    font-size: 1.125rem; /* Increase base font size by 2 steps */
+    line-height: 1.6; /* Adjust line height for better readability */
   }
+
+  /* Increase font sizes for regular text elements, but not headings or large text */
+  p, li, td, th, input, textarea, select, button, label {
+    font-size: 1.125rem; /* base size */
+  }
+
+  /* Specific size adjustments for common elements */
+  .text-xs { font-size: 0.875rem !important; }
+  .text-sm { font-size: 1rem !important; }
+  .text-base { font-size: 1.125rem !important; }
+  .text-lg { font-size: 1.25rem !important; }
+  .text-xl { font-size: 1.375rem !important; }
+
+  /* Preserve heading sizes - ensure headings keep their original large sizes */
+  h1, h2, h3, h4, h5, h6 {
+    font-size: unset !important; /* Remove any font-size override for headings */
+  }
+  
+  /* Increase the larger text sizes to make headings more prominent */
+  .text-2xl { font-size: 1.75rem !important; }
+  .text-3xl { font-size: 2.25rem !important; }
+  .text-4xl { font-size: 3rem !important; }
+  .text-5xl { font-size: 4rem !important; }
+  .text-6xl { font-size: 5rem !important; }
+  .text-7xl { font-size: 6rem !important; }
+  .text-8xl { font-size: 7.5rem !important; }
+  .text-9xl { font-size: 9rem !important; }
 
   /* Reusable gradient background */
   .reusable-gradient-bg {

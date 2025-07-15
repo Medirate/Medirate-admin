@@ -24,6 +24,22 @@ const config: Config = {
 		fontWeight: {
 			lightBold: '580', // Custom weight between regular (400) and semi-bold (600)
 		  },
+		fontSize: {
+			// Increase all text sizes by 2 steps while preserving headings
+			'xs': '0.875rem',     // was 0.75rem
+			'sm': '1rem',         // was 0.875rem
+			'base': '1.125rem',   // was 1rem
+			'lg': '1.25rem',      // was 1.125rem
+			'xl': '1.375rem',     // was 1.25rem
+			'2xl': '1.5rem',      // was 1.5rem (keep same for headings)
+			'3xl': '1.875rem',    // was 1.875rem (keep same for headings)
+			'4xl': '2.25rem',     // was 2.25rem (keep same for headings)
+			'5xl': '3rem',        // was 3rem (keep same for headings)
+			'6xl': '3.75rem',     // was 3.75rem (keep same for headings)
+			'7xl': '4.5rem',      // was 4.5rem (keep same for headings)
+			'8xl': '6rem',        // was 6rem (keep same for headings)
+			'9xl': '8rem',        // was 8rem (keep same for headings)
+		},
   		maxWidth: {
   			'8xl': '1408px'
   		},
