@@ -101,15 +101,39 @@ export default function Home() {
       </div>
     </div>
 
-    {/* Image Section */}
-    <div className="mt-10 lg:mt-0 lg:w-1/2 lg:flex lg:justify-end -mr-7">
-      <Image
-        src="/images/screenshot-proper.png"
-        alt="Doctor working on laptop"
-        width={1000}
-        height={750}
-        className="rounded-lg shadow-lg"
-      />
+    {/* Demo Video Section */}
+    <div className="mt-10 lg:mt-0 lg:w-1/2 lg:flex lg:justify-end">
+      <div className="w-full max-w-xl bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 p-6">
+        <div className="text-center mb-6">
+          <h3 className="text-2xl font-lemonMilkRegular text-[#012C61] mb-3">
+            See MediRate in Action
+          </h3>
+          <p className="text-gray-600 text-base leading-relaxed">
+            Watch our comprehensive demo to see how MediRate makes Medicaid payment rate tracking simple, 
+            efficient, and insightful for healthcare providers and stakeholders.
+          </p>
+        </div>
+        
+        {/* YouTube Video Embed */}
+        <div className="relative w-full mb-4">
+          <div className="relative w-full rounded-xl overflow-hidden shadow-2xl" style={{ paddingBottom: '56.25%' }}>
+            <iframe
+              src="https://www.youtube.com/embed/i_agfm1GaK8"
+              title="MediRate Platform Demo"
+              className="absolute top-0 left-0 w-full h-full"
+              frameBorder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            ></iframe>
+          </div>
+        </div>
+        
+        <div className="text-center">
+          <p className="text-sm text-gray-500 font-medium">
+            Learn how to search, compare, and monitor Medicaid payment rates across all 50 states
+          </p>
+        </div>
+      </div>
     </div>
   </div>
 </section>
