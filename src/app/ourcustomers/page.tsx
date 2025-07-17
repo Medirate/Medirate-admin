@@ -17,7 +17,7 @@ export default function OurCustomers() {
           priority
         />
         <div className="absolute inset-0 flex items-center justify-center">
-          <h1 className="text-5xl md:text-6xl text-white font-lemonMilkRegular uppercase tracking-wide">
+          <h1 className="text-3xl md:text-4xl text-white font-lemonMilkRegular uppercase tracking-wide">
             OUR CUSTOMERS
           </h1>
         </div>

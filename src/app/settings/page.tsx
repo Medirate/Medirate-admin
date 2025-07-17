@@ -39,7 +39,7 @@ export default function Settings() {
 
   return (
     <AppLayout activeTab="settings">
-      <h1 className="text-5xl md:text-6xl text-[#012C61] font-lemonMilkRegular uppercase mb-8 text-center">
+              <h1 className="text-3xl md:text-4xl text-[#012C61] font-lemonMilkRegular uppercase mb-8 text-center">
         Settings
       </h1>
 

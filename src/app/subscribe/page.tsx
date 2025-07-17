@@ -270,7 +270,7 @@ const StripePricingTableWithFooter = () => {
 
         {/* Subscription Details - Always Visible */}
         <div className="w-full max-w-4xl mb-8 p-8 bg-white rounded-xl shadow-2xl border border-gray-100">
-          <h2 className="text-3xl font-bold mb-6 text-[#012C61] text-center font-lemonMilkRegular">Subscription Models</h2>
+          <h2 className="text-xl font-bold mb-6 text-[#012C61] text-center font-lemonMilkRegular">Subscription Models</h2>
           <p className="text-lg mb-10 text-gray-600 text-center">
             MediRate offers a comprehensive subscription plan designed to meet your company's needs:
           </p>
@@ -333,7 +333,7 @@ const StripePricingTableWithFooter = () => {
         {/* Registration Form - Show only when authenticated but form not filled and not subscribed */}
         {isAuthenticated && !formFilled && !showStripeTable && !hasActiveSubscription && !isSubUser && (
           <div className="w-full max-w-4xl mb-8 p-8 bg-white rounded-xl shadow-2xl border border-gray-100">
-            <h2 className="text-3xl font-bold mb-8 text-[#012C61] text-center font-lemonMilkRegular">Please Complete the Form to Proceed</h2>
+            <h2 className="text-xl font-bold mb-8 text-[#012C61] text-center font-lemonMilkRegular">Please Complete the Form to Proceed</h2>
             <form onSubmit={handleFormSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>

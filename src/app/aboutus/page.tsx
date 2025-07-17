@@ -9,7 +9,7 @@ export default function AboutUs() {
       <main className="flex-1">
         <section className="flex justify-center">
           <div className="w-full max-w-4xl bg-white/95 rounded-2xl shadow-xl p-10 md:p-16 mt-12 mb-12">
-            <h1 className="text-5xl md:text-6xl text-[#002F6C] font-lemonMilkRegular uppercase tracking-wide mb-4 text-center">About Us</h1>
+            <h1 className="text-3xl md:text-4xl text-[#002F6C] font-lemonMilkRegular uppercase tracking-wide mb-4 text-center">About Us</h1>
             <div className="flex justify-center mb-10">
               <span className="block w-24 h-1 rounded-full bg-gradient-to-r from-[#012C61] to-[#3b82f6]" />
             </div>
@@ -29,12 +29,12 @@ export default function AboutUs() {
         {/* Meet Our Team Section */}
         <section className="relative py-16 px-8 text-left">
           <div className="max-w-5xl mx-auto">
-            <h2 className="text-4xl font-lemonMilkRegular text-[#002F6C] uppercase tracking-wide mb-16 text-center">
+            <h2 className="text-2xl font-lemonMilkRegular text-[#002F6C] uppercase tracking-wide mb-16 text-center">
               Meet Our Team
             </h2>
             
             {/* Founder */}
-            <h3 className="text-3xl font-lemonMilkRegular text-[#002F6C] uppercase tracking-wide mb-12 text-center">Founder</h3>
+            <h3 className="text-xl font-lemonMilkRegular text-[#002F6C] uppercase tracking-wide mb-12 text-center">Founder</h3>
             <div className="flex flex-col md:flex-row items-center md:space-x-12 mb-16 bg-gray-100 p-8 rounded-lg">
               <div className="flex-shrink-0">
                 <Image
@@ -60,7 +60,7 @@ export default function AboutUs() {
             </div>
             
             {/* Advisors */}
-            <h3 className="text-3xl font-lemonMilkRegular text-[#002F6C] uppercase tracking-wide mb-12 text-center">Advisors</h3>
+            <h3 className="text-xl font-lemonMilkRegular text-[#002F6C] uppercase tracking-wide mb-12 text-center">Advisors</h3>
             <div className="flex flex-col md:flex-row items-center md:space-x-12 mb-16 bg-gray-100 p-8 rounded-lg">
               <div className="flex-shrink-0">
                 <Image

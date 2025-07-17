@@ -100,7 +100,7 @@ const Support = () => {
           <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             {/* Left Side: Heading and Text */}
             <div>
-              <h1 className="text-5xl md:text-6xl text-[#012C61] font-lemonMilkRegular uppercase mb-6">
+              <h1 className="text-3xl md:text-4xl text-[#012C61] font-lemonMilkRegular uppercase mb-6">
                 Support
               </h1>
               <p className="text-gray-700 leading-relaxed mb-6">

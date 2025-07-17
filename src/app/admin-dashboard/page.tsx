@@ -122,7 +122,7 @@ export default function AdminDashboard() {
         {/* Header */}
         <div className="flex items-center mb-6 sm:mb-8">
           <FaShieldAlt className="h-8 w-8 text-[#012C61] mr-3" />
-          <h1 className="text-3xl sm:text-5xl md:text-6xl text-[#012C61] font-lemonMilkRegular uppercase">
+          <h1 className="text-xl sm:text-3xl md:text-4xl text-[#012C61] font-lemonMilkRegular uppercase">
             Admin Dashboard
           </h1>
         </div>

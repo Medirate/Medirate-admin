@@ -119,7 +119,7 @@ export default function EmailPreferences() {
 
   return (
     <>
-      <h1 className="text-5xl md:text-6xl text-[#012C61] font-lemonMilkRegular uppercase mb-8 text-center">
+              <h1 className="text-3xl md:text-4xl text-[#012C61] font-lemonMilkRegular uppercase mb-8 text-center">
         Email Alerts
       </h1>
       <div className="max-w-7xl mx-auto relative">

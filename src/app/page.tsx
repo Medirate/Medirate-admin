@@ -21,7 +21,7 @@ export default function Home() {
         {/* Overlay Content */}
         <div className="relative z-10 flex flex-col items-center justify-center h-full text-center px-4 bg-black/40">
           {/* Heading */}
-          <h1 className="text-white text-4xl sm:text-5xl md:text-7xl font-lemonMilkRegular leading-tight font-lightBold">
+          <h1 className="text-white text-2xl sm:text-3xl md:text-5xl font-lemonMilkRegular leading-tight font-lightBold">
             <span className="block leading-snug whitespace-normal break-words">
               Medicaid Rate Tracking Made Easy
             </span>
@@ -53,7 +53,7 @@ export default function Home() {
   <div className="max-w-7xl mx-auto px-6 lg:flex lg:items-center lg:justify-between">
     {/* Text Content */}
     <div className="lg:w-1/2 text-lg text-left ml-4">
-      <h2 className="text-5xl text-[#012C61] mb-6 font-lemonMilkRegular"> 
+                      <h2 className="text-3xl text-[#012C61] mb-6 font-lemonMilkRegular"> 
         ABOUT MEDIRATE
       </h2>
       <p className="text-gray-700 leading-[1.2] mb-6"> 

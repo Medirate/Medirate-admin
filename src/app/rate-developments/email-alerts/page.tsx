@@ -6,7 +6,7 @@ export default function RateDevelopmentsEmailAlerts() {
   return (
     <AppLayout activeTab="adminDashboard">
       <div className="p-8 min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
-        <h1 className="text-3xl sm:text-5xl md:text-6xl text-[#012C61] font-lemonMilkRegular uppercase mb-6">
+        <h1 className="text-xl sm:text-3xl md:text-4xl text-[#012C61] font-lemonMilkRegular uppercase mb-6">
           Rate Developments Email Alerts
         </h1>
         <p className="text-lg text-gray-700 mb-4">

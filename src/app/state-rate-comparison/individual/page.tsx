@@ -2372,7 +2372,7 @@ export default function StatePaymentComparison() {
 
         {/* Heading with Reset Button */}
         <div className="flex flex-col items-start mb-6 sm:mb-8">
-          <h1 className="text-3xl sm:text-5xl md:text-6xl text-[#012C61] font-lemonMilkRegular uppercase mb-3 sm:mb-4">
+          <h1 className="text-xl sm:text-3xl md:text-4xl text-[#012C61] font-lemonMilkRegular uppercase mb-3 sm:mb-4">
             State Rate Comparison
           </h1>
           <button

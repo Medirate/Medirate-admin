@@ -25,7 +25,7 @@ export default function OurSolution() {
         <div className="max-w-7xl mx-auto">
           {/* Page Heading */}
           <div className="text-center mb-12">
-            <h1 className="text-4xl md:text-5xl text-[#012C61] font-lemonMilkRegular uppercase tracking-wide mb-4">
+            <h1 className="text-2xl md:text-3xl text-[#012C61] font-lemonMilkRegular uppercase tracking-wide mb-4">
               The MediRate Platform
             </h1>
           </div>

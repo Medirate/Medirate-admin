@@ -816,7 +816,7 @@ export default function RateDevelopments() {
 
   return (
     <AppLayout activeTab="rateDevelopments">
-      <h1 className="text-5xl md:text-6xl text-[#012C61] font-lemonMilkRegular uppercase mb-6">
+      <h1 className="text-3xl md:text-4xl text-[#012C61] font-lemonMilkRegular uppercase mb-6">
         Rate Developments
       </h1>
 

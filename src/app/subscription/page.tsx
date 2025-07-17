@@ -245,7 +245,7 @@ export default function SubscriptionPage() {
   if (!isAuthenticated) {
     return (
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-5xl md:text-6xl text-[#012C61] font-lemonMilkRegular uppercase mb-8 text-center">
+        <h1 className="text-3xl md:text-4xl text-[#012C61] font-lemonMilkRegular uppercase mb-8 text-center">
           Subscription
         </h1>
         <p className="text-red-500 text-center text-lg">
@@ -258,7 +258,7 @@ export default function SubscriptionPage() {
   return (
     <div className="max-w-7xl mx-auto bg-gradient-to-br from-gray-50 to-blue-50 p-8 rounded-2xl">
       <Toaster position="top-center" />
-      <h1 className="text-5xl md:text-6xl text-[#012C61] font-lemonMilkRegular uppercase mb-8 text-center">
+                <h1 className="text-3xl md:text-4xl text-[#012C61] font-lemonMilkRegular uppercase mb-8 text-center">
         Subscription
       </h1>
 
