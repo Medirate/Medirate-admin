@@ -336,10 +336,28 @@ const PaginationControls = ({
   );
 };
 
-// Utility to parse MM/DD/YYYY date strings
+// Utility to parse both MM/DD/YYYY and YYYY-MM-DD date strings
 function parseDateString(dateStr: string): Date {
-  const [month, day, year] = dateStr.split(/[/-]/).map(Number);
-  return new Date(year, month - 1, day);
+  let year: number, month: number, day: number;
+  
+  if (dateStr.includes('/')) {
+    // MM/DD/YYYY format
+    [month, day, year] = dateStr.split('/').map(Number);
+  } else if (dateStr.includes('-')) {
+    // YYYY-MM-DD format
+    [year, month, day] = dateStr.split('-').map(Number);
+  } else {
+    // Fallback - try to parse as is
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) {
+      throw new Error(`Invalid date format: ${dateStr}`);
+    }
+    return date;
+  }
+  
+  const result = new Date(year, month - 1, day);
+  console.log(`🔍 DATE PARSING: "${dateStr}" -> [${month}, ${day}, ${year}] -> ${result.toISOString()}`);
+  return result;
 }
 
 // Add a helper for formatting currency
@@ -736,11 +754,29 @@ export default function HistoricalRates() {
 
     // For each group, get the entry with the latest rate_effective_date
     const latestEntries = Object.values(groupedEntries).map(entries => {
-      return entries.reduce((latest, current) => {
+      console.log('🏁 TABLE DATA - Group entries:', entries.map(e => ({ 
+        rate: e.rate, 
+        date: e.rate_effective_date,
+        service_code: e.service_code 
+      })));
+      
+      const result = entries.reduce((latest, current) => {
         const latestDate = parseDateString(latest.rate_effective_date);
         const currentDate = parseDateString(current.rate_effective_date);
-        return currentDate > latestDate ? current : latest;
+        const isCurrentNewer = currentDate > latestDate;
+        
+        console.log(`🏁 TABLE DATA - Comparing dates: ${current.rate_effective_date} (${currentDate.getTime()}) vs ${latest.rate_effective_date} (${latestDate.getTime()}) - Current is newer: ${isCurrentNewer}`);
+        
+        return isCurrentNewer ? current : latest;
       });
+      
+      console.log('🏁 TABLE DATA - Selected entry for group:', { 
+        rate: result.rate, 
+        date: result.rate_effective_date,
+        service_code: result.service_code 
+      });
+      
+      return result;
     });
 
     console.log('🏁 TABLE DATA - Final table data:', latestEntries.length, 'entries');
@@ -1104,7 +1140,7 @@ export default function HistoricalRates() {
 
     console.log('📊 CHART - Generating chart for:', selectedEntry.service_description, 'Rate:', selectedEntry.rate);
 
-    const entries = data.filter((item: ServiceData) => 
+    const filteredEntries = data.filter((item: ServiceData) => 
       item.state_name === selectedEntry.state_name &&
       item.service_category === selectedEntry.service_category &&
       item.service_code === selectedEntry.service_code &&
@@ -1121,7 +1157,21 @@ export default function HistoricalRates() {
       item.modifier_4_details === selectedEntry.modifier_4_details &&
       item.duration_unit === selectedEntry.duration_unit &&
       item.provider_type === selectedEntry.provider_type
-    ).sort((a, b) => parseDateString(a.rate_effective_date).getTime() - parseDateString(b.rate_effective_date).getTime());
+    );
+    
+    console.log('📊 CHART - Before initial sort, filtered entries:', filteredEntries.map(e => ({ 
+      date: e.rate_effective_date, 
+      parsed: parseDateString(e.rate_effective_date).toISOString(),
+      rate: e.rate 
+    })));
+    
+    const entries = filteredEntries.sort((a, b) => {
+      const dateA = parseDateString(a.rate_effective_date);
+      const dateB = parseDateString(b.rate_effective_date);
+      const result = dateA.getTime() - dateB.getTime();
+      console.log(`📊 CHART - Initial sorting: ${a.rate_effective_date} (${dateA.toISOString()}) vs ${b.rate_effective_date} (${dateB.toISOString()}) = ${result}`);
+      return result;
+    });
 
     console.log('📊 CHART - Selected Entry for filtering:', {
       service_description: selectedEntry.service_description,
@@ -1135,6 +1185,11 @@ export default function HistoricalRates() {
     });
 
     console.log('📊 CHART - Found', entries.length, 'matching entries (before deduplication)');
+    console.log('📊 CHART - All entries:', entries.map(e => ({ 
+      rate: e.rate, 
+      date: e.rate_effective_date,
+      service_code: e.service_code 
+    })));
     
     // Group entries by date to detect and resolve duplicates
     const entriesByDate = entries.reduce((acc, entry) => {
@@ -1168,10 +1223,26 @@ export default function HistoricalRates() {
     });
 
     // Sort the deduplicated entries by date
-    const finalEntries = deduplicatedEntries.sort((a, b) => 
-      parseDateString(a.rate_effective_date).getTime() - parseDateString(b.rate_effective_date).getTime()
-    );
+    console.log('📊 CHART - Before sorting, entries:', deduplicatedEntries.map(e => ({ 
+      date: e.rate_effective_date, 
+      parsed: parseDateString(e.rate_effective_date).toISOString(),
+      rate: e.rate 
+    })));
+    
+    const finalEntries = deduplicatedEntries.sort((a, b) => {
+      const dateA = parseDateString(a.rate_effective_date);
+      const dateB = parseDateString(b.rate_effective_date);
+      const result = dateA.getTime() - dateB.getTime();
+      console.log(`📊 CHART - Sorting: ${a.rate_effective_date} (${dateA.toISOString()}) vs ${b.rate_effective_date} (${dateB.toISOString()}) = ${result}`);
+      return result;
+    });
 
+    console.log('📊 CHART - After sorting, final entries:', finalEntries.map(e => ({ 
+      date: e.rate_effective_date, 
+      parsed: parseDateString(e.rate_effective_date).toISOString(),
+      rate: e.rate 
+    })));
+    
     console.log('📊 CHART - After deduplication:', finalEntries.length, 'entries');
     if (hasDuplicates) {
       console.log('⚠️ Data quality issue detected: Multiple rates found for the same date. Using highest rate for each date.');

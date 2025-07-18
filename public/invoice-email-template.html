@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediRate Invoice</title>
+    <style>
+        @media only screen and (max-width: 600px) {
+            .main-content {
+                padding: 0 !important;
+            }
+            .content-card {
+                padding: 16px 4% !important;
+                font-size: 15px !important;
+                margin: 16px 2% !important;
+            }
+            .invoice-table {
+                font-size: 12px !important;
+            }
+            .button {
+                padding: 12px 20px !important;
+                font-size: 14px !important;
+            }
+        }
+    </style>
+</head>
+<body style="margin:0; padding:0; background:#f4f4f4; font-family: Arial, sans-serif;">
+    <table width="100%" bgcolor="#f4f4f4" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+            <td>
+                <!-- Header -->
+                <div style="background:#0F3557; padding:30px 0 20px 0; border-radius:0;">
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                        <tr>
+                            <td align="left" style="padding-left:30px;">
+                                <img src="https://raw.githubusercontent.com/Medirate/Medirate-Developement/main/public/top-black-just-word.png" alt="MediRate Wordmark" style="max-width:200px; width:90%; display:block;">
+                            </td>
+                            <td align="right" style="padding-right:30px;">
+                                <img src="https://raw.githubusercontent.com/Medirate/Medirate-Developement/main/public/top-black-just-logo.png" alt="MediRate Logo" style="max-width:80px; width:80px; display:block;">
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+
+                <!-- Main Content -->
+                <div class="main-content" style="padding:0; margin:0;">
+                    <h2 style="color:#0F3557; font-size:22px; margin:30px 0 10px 0; text-align:center;">Invoice for MediRate Subscription</h2>
+                    <p style="color:#555; text-align:center; margin:0 0 20px 0;">Thank you for your payment. Here's your invoice details.</p>
+
+                    <!-- Invoice Details Card -->
+                    <div class="content-card" style="background:#f8fafc; border-radius:0; box-shadow:none; border-top:1px solid #e2e8f0; border-bottom:1px solid #e2e8f0; padding:32px 40px; font-family:Arial,sans-serif; color:#0F3557; box-sizing:border-box; margin:32px 48px;">
+                        <div style="font-size:18px; font-weight:bold; margin-bottom:20px; color:#0F3557;">
+                            📄 Invoice Information
+                        </div>
+                        
+                        <!-- Invoice Table -->
+                        <table class="invoice-table" style="width:100%; border-collapse:collapse; margin-bottom:20px;">
+                            <tr style="border-bottom:1px solid #e2e8f0;">
+                                <td style="padding:12px 0; font-weight:bold; color:#0F3557;">Invoice Number:</td>
+                                <td style="padding:12px 0; color:#334155;">INV-{{INVOICE_NUMBER}}</td>
+                            </tr>
+                            <tr style="border-bottom:1px solid #e2e8f0;">
+                                <td style="padding:12px 0; font-weight:bold; color:#0F3557;">Date:</td>
+                                <td style="padding:12px 0; color:#334155;">{{INVOICE_DATE}}</td>
+                            </tr>
+                            <tr style="border-bottom:1px solid #e2e8f0;">
+                                <td style="padding:12px 0; font-weight:bold; color:#0F3557;">Customer:</td>
+                                <td style="padding:12px 0; color:#334155;">{{CUSTOMER_NAME}}<br>{{CUSTOMER_EMAIL}}</td>
+                            </tr>
+                            <tr style="border-bottom:1px solid #e2e8f0;">
+                                <td style="padding:12px 0; font-weight:bold; color:#0F3557;">Subscription Plan:</td>
+                                <td style="padding:12px 0; color:#334155;">{{SUBSCRIPTION_PLAN}}</td>
+                            </tr>
+                            <tr style="border-bottom:1px solid #e2e8f0;">
+                                <td style="padding:12px 0; font-weight:bold; color:#0F3557;">Billing Period:</td>
+                                <td style="padding:12px 0; color:#334155;">{{BILLING_PERIOD}}</td>
+                            </tr>
+                            <tr style="border-bottom:1px solid #e2e8f0;">
+                                <td style="padding:12px 0; font-weight:bold; color:#0F3557;">Payment Status:</td>
+                                <td style="padding:12px 0; color:#059669; font-weight:bold;">✅ Paid</td>
+                            </tr>
+                        </table>
+
+                        <!-- Amount Details -->
+                        <div style="background:#f1f5f9; padding:20px; border-radius:6px; margin-bottom:20px;">
+                            <table style="width:100%; border-collapse:collapse;">
+                                <tr>
+                                    <td style="padding:8px 0; font-weight:bold; color:#0F3557;">Subscription Fee:</td>
+                                    <td style="padding:8px 0; text-align:right; color:#334155;">${{SUBSCRIPTION_AMOUNT}}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding:8px 0; font-weight:bold; color:#0F3557;">Additional User Slots:</td>
+                                    <td style="padding:8px 0; text-align:right; color:#334155;">${{ADDITIONAL_USERS_AMOUNT}}</td>
+                                </tr>
+                                <tr style="border-top:2px solid #cbd5e1;">
+                                    <td style="padding:12px 0; font-weight:bold; font-size:16px; color:#0F3557;">Total Amount:</td>
+                                    <td style="padding:12px 0; text-align:right; font-weight:bold; font-size:16px; color:#0F3557;">${{TOTAL_AMOUNT}}</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Subscription Details Card -->
+                    <div class="content-card" style="background:#f8fafc; border-radius:0; box-shadow:none; border-top:1px solid #e2e8f0; border-bottom:1px solid #e2e8f0; padding:32px 40px; font-family:Arial,sans-serif; color:#0F3557; box-sizing:border-box; margin:32px 48px;">
+                        <div style="font-size:16px; font-weight:bold; margin-bottom:12px; color:#0F3557;">
+                            💳 Payment Information
+                        </div>
+                        <div style="font-size:14px; margin-bottom:16px; color:#334155; line-height:1.6;">
+                            <strong>Payment Method:</strong> {{PAYMENT_METHOD}}<br>
+                            <strong>Transaction ID:</strong> {{TRANSACTION_ID}}<br>
+                            <strong>Payment Date:</strong> {{PAYMENT_DATE}}
+                        </div>
+                        
+                        <div style="font-size:14px; margin-bottom:16px; color:#334155; line-height:1.6;">
+                            <strong>Next Billing Date:</strong> {{NEXT_BILLING_DATE}}
+                        </div>
+                    </div>
+
+                    <!-- Service Details Card -->
+                    <div class="content-card" style="background:#f8fafc; border-radius:0; box-shadow:none; border-top:1px solid #e2e8f0; border-bottom:1px solid #e2e8f0; padding:32px 40px; font-family:Arial,sans-serif; color:#0F3557; box-sizing:border-box; margin:32px 48px;">
+                        <div style="font-size:16px; font-weight:bold; margin-bottom:12px; color:#0F3557;">
+                            🎯 What's Included
+                        </div>
+                        <div style="font-size:14px; margin-bottom:16px; color:#334155; line-height:1.6;">
+                            <strong>Your subscription includes:</strong>
+                            <ul style="margin:8px 0; padding-left:20px;">
+                                <li>Full access to MediRate dashboard</li>
+                                <li>Real-time Medicaid rate tracking</li>
+                                <li>Provider alerts and legislative updates</li>
+                                <li>State-by-state rate comparisons</li>
+                                <li>Historical rate analysis</li>
+                                <li>Email alerts for relevant updates</li>
+                                <li>Up to {{USER_LIMIT}} user accounts</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div style="text-align:center; margin:30px 0;">
+                        <a href="https://medirate-developement.vercel.app/dashboard" style="background:#0F3557; color:#fff; text-decoration:none; padding:14px 28px; border-radius:5px; font-weight:bold; font-size:16px; display:inline-block; margin:0 10px;">Access Dashboard</a>
+                        <a href="https://medirate-developement.vercel.app/subscription" style="background:#0F3557; color:#fff; text-decoration:none; padding:14px 28px; border-radius:5px; font-weight:bold; font-size:16px; display:inline-block; margin:0 10px;">View Subscription</a>
+                    </div>
+
+                    <!-- Support Card -->
+                    <div class="content-card" style="background:#f8fafc; border-radius:0; box-shadow:none; border-top:1px solid #e2e8f0; border-bottom:1px solid #e2e8f0; padding:32px 40px; font-family:Arial,sans-serif; color:#0F3557; box-sizing:border-box; margin:32px 48px;">
+                        <div style="font-size:16px; font-weight:bold; margin-bottom:12px; color:#0F3557;">
+                            🆘 Need Help?
+                        </div>
+                        <div style="font-size:14px; margin-bottom:16px; color:#334155; line-height:1.6;">
+                            If you have any questions about your invoice or subscription, please don't hesitate to contact our support team.
+                        </div>
+                        
+                        <div style="font-size:14px; color:#334155; line-height:1.6;">
+                            <strong>Contact Information:</strong><br>
+                            Email: support@medirate.net<br>
+                            Support Hours: Monday - Friday, 9 AM - 5 PM EST
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div style="background:#0F3557; color:#fff; font-size:13px; padding:12px; border-radius:0; text-align:center;">
+                    © 2024 MediRate. All rights reserved.
+                </div>
+            </td>
+        </tr>
+    </table>
+</body>
+</html> 
