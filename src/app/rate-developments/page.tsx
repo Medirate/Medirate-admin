@@ -335,16 +335,18 @@ const searchInFields = (searchText: string, fields: (string | null | undefined)[
     const wordBoundaryRegex = /[\p{Z}\p{P}]/u;
     const words = normalizedField.split(wordBoundaryRegex).filter(word => word.length > 0);
     
-    // Check if any word starts with the search text (prefix matching)
-    const hasPrefixMatch = words.some(word => word.startsWith(normalizedSearch));
+    // Only check if any word starts with the search text (first letter matching)
+    // This will match "IDD" when searching for "I" but not "SAID" when searching for "I"
+    const hasPrefixMatch = words.some(word => {
+      const match = word.startsWith(normalizedSearch);
+      // Debug logging for troubleshooting
+      if (normalizedSearch === 'revision' && match) {
+        console.log('Found match for "revision":', { word, normalizedSearch, field: field.substring(0, 100) + '...' });
+      }
+      return match;
+    });
     
-    // Also check for exact word match (for single words)
-    const hasExactMatch = words.some(word => word === normalizedSearch);
-    
-    // Check for substring match if search is longer than 2 characters (for better UX)
-    const hasSubstringMatch = normalizedSearch.length > 2 && normalizedField.includes(normalizedSearch);
-    
-    return hasPrefixMatch || hasExactMatch || hasSubstringMatch;
+    return hasPrefixMatch;
   });
 };
 
@@ -360,7 +362,7 @@ const getAlertServiceLines = (alert: Alert) => {
     .join(", ");
 };
 
-// Industry-standard search function with better performance and features
+// Search index function for first letter/prefix matching
 const createSearchIndex = (items: any[], searchableFields: string[]) => {
   const index = new Map<string, Set<number>>();
   
@@ -372,13 +374,20 @@ const createSearchIndex = (items: any[], searchableFields: string[]) => {
         const words = normalizedValue.split(/[\p{Z}\p{P}]/u).filter(word => word.length > 0);
         
         words.forEach(word => {
-          // Create prefix indexes for each word
+          // Create prefix indexes for each word (for first letter matching)
+          // This allows "I" to match "IDD", "IN" to match "INDIANA", etc.
+          // ONLY create prefixes that start from the beginning of the word
           for (let i = 1; i <= word.length; i++) {
             const prefix = word.substring(0, i);
             if (!index.has(prefix)) {
               index.set(prefix, new Set());
             }
             index.get(prefix)!.add(idx);
+          }
+          
+          // Debug: Log if we're creating a prefix for "revision"
+          if (word.includes('revision')) {
+            console.log('Found word containing "revision":', { word, itemIndex: idx });
           }
         });
       }
@@ -392,21 +401,49 @@ const searchWithIndex = (searchText: string, items: any[], searchableFields: str
   const normalizedSearch = searchText.toLowerCase().trim();
   if (!normalizedSearch) return items;
   
-  // If no index provided, fall back to the original search
+  // Debug logging
+  if (normalizedSearch === 'revision') {
+    console.log('Searching for "revision" with index:', searchIndex ? 'available' : 'not available');
+  }
+  
+  // If no index provided, fall back to the original search (which now only does first letter matching)
   if (!searchIndex) {
-    return items.filter(item => 
+    const results = items.filter(item => 
       searchableFields.some(field => {
         const value = item[field];
         return value && searchInFields(normalizedSearch, [value]);
       })
     );
+    
+    if (normalizedSearch === 'revision') {
+      console.log('Fallback search results for "revision":', results.length);
+    }
+    
+    return results;
   }
   
-  // Use the search index for better performance
+  // Use the search index for better performance - only match words that start with search text
   const matchingIndices = searchIndex.get(normalizedSearch);
-  if (!matchingIndices) return [];
+  if (!matchingIndices) {
+    if (normalizedSearch === 'revision') {
+      console.log('No matching indices found for "revision" in index');
+    }
+    return [];
+  }
   
-  return Array.from(matchingIndices).map(idx => items[idx]);
+  const results = Array.from(matchingIndices).map(idx => items[idx]);
+  
+  if (normalizedSearch === 'revision') {
+    console.log('Index search results for "revision":', results.length);
+    results.forEach((item, i) => {
+      console.log(`Result ${i + 1}:`, {
+        subject: item.subject?.substring(0, 100),
+        summary: item.summary?.substring(0, 100)
+      });
+    });
+  }
+  
+  return results;
 };
 
 // Utility: Convert Excel serial date or string to MM/DD/YYYY
@@ -756,7 +793,8 @@ export default function RateDevelopments() {
     // First apply search filter using the index for better performance
     let searchFiltered = sortedProviderAlerts;
     if (providerSearch) {
-      searchFiltered = searchWithIndex(providerSearch, sortedProviderAlerts, ['subject', 'summary'], providerSearchIndex);
+      // Temporarily disable search index to test fallback search
+      searchFiltered = searchWithIndex(providerSearch, sortedProviderAlerts, ['subject', 'summary'], undefined);
     }
     
     return searchFiltered.filter((alert) => {
