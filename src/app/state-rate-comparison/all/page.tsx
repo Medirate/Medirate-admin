@@ -3392,34 +3392,34 @@ export default function StatePaymentComparison() {
                       }
                       
                       return (
-                        <div style={{ overflowX: 'auto', width: '100%' }}>
-                          <ReactECharts
-                            ref={chartRef}
-                            key={`all-states-${filterSets[0]?.serviceCategory || ''}-${filterSets[0]?.serviceCode || ''}`}
-                            option={echartOptions}
-                            style={{ height: '400px', width: '100%' }}
-                            onEvents={{
-                              click: (params: any) => {
-                                console.log('Chart click event:', params);
-                                console.log('isAllStatesSelected:', isAllStatesSelected);
-                                console.log('clickedStates before:', clickedStates);
-                                // Try to handle all click events first
-                                if (params.componentType === 'series' && params.seriesType === 'bar') {
-                                  const stateName = params.name;
-                                  console.log('Bar clicked for state:', stateName);
-                                  // Toggle the state in the array
-                                  setClickedStates(prev => {
-                                    if (prev.includes(stateName)) {
-                                      return prev.filter(s => s !== stateName);
-                                    } else {
-                                      return [...prev, stateName];
-                                    }
-                                  });
-                                }
-                              }
-                            }}
-                          />
-                        </div>
+            <div style={{ overflowX: 'auto', width: '100%' }}>
+              <ReactECharts
+                ref={chartRef}
+                key={`all-states-${filterSets[0]?.serviceCategory || ''}-${filterSets[0]?.serviceCode || ''}`}
+                option={echartOptions}
+                        style={{ height: '400px', width: '100%' }}
+                onEvents={{
+                  click: (params: any) => {
+                    console.log('Chart click event:', params);
+                    console.log('isAllStatesSelected:', isAllStatesSelected);
+                    console.log('clickedStates before:', clickedStates);
+                    // Try to handle all click events first
+                    if (params.componentType === 'series' && params.seriesType === 'bar') {
+                      const stateName = params.name;
+                      console.log('Bar clicked for state:', stateName);
+                      // Toggle the state in the array
+                      setClickedStates(prev => {
+                        if (prev.includes(stateName)) {
+                          return prev.filter(s => s !== stateName);
+                        } else {
+                          return [...prev, stateName];
+                        }
+                      });
+                    }
+                  }
+                }}
+              />
+            </div>
                       );
                     })()}
                   </>

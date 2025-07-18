@@ -2841,59 +2841,59 @@ export default function StatePaymentComparison() {
                       
                       return (
                         <>
-                          {/* Chart Sorting Controls */}
-                          <div className="mb-4 flex items-center justify-between bg-white p-4 rounded-lg shadow-sm border">
-                            <div className="text-xs text-gray-500">
-                              {sortOrder === 'default' && 'Original order'}
-                              {sortOrder === 'asc' && 'Sorted by rate (lowest first)'}
-                              {sortOrder === 'desc' && 'Sorted by rate (highest first)'}
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <span className="text-sm font-medium text-gray-700">Sort Chart:</span>
-                              <div className="flex items-center bg-gray-100 rounded-full p-1 transition-all" style={{ minWidth: 220 }}>
-                                <button
-                                  onClick={() => setSortOrder('default')}
-                                  className={`px-4 py-1 rounded-full text-sm font-semibold focus:outline-none transition-all duration-150 ${
-                                    sortOrder === 'default'
-                                      ? 'bg-white text-blue-600 shadow font-bold'
-                                      : 'bg-transparent text-gray-600 hover:text-blue-600'
-                                  }`}
-                                  style={{ minWidth: 80 }}
-                                >
-                                  Default
-                                </button>
-                                <button
-                                  onClick={() => setSortOrder('asc')}
-                                  className={`px-4 py-1 rounded-full text-sm font-semibold focus:outline-none transition-all duration-150 ${
-                                    sortOrder === 'asc'
-                                      ? 'bg-white text-green-600 shadow font-bold'
-                                      : 'bg-transparent text-gray-600 hover:text-green-600'
-                                  }`}
-                                  style={{ minWidth: 80 }}
-                                >
-                                  Low → High
-                                </button>
-                                <button
-                                  onClick={() => setSortOrder('desc')}
-                                  className={`px-4 py-1 rounded-full text-sm font-semibold focus:outline-none transition-all duration-150 ${
-                                    sortOrder === 'desc'
-                                      ? 'bg-white text-red-600 shadow font-bold'
-                                      : 'bg-transparent text-gray-600 hover:text-red-600'
-                                  }`}
-                                  style={{ minWidth: 80 }}
-                                >
-                                  High → Low
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                          
-                          {/* Chart component */}
-                          <ReactECharts
-                            key={`${isAllStatesSelected ? 'all-states-' : 'selected-'}${JSON.stringify(Object.keys(selectedEntries).sort())}-${chartRefreshKey}-${allStatesAverages ? allStatesAverages.length : 0}-${sortOrder}`}
-                            option={echartOptions}
-                            style={{ height: '400px', width: '100%' }}
-                          />
+                    {/* Chart Sorting Controls */}
+                    <div className="mb-4 flex items-center justify-between bg-white p-4 rounded-lg shadow-sm border">
+                      <div className="text-xs text-gray-500">
+                        {sortOrder === 'default' && 'Original order'}
+                        {sortOrder === 'asc' && 'Sorted by rate (lowest first)'}
+                        {sortOrder === 'desc' && 'Sorted by rate (highest first)'}
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-sm font-medium text-gray-700">Sort Chart:</span>
+                        <div className="flex items-center bg-gray-100 rounded-full p-1 transition-all" style={{ minWidth: 220 }}>
+                          <button
+                            onClick={() => setSortOrder('default')}
+                            className={`px-4 py-1 rounded-full text-sm font-semibold focus:outline-none transition-all duration-150 ${
+                              sortOrder === 'default'
+                                ? 'bg-white text-blue-600 shadow font-bold'
+                                : 'bg-transparent text-gray-600 hover:text-blue-600'
+                            }`}
+                            style={{ minWidth: 80 }}
+                          >
+                            Default
+                          </button>
+                          <button
+                            onClick={() => setSortOrder('asc')}
+                            className={`px-4 py-1 rounded-full text-sm font-semibold focus:outline-none transition-all duration-150 ${
+                              sortOrder === 'asc'
+                                ? 'bg-white text-green-600 shadow font-bold'
+                                : 'bg-transparent text-gray-600 hover:text-green-600'
+                            }`}
+                            style={{ minWidth: 80 }}
+                          >
+                            Low → High
+                          </button>
+                          <button
+                            onClick={() => setSortOrder('desc')}
+                            className={`px-4 py-1 rounded-full text-sm font-semibold focus:outline-none transition-all duration-150 ${
+                              sortOrder === 'desc'
+                                ? 'bg-white text-red-600 shadow font-bold'
+                                : 'bg-transparent text-gray-600 hover:text-red-600'
+                            }`}
+                            style={{ minWidth: 80 }}
+                          >
+                            High → Low
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Chart component */}
+            <ReactECharts
+                      key={`${isAllStatesSelected ? 'all-states-' : 'selected-'}${JSON.stringify(Object.keys(selectedEntries).sort())}-${chartRefreshKey}-${allStatesAverages ? allStatesAverages.length : 0}-${sortOrder}`}
+                      option={echartOptions}
+              style={{ height: '400px', width: '100%' }}
+            />
                         </>
                       );
                     })()}

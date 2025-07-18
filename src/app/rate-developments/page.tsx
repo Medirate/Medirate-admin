@@ -326,9 +326,26 @@ const searchInFields = (searchText: string, fields: (string | null | undefined)[
   const normalizedSearch = searchText.toLowerCase().trim();
   if (!normalizedSearch) return true;
   
-  return fields.some(field => 
-    field?.toLowerCase().includes(normalizedSearch)
-  );
+  return fields.some(field => {
+    if (!field) return false;
+    const normalizedField = field.toLowerCase();
+    
+    // Industry-standard word boundary detection
+    // Matches word boundaries more accurately using Unicode-aware regex
+    const wordBoundaryRegex = /[\p{Z}\p{P}]/u;
+    const words = normalizedField.split(wordBoundaryRegex).filter(word => word.length > 0);
+    
+    // Check if any word starts with the search text (prefix matching)
+    const hasPrefixMatch = words.some(word => word.startsWith(normalizedSearch));
+    
+    // Also check for exact word match (for single words)
+    const hasExactMatch = words.some(word => word === normalizedSearch);
+    
+    // Check for substring match if search is longer than 2 characters (for better UX)
+    const hasSubstringMatch = normalizedSearch.length > 2 && normalizedField.includes(normalizedSearch);
+    
+    return hasPrefixMatch || hasExactMatch || hasSubstringMatch;
+  });
 };
 
 // Add a helper function to get service lines for alerts
@@ -341,6 +358,55 @@ const getAlertServiceLines = (alert: Alert) => {
   ]
     .filter(line => line && line.toUpperCase() !== 'NULL')
     .join(", ");
+};
+
+// Industry-standard search function with better performance and features
+const createSearchIndex = (items: any[], searchableFields: string[]) => {
+  const index = new Map<string, Set<number>>();
+  
+  items.forEach((item, idx) => {
+    searchableFields.forEach(field => {
+      const value = item[field];
+      if (value && typeof value === 'string') {
+        const normalizedValue = value.toLowerCase();
+        const words = normalizedValue.split(/[\p{Z}\p{P}]/u).filter(word => word.length > 0);
+        
+        words.forEach(word => {
+          // Create prefix indexes for each word
+          for (let i = 1; i <= word.length; i++) {
+            const prefix = word.substring(0, i);
+            if (!index.has(prefix)) {
+              index.set(prefix, new Set());
+            }
+            index.get(prefix)!.add(idx);
+          }
+        });
+      }
+    });
+  });
+  
+  return index;
+};
+
+const searchWithIndex = (searchText: string, items: any[], searchableFields: string[], searchIndex?: Map<string, Set<number>>) => {
+  const normalizedSearch = searchText.toLowerCase().trim();
+  if (!normalizedSearch) return items;
+  
+  // If no index provided, fall back to the original search
+  if (!searchIndex) {
+    return items.filter(item => 
+      searchableFields.some(field => {
+        const value = item[field];
+        return value && searchInFields(normalizedSearch, [value]);
+      })
+    );
+  }
+  
+  // Use the search index for better performance
+  const matchingIndices = searchIndex.get(normalizedSearch);
+  if (!matchingIndices) return [];
+  
+  return Array.from(matchingIndices).map(idx => items[idx]);
 };
 
 // Utility: Convert Excel serial date or string to MM/DD/YYYY
@@ -413,6 +479,11 @@ export default function RateDevelopments() {
   const [isSubscriptionCheckComplete, setIsSubscriptionCheckComplete] = useState(false);
 
   const [serviceLines, setServiceLines] = useState<string[]>([]);
+  
+  // Add search indexes for better performance
+  const [providerSearchIndex, setProviderSearchIndex] = useState<Map<string, Set<number>>>();
+  const [legislativeSearchIndex, setLegislativeSearchIndex] = useState<Map<string, Set<number>>>();
+  
   useEffect(() => {
     const fetchServiceCategories = async () => {
       const { data, error } = await supabase.from("service_category_list").select("categories");
@@ -422,6 +493,21 @@ export default function RateDevelopments() {
     };
     fetchServiceCategories();
   }, []);
+  
+  // Create search indexes when data changes
+  useEffect(() => {
+    if (alerts.length > 0) {
+      const index = createSearchIndex(alerts, ['subject', 'summary']);
+      setProviderSearchIndex(index);
+    }
+  }, [alerts]);
+  
+  useEffect(() => {
+    if (bills.length > 0) {
+      const index = createSearchIndex(bills, ['name', 'bill_number', 'last_action']);
+      setLegislativeSearchIndex(index);
+    }
+  }, [bills]);
 
   const uniqueServiceLines = useMemo(() => Array.from(new Set(serviceLines)), [serviceLines]);
 
@@ -663,15 +749,17 @@ export default function RateDevelopments() {
     });
   }, [bills, sortDirection]);
 
-  // Update the filtered data logic to use sorted arrays
+  // Update the filtered data logic to use sorted arrays with improved search
   const filteredProviderAlerts = useMemo(() => {
     console.log('Filtering provider alerts:', { selectedProviderStates, selectedProviderServiceLines });
-    return sortedProviderAlerts.filter((alert) => {
-      const matchesSearch = !providerSearch || searchInFields(providerSearch, [
-        alert.subject,
-        alert.summary
-      ]);
-
+    
+    // First apply search filter using the index for better performance
+    let searchFiltered = sortedProviderAlerts;
+    if (providerSearch) {
+      searchFiltered = searchWithIndex(providerSearch, sortedProviderAlerts, ['subject', 'summary'], providerSearchIndex);
+    }
+    
+    return searchFiltered.filter((alert) => {
       // Fix state matching logic - handle both state codes and full names
       const matchesState = selectedProviderStates.length === 0 || 
         (alert.state && (
@@ -682,11 +770,11 @@ export default function RateDevelopments() {
         ));
 
       const matchesServiceLine = selectedProviderServiceLines.length === 0 || 
-        [
-          alert.service_lines_impacted,
-          alert.service_lines_impacted_1,
-          alert.service_lines_impacted_2,
-          alert.service_lines_impacted_3,
+      [
+        alert.service_lines_impacted,
+        alert.service_lines_impacted_1,
+        alert.service_lines_impacted_2,
+        alert.service_lines_impacted_3,
         ].some(line => line && selectedProviderServiceLines.some(selectedLine => line.includes(selectedLine)));
 
       console.log('Alert filtering:', {
@@ -698,21 +786,21 @@ export default function RateDevelopments() {
         matchesServiceLine
       });
 
-      return matchesSearch && matchesState && matchesServiceLine;
+      return matchesState && matchesServiceLine;
     });
-  }, [sortedProviderAlerts, providerSearch, selectedProviderStates, selectedProviderServiceLines]);
+  }, [sortedProviderAlerts, providerSearch, selectedProviderStates, selectedProviderServiceLines, providerSearchIndex]);
 
-  // Update the filteredLegislativeUpdates logic to include bill progress filter
+  // Update the filteredLegislativeUpdates logic to include bill progress filter with improved search
   const filteredLegislativeUpdates = useMemo(() => {
     console.log('Filtering legislative updates:', { selectedLegislativeStates, selectedLegislativeServiceLines, selectedBillProgress });
-    return sortedLegislativeUpdates.filter((bill) => {
-      const matchesSearch = !legislativeSearch || searchInFields(legislativeSearch, [
-        bill.name,
-        bill.bill_number,
-        bill.last_action,
-        ...(bill.sponsor_list || [])
-      ]);
-
+    
+    // First apply search filter using the index for better performance
+    let searchFiltered = sortedLegislativeUpdates;
+    if (legislativeSearch) {
+      searchFiltered = searchWithIndex(legislativeSearch, sortedLegislativeUpdates, ['name', 'bill_number', 'last_action'], legislativeSearchIndex);
+    }
+    
+    return searchFiltered.filter((bill) => {
       // Fix state matching logic - handle both state codes and full names
       const matchesState = selectedLegislativeStates.length === 0 || 
         (bill.state && (
@@ -723,10 +811,10 @@ export default function RateDevelopments() {
         ));
 
       const matchesServiceLine = selectedLegislativeServiceLines.length === 0 || 
-        [
-          bill.service_lines_impacted,
-          bill.service_lines_impacted_1,
-          bill.service_lines_impacted_2
+      [
+        bill.service_lines_impacted,
+        bill.service_lines_impacted_1,
+        bill.service_lines_impacted_2
         ].some(line => line && selectedLegislativeServiceLines.some(selectedLine => line.includes(selectedLine)));
 
       const matchesBillProgress = !selectedBillProgress || 
@@ -744,9 +832,9 @@ export default function RateDevelopments() {
         matchesBillProgress
       });
 
-      return matchesSearch && matchesState && matchesServiceLine && matchesBillProgress;
+      return matchesState && matchesServiceLine && matchesBillProgress;
     });
-  }, [sortedLegislativeUpdates, legislativeSearch, selectedLegislativeStates, selectedLegislativeServiceLines, selectedBillProgress]);
+  }, [sortedLegislativeUpdates, legislativeSearch, selectedLegislativeStates, selectedLegislativeServiceLines, selectedBillProgress, legislativeSearchIndex]);
 
   const getServiceLines = (bill: Bill) => {
     return [
@@ -843,11 +931,11 @@ export default function RateDevelopments() {
                 <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400" />
                 <input
                   type="text"
-                  value={providerSearch}
+                value={providerSearch}
                   onChange={e => setProviderSearch(e.target.value)}
                   placeholder="Search Provider Alerts by subject or summary"
                   className="w-full pl-10 pr-4 py-3 bg-white border border-blue-300 rounded-xl text-gray-800 focus:ring-2 focus:ring-blue-300 focus:border-blue-400 transition-all placeholder-gray-500 text-base shadow-sm"
-                />
+              />
               </div>
               <div className="relative pl-10">
                 <FaFilter className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400" />
@@ -882,12 +970,12 @@ export default function RateDevelopments() {
                 <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400" />
                 <input
                   type="text"
-                  value={legislativeSearch}
+                value={legislativeSearch}
                   onChange={e => setLegislativeSearch(e.target.value)}
-                  placeholder="Search Legislative Updates by Bill Name or Bill Number"
+                placeholder="Search Legislative Updates by Bill Name or Bill Number"
                   className="w-full pl-10 pr-4 py-3 bg-white border border-blue-300 rounded-xl text-gray-800 focus:ring-2 focus:ring-blue-300 focus:border-blue-400 transition-all placeholder-gray-500 text-base shadow-sm"
-                />
-              </div>
+              />
+            </div>
               <div className="relative pl-10">
                 <FaFilter className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400" />
                 <ReactSelectMultiDropdown
@@ -897,9 +985,9 @@ export default function RateDevelopments() {
                     value: code,
                     label: `${name} [${code}]`
                   }))}
-                  placeholder="All States"
-                />
-              </div>
+                placeholder="All States"
+              />
+            </div>
               <div className="relative pl-10">
                 <FaChartLine className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400" />
                 <ReactSelectMultiDropdown
@@ -914,7 +1002,7 @@ export default function RateDevelopments() {
                 <Select
                   value={selectedBillProgress ? { value: selectedBillProgress, label: selectedBillProgress } : null}
                   onChange={(option) => setSelectedBillProgress(option?.value || "")}
-                  options={[
+                options={[
                     { value: "", label: "All Bill Progress" },
                     { value: "Introduced", label: "Introduced" },
                     { value: "In Committee", label: "In Committee" },
@@ -994,9 +1082,9 @@ export default function RateDevelopments() {
                     values={selectedProviderServiceLines}
                     onChange={setSelectedProviderServiceLines}
                     options={availableProviderServiceLines.map(line => ({ value: line, label: line }))}
-                    placeholder="All Service Lines"
-                  />
-                </div>
+                placeholder="All Service Lines"
+              />
+            </div>
               </>
             ) : (
               // Legislative Updates Filters
@@ -1038,16 +1126,16 @@ export default function RateDevelopments() {
                   <Select
                     value={selectedBillProgress ? { value: selectedBillProgress, label: selectedBillProgress } : null}
                     onChange={(option) => setSelectedBillProgress(option?.value || "")}
-                    options={[
-                      { value: "", label: "All Bill Progress" },
-                      { value: "Introduced", label: "Introduced" },
-                      { value: "In Committee", label: "In Committee" },
-                      { value: "Passed", label: "Passed" },
-                      { value: "Failed", label: "Failed" },
-                      { value: "Vetoed", label: "Vetoed" },
-                      { value: "Enacted", label: "Enacted" }
-                    ]}
-                    placeholder="All Bill Progress"
+                  options={[
+                    { value: "", label: "All Bill Progress" },
+                    { value: "Introduced", label: "Introduced" },
+                    { value: "In Committee", label: "In Committee" },
+                    { value: "Passed", label: "Passed" },
+                    { value: "Failed", label: "Failed" },
+                    { value: "Vetoed", label: "Vetoed" },
+                    { value: "Enacted", label: "Enacted" }
+                  ]}
+                  placeholder="All Bill Progress"
                     className="w-full"
                     classNamePrefix="react-select"
                     styles={{
@@ -1079,13 +1167,13 @@ export default function RateDevelopments() {
                         }
                       })
                     }}
-                  />
-                </div>
+                />
+              </div>
               </>
             )}
           </div>
         )}
-      </div>
+        </div>
       <style jsx>{`
         .search-bar-input, .custom-dropdown {
           font-size: 1.1rem;
