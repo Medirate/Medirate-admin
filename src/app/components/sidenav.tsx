@@ -147,6 +147,8 @@ const SideNav = ({
             left: 0, // Aligns to the left of the viewport
             height: "calc(100vh - 5.5rem)", // Full height minus navbar
             zIndex: 50, // Ensures it stays above the content
+            overflowY: "auto", // Allow scrolling when content overflows
+            overflowX: "hidden", // Hide horizontal scroll
           }}
         >
           {/* Sidebar Toggle Button */}
@@ -160,7 +162,7 @@ const SideNav = ({
           </div>
 
           {/* Navigation Links */}
-          <nav className="mt-6">
+          <nav className="mt-6 pb-20">
             <ul className="space-y-2">
               <li className="group">
                 <Link
@@ -419,6 +421,8 @@ const SideNav = ({
             left: 0,
             height: "calc(100vh - 5.5rem)",
             zIndex: 50,
+            overflowY: "auto",
+            overflowX: "hidden",
           }}
         />
       )}
