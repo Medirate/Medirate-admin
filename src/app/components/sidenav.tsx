@@ -136,7 +136,7 @@ const SideNav = ({
       {isClientSide ? (
         <aside
           className={`transition-all duration-500 ease-in-out shadow-lg ${
-            isSidebarCollapsed ? "w-16" : "w-64"
+            isSidebarCollapsed ? "w-16" : "w-80"
           }`}
           style={{
             backgroundColor: "rgb(1, 44, 97)",
@@ -176,10 +176,10 @@ const SideNav = ({
                     <Table2 size={20} />
                   </div>
                   <span
-                    className={`ml-4 font-semibold transition-opacity duration-300 ease-in-out flex-grow ${
+                    className={`ml-4 font-semibold transition-opacity duration-300 ease-in-out flex-grow pr-2 ${
                       isSidebarCollapsed ? "opacity-0 invisible" : "opacity-100 visible"
                     }`}
-                    style={{ whiteSpace: "nowrap" }}
+                    style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
                   >
                     Dashboard
                   </span>
@@ -200,10 +200,10 @@ const SideNav = ({
                     <ChartColumnStacked size={20} />
                   </div>
                   <span
-                    className={`ml-4 font-semibold transition-opacity duration-300 ease-in-out flex-grow ${
+                    className={`ml-4 font-semibold transition-opacity duration-300 ease-in-out flex-grow pr-2 ${
                       isSidebarCollapsed ? "opacity-0 invisible" : "opacity-100 visible"
                     }`}
-                    style={{ whiteSpace: "nowrap" }}
+                    style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
                   >
                     State Rate Comparison
                   </span>
@@ -254,10 +254,10 @@ const SideNav = ({
                     <ChartLine size={20} />
                   </div>
                   <span
-                    className={`ml-4 font-semibold transition-opacity duration-300 ease-in-out flex-grow ${
+                    className={`ml-4 font-semibold transition-opacity duration-300 ease-in-out flex-grow pr-2 ${
                       isSidebarCollapsed ? "opacity-0 invisible" : "opacity-100 visible"
                     }`}
-                    style={{ whiteSpace: "nowrap" }}
+                    style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
                   >
                     Rate History
                   </span>
@@ -289,10 +289,10 @@ const SideNav = ({
                     <div className="flex items-center justify-center w-6 h-6">{icon}</div>
                     {/* Label Section */}
                     <span
-                      className={`ml-4 font-semibold transition-opacity duration-300 ease-in-out flex-grow ${
+                      className={`ml-4 font-semibold transition-opacity duration-300 ease-in-out flex-grow pr-2 ${
                         isSidebarCollapsed ? "opacity-0 invisible" : "opacity-100 visible"
                       }`}
-                      style={{ whiteSpace: "nowrap" }} // Prevents wrapping of text
+                      style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
                     >
                       {label}
                     </span>
@@ -319,10 +319,10 @@ const SideNav = ({
                         <Shield size={20} />
                       </div>
                       <span
-                        className={`ml-4 font-semibold transition-opacity duration-300 ease-in-out flex-grow truncate ${
+                        className={`ml-4 font-semibold transition-opacity duration-300 ease-in-out flex-grow pr-2 ${
                           isSidebarCollapsed ? "opacity-0 invisible" : "opacity-100 visible"
                         }`}
-                        style={{ whiteSpace: "nowrap" }}
+                        style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
                       >
                         Admin Dashboard
                       </span>
@@ -396,10 +396,10 @@ const SideNav = ({
                     <Mail size={20} />
                   </div>
                   <span
-                    className={`ml-4 font-semibold transition-opacity duration-300 ease-in-out flex-grow ${
+                    className={`ml-4 font-semibold transition-opacity duration-300 ease-in-out flex-grow pr-2 ${
                       isSidebarCollapsed ? "opacity-0 invisible" : "opacity-100 visible"
                     }`}
-                    style={{ whiteSpace: "nowrap" }}
+                    style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
                   >
                     Support
                   </span>
@@ -411,7 +411,7 @@ const SideNav = ({
       ) : (
         // Server-side placeholder to prevent layout shift
         <aside
-          className="transition-all duration-500 ease-in-out shadow-lg w-64"
+          className="transition-all duration-500 ease-in-out shadow-lg w-80"
           style={{
             backgroundColor: "rgb(1, 44, 97)",
             color: "white",

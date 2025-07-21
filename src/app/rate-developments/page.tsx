@@ -1274,26 +1274,33 @@ export default function RateDevelopments() {
           </button>
         </div>
 
-        {/* Table Switch */}
-        <div className={`flex items-center space-x-2 z-10 relative`}
-          style={{ zIndex: 10 }}
-        >
-          <span className="text-sm text-gray-700">Provider Alerts</span>
-          <button
-            onClick={() =>
-              setActiveTable(activeTable === "provider" ? "legislative" : "provider")
-            }
-            className="relative inline-flex items-center h-8 rounded-full w-14 transition-colors focus:outline-none"
-            style={{ backgroundColor: "#004aad" }}
-          >
-            <span
-              className={`inline-block w-6 h-6 transform bg-white rounded-full transition-transform ${
-                activeTable === "provider" ? "translate-x-1" : "translate-x-7"
-              }`}
-            />
-          </button>
-          <span className="text-sm text-gray-700">Legislative Updates</span>
-        </div>
+        {/* Table Switch - Only show in horizontal layout */}
+        {layout === "horizontal" && (
+          <div className="flex items-center space-x-4 z-10 relative">
+            <div className="flex bg-gray-200 rounded-lg p-1 shadow-sm">
+              <button
+                onClick={() => setActiveTable("provider")}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                  activeTable === "provider"
+                    ? "bg-white text-blue-600 shadow-sm"
+                    : "text-gray-600 hover:text-gray-800"
+                }`}
+              >
+                Provider Alerts
+              </button>
+              <button
+                onClick={() => setActiveTable("legislative")}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                  activeTable === "legislative"
+                    ? "bg-white text-blue-600 shadow-sm"
+                    : "text-gray-600 hover:text-gray-800"
+                }`}
+              >
+                Legislative Updates
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Update the note about sorting and summaries */}

@@ -25,20 +25,20 @@ const config: Config = {
 			lightBold: '580', // Custom weight between regular (400) and semi-bold (600)
 		  },
 		fontSize: {
-			// Increase all text sizes by 2 steps while preserving headings
-			'xs': '0.875rem',     // was 0.75rem
-			'sm': '1rem',         // was 0.875rem
-			'base': '1.125rem',   // was 1rem
-			'lg': '1.25rem',      // was 1.125rem
-			'xl': '1.375rem',     // was 1.25rem
-			'2xl': '1.5rem',      // was 1.5rem (keep same for headings)
-			'3xl': '1.875rem',    // was 1.875rem (keep same for headings)
-			'4xl': '2.25rem',     // was 2.25rem (keep same for headings)
-			'5xl': '3rem',        // was 3rem (keep same for headings)
-			'6xl': '3.75rem',     // was 3.75rem (keep same for headings)
-			'7xl': '4.5rem',      // was 4.5rem (keep same for headings)
-			'8xl': '6rem',        // was 6rem (keep same for headings)
-			'9xl': '8rem',        // was 8rem (keep same for headings)
+			// Increase all font sizes by 20%
+			'xs': '0.9rem',       // 14.4px (was 12px)
+			'sm': '1.05rem',      // 16.8px (was 14px)
+			'base': '1.2rem',     // 19.2px (was 16px)
+			'lg': '1.35rem',      // 21.6px (was 18px)
+			'xl': '1.5rem',       // 24px (was 20px)
+			'2xl': '1.8rem',      // 28.8px (was 24px)
+			'3xl': '2.25rem',     // 36px (was 30px)
+			'4xl': '2.7rem',      // 43.2px (was 36px)
+			'5xl': '3.6rem',      // 57.6px (was 48px)
+			'6xl': '4.5rem',      // 72px (was 60px)
+			'7xl': '5.4rem',      // 86.4px (was 72px)
+			'8xl': '7.2rem',      // 115.2px (was 96px)
+			'9xl': '9.6rem',      // 153.6px (was 128px)
 		},
   		maxWidth: {
   			'8xl': '1408px'
