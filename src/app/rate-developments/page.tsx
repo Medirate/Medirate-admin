@@ -121,6 +121,7 @@ function ReactSelectMultiDropdown({ values, onChange, options, placeholder }: Mu
   return (
     <Select
       isMulti
+      isSearchable={true}
       value={selectedOptions}
       onChange={(selected) => {
         const newValues = selected ? selected.map(option => option.value) : [];
@@ -130,6 +131,10 @@ function ReactSelectMultiDropdown({ values, onChange, options, placeholder }: Mu
       placeholder={placeholder}
       className="w-full"
       classNamePrefix="react-select"
+      filterOption={(option, inputValue) => {
+        if (!inputValue) return true;
+        return option.label.toLowerCase().startsWith(inputValue.toLowerCase());
+      }}
       styles={{
         control: (provided, state) => ({
           ...provided,
@@ -174,6 +179,10 @@ function ReactSelectMultiDropdown({ values, onChange, options, placeholder }: Mu
             backgroundColor: '#dbeafe',
             color: '#1f2937'
           }
+        }),
+        input: (provided) => ({
+          ...provided,
+          color: '#1f2937'
         })
       }}
     />
@@ -1038,6 +1047,7 @@ export default function RateDevelopments() {
               <div className="relative pl-10">
                 <LayoutList className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400" />
                 <Select
+                  isSearchable={true}
                   value={selectedBillProgress ? { value: selectedBillProgress, label: selectedBillProgress } : null}
                   onChange={(option) => setSelectedBillProgress(option?.value || "")}
                 options={[
@@ -1052,6 +1062,10 @@ export default function RateDevelopments() {
                   placeholder="All Bill Progress"
                   className="w-full"
                   classNamePrefix="react-select"
+                  filterOption={(option, inputValue) => {
+                    if (!inputValue) return true;
+                    return option.label.toLowerCase().startsWith(inputValue.toLowerCase());
+                  }}
                   styles={{
                     control: (provided, state) => ({
                       ...provided,
@@ -1079,6 +1093,10 @@ export default function RateDevelopments() {
                       '&:hover': {
                         backgroundColor: state.isSelected ? '#eff6ff' : '#f1f5f9'
                       }
+                    }),
+                    input: (provided) => ({
+                      ...provided,
+                      color: '#1f2937'
                     })
                   }}
                 />
@@ -1161,7 +1179,8 @@ export default function RateDevelopments() {
                 </div>
                 <div className="relative pl-10">
                   <LayoutList className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400" />
-                  <Select
+                                    <Select
+                    isSearchable={true}
                     value={selectedBillProgress ? { value: selectedBillProgress, label: selectedBillProgress } : null}
                     onChange={(option) => setSelectedBillProgress(option?.value || "")}
                   options={[
@@ -1176,6 +1195,10 @@ export default function RateDevelopments() {
                   placeholder="All Bill Progress"
                     className="w-full"
                     classNamePrefix="react-select"
+                    filterOption={(option, inputValue) => {
+                      if (!inputValue) return true;
+                      return option.label.toLowerCase().startsWith(inputValue.toLowerCase());
+                    }}
                     styles={{
                       control: (provided, state) => ({
                         ...provided,
@@ -1203,9 +1226,13 @@ export default function RateDevelopments() {
                         '&:hover': {
                           backgroundColor: state.isSelected ? '#eff6ff' : '#f1f5f9'
                         }
+                      }),
+                      input: (provided) => ({
+                        ...provided,
+                        color: '#1f2937'
                       })
                     }}
-                />
+                  />
               </div>
               </>
             )}
