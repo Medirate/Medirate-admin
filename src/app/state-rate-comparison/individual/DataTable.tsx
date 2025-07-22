@@ -39,10 +39,28 @@ export const DataTable = ({
     return filterSets.map((filterSet, filterIndex) => {
       const grouped: { [key: string]: ServiceData[] } = {};
       latestRates.forEach(item => {
+        const categoryMatch = item.service_category === filterSet.serviceCategory;
+        const stateMatch = filterSet.states.includes(item.state_name?.trim().toUpperCase());
+        
+        // Handle multiple service codes (comma-separated)
+        let codeMatch = false;
+        if (filterSet.serviceCode) {
+          if (filterSet.serviceCode.includes(',')) {
+            // Handle multiple service codes
+            const selectedCodes = filterSet.serviceCode.split(',').map(code => code.trim());
+            codeMatch = selectedCodes.includes(item.service_code?.trim() || '');
+          } else {
+            // Handle single service code
+            codeMatch = item.service_code === filterSet.serviceCode;
+          }
+        } else {
+          codeMatch = true; // No service code filter
+        }
+        
         if (
-          item.service_category === filterSet.serviceCategory &&
-          filterSet.states.includes(item.state_name?.trim().toUpperCase()) &&
-          item.service_code === filterSet.serviceCode &&
+          categoryMatch &&
+          stateMatch &&
+          codeMatch &&
           (!filterSet.program || item.program === filterSet.program) &&
           (!filterSet.locationRegion || item.location_region === filterSet.locationRegion) &&
           (!filterSet.modifier || [item.modifier_1, item.modifier_2, item.modifier_3, item.modifier_4].includes(filterSet.modifier)) &&
