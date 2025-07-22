@@ -117,7 +117,7 @@ interface ServiceData {
 interface FilterSet {
   serviceCategory: string;
   states: string[];
-  serviceCode: string;
+  serviceCode: string; // Keep as string for backward compatibility, will store comma-separated values
   stateOptions: { value: string; label: string }[];
   serviceCodeOptions: string[];
   program?: string;
@@ -1509,8 +1509,18 @@ export default function StatePaymentComparison() {
       // Handle special case for "ALL_STATES" - don't filter by state in this case
       if (filterSet.states.length > 0 && !filterSet.states.includes("ALL_STATES") && !filterSet.states.includes(combo.state_name)) return false;
       
-      if (filterSet.serviceCode && combo.service_code !== filterSet.serviceCode) return false;
-      if (filterSet.serviceDescription && combo.service_description !== filterSet.serviceDescription) return false;
+      // Don't apply service code filter when looking for service code options
+      if (filterKey !== 'service_code' && filterSet.serviceCode) {
+        // Handle multiple service codes (comma-separated)
+        if (filterSet.serviceCode.includes(',')) {
+          const selectedCodes = filterSet.serviceCode.split(',').map(code => code.trim());
+          if (!selectedCodes.includes(combo.service_code)) return false;
+        } else {
+          if (combo.service_code !== filterSet.serviceCode) return false;
+        }
+      }
+      // Don't apply service description filter when looking for service description options
+      if (filterKey !== 'service_description' && filterSet.serviceDescription && combo.service_description !== filterSet.serviceDescription) return false;
       
       // For OPTIONAL filters: only apply them when we're NOT looking for options for that specific filter
       // This makes filters independent - selecting Duration Unit doesn't limit Modifier options, etc.
@@ -1555,8 +1565,18 @@ export default function StatePaymentComparison() {
       // Handle special case for "ALL_STATES"
       if (filterSet.states.length > 0 && !filterSet.states.includes("ALL_STATES") && !filterSet.states.includes(combo.state_name)) return false;
       
-      if (filterSet.serviceCode && combo.service_code !== filterSet.serviceCode) return false;
-      if (filterSet.serviceDescription && combo.service_description !== filterSet.serviceDescription) return false;
+      // Don't apply service code filter when looking for service code options
+      if (filterKey !== 'service_code' && filterSet.serviceCode) {
+        // Handle multiple service codes (comma-separated)
+        if (filterSet.serviceCode.includes(',')) {
+          const selectedCodes = filterSet.serviceCode.split(',').map(code => code.trim());
+          if (!selectedCodes.includes(combo.service_code)) return false;
+        } else {
+          if (combo.service_code !== filterSet.serviceCode) return false;
+        }
+      }
+      // Don't apply service description filter when looking for service description options
+      if (filterKey !== 'service_description' && filterSet.serviceDescription && combo.service_description !== filterSet.serviceDescription) return false;
       
       // For OPTIONAL filters: only apply them when we're NOT looking for options for that specific filter
       if (filterKey !== 'program' && filterSet.program && filterSet.program !== "-" && combo.program !== filterSet.program) return false;
@@ -2706,7 +2726,7 @@ export default function StatePaymentComparison() {
     if (Object.values(newMissing).some(Boolean)) return; // Don't search if missing
     console.log('🔍 Search button clicked - fetching data...');
     setPendingSearch(false);
-    setClickedStates([]); // Clear clicked states when starting a new search
+    // Don't clear clicked states - preserve user's bar selections
     let success = false;
     // Now trigger the actual data fetching
     try {
@@ -2727,7 +2747,7 @@ export default function StatePaymentComparison() {
             await fetchAllStatesAverages(filterSet.serviceCategory, filterSet.serviceCode);
             const refreshParams: Record<string, string> = {
               serviceCategory: filterSet.serviceCategory,
-              serviceCode: filterSet.serviceCode,
+              serviceCode: filterSet.serviceCode, // Already comma-separated from multi-select
               itemsPerPage: '1000'
             };
             
@@ -2760,7 +2780,7 @@ export default function StatePaymentComparison() {
             const result = await refreshData({
               serviceCategory: filterSet.serviceCategory,
               state_name: filterSet.states[0],
-              serviceCode: filterSet.serviceCode,
+              serviceCode: filterSet.serviceCode, // Already comma-separated from multi-select
               itemsPerPage: '1000'
             });
             if (result) {
@@ -2984,12 +3004,13 @@ export default function StatePaymentComparison() {
                                 : [];
                             })()
                           }
-                          value={filterSet.serviceCode ? { value: filterSet.serviceCode, label: filterSet.serviceCode } : null}
-                          onChange={(option) => {
-                            const newValue = option?.value || "";
+                          value={filterSet.serviceCode ? filterSet.serviceCode.split(',').map(code => ({ value: code.trim(), label: code.trim() })) : null}
+                          onChange={(options) => {
+                            const newValue = options ? options.map(opt => opt.value).join(',') : "";
                             wrappedHandleServiceCodeChange(index, newValue);
                           }}
-                          placeholder="Select Service Code (Required if no Service Description)"
+                          placeholder="Select Service Code(s) (Required if no Service Description)"
+                          isMulti
                           isSearchable
                           filterOption={customFilterOption}
                           isDisabled={(() => {
@@ -3400,20 +3421,15 @@ export default function StatePaymentComparison() {
                         style={{ height: '400px', width: '100%' }}
                 onEvents={{
                   click: (params: any) => {
-                    console.log('Chart click event:', params);
-                    console.log('isAllStatesSelected:', isAllStatesSelected);
-                    console.log('clickedStates before:', clickedStates);
                     // Try to handle all click events first
                     if (params.componentType === 'series' && params.seriesType === 'bar') {
                       const stateName = params.name;
-                      console.log('Bar clicked for state:', stateName);
                       // Toggle the state in the array
                       setClickedStates(prev => {
-                        if (prev.includes(stateName)) {
-                          return prev.filter(s => s !== stateName);
-                        } else {
-                          return [...prev, stateName];
-                        }
+                        const newState = prev.includes(stateName) 
+                          ? prev.filter(s => s !== stateName)
+                          : [...prev, stateName];
+                        return newState;
                       });
                     }
                   }
@@ -3472,11 +3488,31 @@ export default function StatePaymentComparison() {
                     {filterOptions.states.map(state => {
                       const stateKey = state.trim().toUpperCase();
                       // Get all entries for this state from data (not filteredData)
-                      const stateEntries = data.filter(item => item.state_name?.trim().toUpperCase() === stateKey);
+                      const stateEntries = data.filter(item => {
+                        // Check if state name matches
+                        if (item.state_name?.trim().toUpperCase() !== stateKey) return false;
+                        
+                        // Check if service code matches (handle multi-select)
+                        const filterServiceCode = filterSets[0]?.serviceCode;
+                        if (filterServiceCode) {
+                          if (filterServiceCode.includes(',')) {
+                            // Handle multiple service codes
+                            const selectedCodes = filterServiceCode.split(',').map(code => code.trim());
+                            return selectedCodes.includes(item.service_code?.trim() || '');
+                          } else {
+                            // Handle single service code
+                            return item.service_code?.trim() === filterServiceCode.trim();
+                          }
+                        }
+                        
+                        return true;
+                      });
                       if (stateEntries.length === 0) return null;
                       
                       // Only show the table if this state is clicked
                       if (!clickedStates.includes(state)) return null;
+                      
+
                       
                       // Pagination
                       const currentPage = allStatesTablePages[stateKey] || 1;
@@ -3494,6 +3530,7 @@ export default function StatePaymentComparison() {
                               Remove
                             </button>
                           </div>
+
                           <DataTable
                             filterSets={[
                               {

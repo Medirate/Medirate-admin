@@ -682,7 +682,15 @@ export default function HistoricalRates() {
     const allMatchingEntries = data.filter(item => {
       if (selections.service_category && item.service_category !== selections.service_category) return false;
       if (selections.state_name && item.state_name !== selections.state_name) return false;
-      if (selections.service_code && item.service_code !== selections.service_code) return false;
+      if (selections.service_code && selections.service_code !== '-') {
+        // Handle comma-separated service codes
+        const selectedCodes = typeof selections.service_code === 'string' 
+          ? selections.service_code.split(',').map(code => code.trim())
+          : [];
+        if (!selectedCodes.includes(item.service_code?.trim() || '')) return false;
+      } else if (selections.service_code === '-') {
+        if (item.service_code && item.service_code.trim() !== '') return false;
+      }
       if (selections.service_description && item.service_description !== selections.service_description) return false;
       if (selections.program && selections.program !== "-" && item.program !== selections.program) return false;
       if (selections.location_region && selections.location_region !== "-" && item.location_region !== selections.location_region) return false;
@@ -1066,7 +1074,7 @@ export default function HistoricalRates() {
       const filters: Record<string, string> = {};
       if (selections.service_category) filters.service_category = selections.service_category;
       if (selections.state_name) filters.state_name = selections.state_name;
-      if (selections.service_code) filters.service_code = selections.service_code;
+      if (selections.service_code) filters.service_code = selections.service_code; // Already comma-separated from multi-select
       if (selections.service_description) filters.service_description = selections.service_description;
       if (selections.program) filters.program = selections.program;
       if (selections.location_region) filters.location_region = selections.location_region;
@@ -1083,19 +1091,6 @@ export default function HistoricalRates() {
       });
     }
   }, [currentPage, areFiltersApplied, selections, itemsPerPage]);
-
-  // Update useEffect for service category and state changes
-  useEffect(() => {
-    if (selections.service_category && selections.state_name) {
-      const filters: Record<string, string> = {
-        service_category: selections.service_category,
-        state_name: selections.state_name,
-        page: '1',
-        itemsPerPage: String(itemsPerPage)
-      };
-      refreshData(filters);
-    }
-  }, [selections.service_category, selections.state_name, itemsPerPage]);
 
   // Update resetFilters to use selections state
   const resetFilters = async () => {
@@ -1143,7 +1138,15 @@ export default function HistoricalRates() {
     const filteredEntries = data.filter((item: ServiceData) => 
       item.state_name === selectedEntry.state_name &&
       item.service_category === selectedEntry.service_category &&
-      item.service_code === selectedEntry.service_code &&
+      (() => {
+        // Handle multiple service codes for chart filtering
+        if (selectedEntry.service_code && selectedEntry.service_code.includes(',')) {
+          const selectedCodes = selectedEntry.service_code.split(',').map(code => code.trim());
+          return selectedCodes.includes(item.service_code?.trim() || '');
+        } else {
+          return item.service_code === selectedEntry.service_code;
+        }
+      })() &&
       item.service_description === selectedEntry.service_description &&
       item.program === selectedEntry.program &&
       item.location_region === selectedEntry.location_region &&
@@ -1480,9 +1483,10 @@ export default function HistoricalRates() {
                       <Select
                         instanceId="service_code_select"
                         options={availableServiceCodes.map((o: string) => ({ value: o, label: o }))}
-                        value={selections.service_code ? { value: selections.service_code, label: selections.service_code } : null}
-                        onChange={option => handleSelectionChange('service_code', option?.value || null)}
-                        placeholder="Select Service Code"
+                        value={selections.service_code ? selections.service_code.split(',').map(code => ({ value: code.trim(), label: code.trim() })) : null}
+                        onChange={(options) => handleSelectionChange('service_code', options ? options.map(opt => opt.value).join(',') : null)}
+                        placeholder="Select Service Code(s)"
+                        isMulti
                         isClearable
                         isDisabled={!selections.service_category || !selections.state_name || availableServiceCodes.length === 0}
                         className="react-select-container"
@@ -1633,7 +1637,7 @@ export default function HistoricalRates() {
                           const filters: Record<string, string> = {};
                           if (selections.service_category) filters.service_category = selections.service_category;
                           if (selections.state_name) filters.state_name = selections.state_name;
-                          if (selections.service_code) filters.service_code = selections.service_code;
+                          if (selections.service_code) filters.service_code = selections.service_code; // Already comma-separated from multi-select
                           if (selections.service_description) filters.service_description = selections.service_description;
                           if (selections.program) filters.program = selections.program;
                           if (selections.location_region) filters.location_region = selections.location_region;

@@ -1255,8 +1255,19 @@ export default function StatePaymentComparison() {
       // Always apply CORE REQUIRED filters - these define the base service
       if (filterSet.serviceCategory && combo.service_category !== filterSet.serviceCategory) return false;
       if (filterSet.states.length > 0 && !filterSet.states.includes(combo.state_name)) return false;
-      if (filterSet.serviceCode && combo.service_code !== filterSet.serviceCode) return false;
-      if (filterSet.serviceDescription && combo.service_description !== filterSet.serviceDescription) return false;
+      
+      // Don't apply service code filter when looking for service code options
+      if (filterKey !== 'service_code' && filterSet.serviceCode) {
+        // Handle multiple service codes (comma-separated)
+        if (filterSet.serviceCode.includes(',')) {
+          const selectedCodes = filterSet.serviceCode.split(',').map(code => code.trim());
+          if (!selectedCodes.includes(combo.service_code)) return false;
+        } else {
+          if (combo.service_code !== filterSet.serviceCode) return false;
+        }
+      }
+      // Don't apply service description filter when looking for service description options
+      if (filterKey !== 'service_description' && filterSet.serviceDescription && combo.service_description !== filterSet.serviceDescription) return false;
       
       // For OPTIONAL filters: only apply them when we're NOT looking for options for that specific filter
       // This makes filters independent - selecting Duration Unit doesn't limit Modifier options, etc.
@@ -1315,8 +1326,19 @@ export default function StatePaymentComparison() {
       // Always apply CORE REQUIRED filters
       if (filterSet.serviceCategory && combo.service_category !== filterSet.serviceCategory) return false;
       if (filterSet.states.length > 0 && !filterSet.states.includes(combo.state_name)) return false;
-      if (filterSet.serviceCode && combo.service_code !== filterSet.serviceCode) return false;
-      if (filterSet.serviceDescription && combo.service_description !== filterSet.serviceDescription) return false;
+      
+      // Don't apply service code filter when looking for service code options
+      if (filterKey !== 'service_code' && filterSet.serviceCode) {
+        // Handle multiple service codes (comma-separated)
+        if (filterSet.serviceCode.includes(',')) {
+          const selectedCodes = filterSet.serviceCode.split(',').map(code => code.trim());
+          if (!selectedCodes.includes(combo.service_code)) return false;
+        } else {
+          if (combo.service_code !== filterSet.serviceCode) return false;
+        }
+      }
+      // Don't apply service description filter when looking for service description options
+      if (filterKey !== 'service_description' && filterSet.serviceDescription && combo.service_description !== filterSet.serviceDescription) return false;
       
       // For OPTIONAL filters: only apply them when we're NOT looking for options for that specific filter
       if (filterKey !== 'program' && filterSet.program && filterSet.program !== "-" && combo.program !== filterSet.program) return false;
@@ -2483,11 +2505,13 @@ export default function StatePaymentComparison() {
                                 : [];
                             })()
                           }
-                          value={filterSet.serviceCode ? { value: filterSet.serviceCode, label: filterSet.serviceCode } : null}
-                          onChange={(option) => {
-                            wrappedHandleServiceCodeChange(index, option?.value || "");
+                          value={filterSet.serviceCode ? filterSet.serviceCode.split(',').map(code => ({ value: code.trim(), label: code.trim() })) : null}
+                          onChange={(options) => {
+                            const newValue = options ? options.map(opt => opt.value).join(',') : "";
+                            wrappedHandleServiceCodeChange(index, newValue);
                           }}
-                          placeholder="Select Service Code"
+                          placeholder="Select Service Code(s)"
+                          isMulti
                           isSearchable
                           filterOption={customFilterOption}
                           isDisabled={(() => {

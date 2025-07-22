@@ -1014,14 +1014,14 @@ export default function RateDevelopments() {
           layout === "horizontal" ? "visible" : "invisible"
         }`}>
           <div className="flex bg-gray-200 rounded-lg p-1 shadow-sm">
-            <button
+          <button
               onClick={() => setActiveTable("provider")}
               className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
                 activeTable === "provider"
                   ? "bg-white text-blue-600 shadow-sm"
                   : "text-gray-600 hover:text-gray-800"
               }`}
-            >
+          >
               Provider Alerts
             </button>
             <button
@@ -1033,7 +1033,7 @@ export default function RateDevelopments() {
               }`}
             >
               Legislative Updates
-            </button>
+          </button>
           </div>
         </div>
       </div>

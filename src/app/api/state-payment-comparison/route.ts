@@ -50,8 +50,21 @@ export async function GET(request: Request) {
       let query = supabase
         .from('master_data_july_7')
         .select('state_name, rate, duration_unit, rate_effective_date')
-        .eq('service_category', serviceCategory)
-        .eq('service_code', serviceCode);
+        .eq('service_category', serviceCategory);
+      
+      // Handle service code filtering (single or multi-select)
+      if (serviceCode) {
+        if (serviceCode.includes(',')) {
+          // Handle multi-select - split by comma and use OR
+          const codes = serviceCode.split(',').map(c => c.trim()).filter(c => c);
+          if (codes.length > 0) {
+            const orConditions = codes.map(c => `service_code.eq.${c}`).join(',');
+            query = query.or(orConditions);
+          }
+        } else {
+          query = query.eq('service_code', serviceCode);
+        }
+      }
 
       // Apply additional filters
       if (program && program !== '-') query = query.eq('program', program);
@@ -144,7 +157,18 @@ export async function GET(request: Request) {
     let query = supabase.from('master_data_july_7').select('*', { count: 'exact' });
     if (serviceCategory) query = query.eq('service_category', serviceCategory);
     if (state) query = query.eq('state_name', state);
-    if (serviceCode) query = query.eq('service_code', serviceCode);
+    if (serviceCode) {
+      if (serviceCode.includes(',')) {
+        // Handle multi-select - split by comma and use OR
+        const codes = serviceCode.split(',').map(c => c.trim()).filter(c => c);
+        if (codes.length > 0) {
+          const orConditions = codes.map(c => `service_code.eq.${c}`).join(',');
+          query = query.or(orConditions);
+        }
+      } else {
+        query = query.eq('service_code', serviceCode);
+      }
+    }
     if (serviceDescription) query = query.eq('service_description', serviceDescription);
     
     // Handle secondary filters with "-" option for empty values and multi-select support
