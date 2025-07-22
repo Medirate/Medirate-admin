@@ -2258,6 +2258,7 @@ export default function StatePaymentComparison() {
             const result = await refreshData({
               serviceCategory: filterSet.serviceCategory,
               serviceCode: filterSet.serviceCode,
+              ...(filterSet.durationUnits && filterSet.durationUnits.length > 0 && { duration_unit: filterSet.durationUnits.join(',') }),
               itemsPerPage: '1000'
             });
             if (result) {
@@ -2269,6 +2270,7 @@ export default function StatePaymentComparison() {
               serviceCategory: filterSet.serviceCategory,
               state_name: filterSet.states[0],
               serviceCode: filterSet.serviceCode,
+              ...(filterSet.durationUnits && filterSet.durationUnits.length > 0 && { duration_unit: filterSet.durationUnits.join(',') }),
               itemsPerPage: '1000'
             });
             if (result) {

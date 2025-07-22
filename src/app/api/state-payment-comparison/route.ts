@@ -132,6 +132,7 @@ export async function GET(request: Request) {
     const locationRegion = getParam("location_region") || getParam("locationRegion");
     const providerType = getParam("provider_type") || getParam("providerType");
     const modifier = getParam("modifier_1") || getParam("modifier");
+    const durationUnit = getParam("duration_unit") || getParam("durationUnit");
     const startDate = getParam("start_date") || getParam("startDate");
     const endDate = getParam("end_date") || getParam("endDate");
     const feeScheduleDate = getParam("fee_schedule_date") || getParam("feeScheduleDate");
@@ -205,6 +206,20 @@ export async function GET(request: Request) {
       } else {
       // Check all modifier columns
       query = query.or(`modifier_1.eq.${modifier},modifier_2.eq.${modifier},modifier_3.eq.${modifier},modifier_4.eq.${modifier}`);
+      }
+    }
+    if (durationUnit) {
+      if (durationUnit === '-') {
+        query = query.or('duration_unit.is.null,duration_unit.eq.');
+      } else if (durationUnit.includes(',')) {
+        // Handle multi-select - split by comma and use OR
+        const units = durationUnit.split(',').map(u => u.trim()).filter(u => u);
+        if (units.length > 0) {
+          const orConditions = units.map(u => `duration_unit.eq.${u}`).join(',');
+          query = query.or(orConditions);
+        }
+      } else {
+        query = query.eq('duration_unit', durationUnit);
       }
     }
     if (feeScheduleDate) {
