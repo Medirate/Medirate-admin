@@ -352,10 +352,34 @@ export default function StatePaymentComparison() {
         providerTypes: [],
       };
     }
+    
+    // Apply custom sorting to service codes
+    const serviceCodes = (filterOptionsData.filters.service_code || []).sort((a, b) => {
+      // Check if both codes are purely numeric
+      const isANumeric = /^\d+$/.test(a);
+      const isBNumeric = /^\d+$/.test(b);
+      
+      // If both are numeric, sort numerically
+      if (isANumeric && isBNumeric) {
+        return parseInt(a, 10) - parseInt(b, 10);
+      }
+      
+      // If only one is numeric, put numeric first
+      if (isANumeric && !isBNumeric) {
+        return -1; // a comes first
+      }
+      if (!isANumeric && isBNumeric) {
+        return 1; // b comes first
+      }
+      
+      // If both are non-numeric, sort alphabetically
+      return a.localeCompare(b);
+    });
+    
     return {
       serviceCategories: filterOptionsData.filters.service_category || [],
       states: filterOptionsData.filters.state_name || [],
-      serviceCodes: filterOptionsData.filters.service_code || [],
+      serviceCodes: serviceCodes,
       programs: filterOptionsData.filters.program || [],
       locationRegions: filterOptionsData.filters.location_region || [],
       modifiers: (filterOptionsData.filters.modifier_1 || []).map((m: string) => ({ value: m, label: m })),
@@ -1490,7 +1514,34 @@ export default function StatePaymentComparison() {
       filteredCombinations
         .map(c => c[filterKey])
         .filter(Boolean)
-    )).sort();
+    ));
+    
+    // Apply custom sorting for service codes
+    if (filterKey === 'service_code') {
+      return availableOptions.sort((a, b) => {
+        // Check if both codes are purely numeric
+        const isANumeric = /^\d+$/.test(a);
+        const isBNumeric = /^\d+$/.test(b);
+        
+        // If both are numeric, sort numerically
+        if (isANumeric && isBNumeric) {
+          return parseInt(a, 10) - parseInt(b, 10);
+        }
+        
+        // If only one is numeric, put numeric first
+        if (isANumeric && !isBNumeric) {
+          return -1; // a comes first
+        }
+        if (!isANumeric && isBNumeric) {
+          return 1; // b comes first
+        }
+        
+        // If both are non-numeric, sort alphabetically
+        return a.localeCompare(b);
+      });
+    }
+    
+    return availableOptions.sort();
     return availableOptions;
   }
 
@@ -1656,7 +1707,7 @@ export default function StatePaymentComparison() {
       }
       
       if (selections.state_name) {
-        conditions.push(combo => combo.state_name === selections.state_name);
+        conditions.push(combo => combo.state_name?.trim().toUpperCase() === selections.state_name?.trim().toUpperCase());
       }
       
       if (selections.service_code) {
@@ -1705,7 +1756,29 @@ export default function StatePaymentComparison() {
           .map(c => c.service_code)
           .filter(Boolean)
           .filter(code => !selections.service_code || code === selections.service_code)
-      )).sort();
+      )).sort((a, b) => {
+        // Check if both codes are purely numeric
+        const isANumeric = /^\d+$/.test(a);
+        const isBNumeric = /^\d+$/.test(b);
+        
+
+        
+        // If both are numeric, sort numerically
+        if (isANumeric && isBNumeric) {
+          return parseInt(a, 10) - parseInt(b, 10);
+        }
+        
+        // If only one is numeric, put numeric first
+        if (isANumeric && !isBNumeric) {
+          return -1; // a comes first
+        }
+        if (!isANumeric && isBNumeric) {
+          return 1; // b comes first
+        }
+        
+        // If both are non-numeric, sort alphabetically
+        return a.localeCompare(b);
+      });
       
       const serviceDescriptions = Array.from(new Set(
         filteredCombinations

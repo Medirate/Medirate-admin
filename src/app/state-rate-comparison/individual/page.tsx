@@ -346,10 +346,34 @@ export default function StatePaymentComparison() {
         providerTypes: [],
       };
     }
+    
+    // Apply custom sorting to service codes
+    const serviceCodes = (filterOptionsData.filters.service_code || []).sort((a, b) => {
+      // Check if both codes are purely numeric
+      const isANumeric = /^\d+$/.test(a);
+      const isBNumeric = /^\d+$/.test(b);
+      
+      // If both are numeric, sort numerically
+      if (isANumeric && isBNumeric) {
+        return parseInt(a, 10) - parseInt(b, 10);
+      }
+      
+      // If only one is numeric, put numeric first
+      if (isANumeric && !isBNumeric) {
+        return -1; // a comes first
+      }
+      if (!isANumeric && isBNumeric) {
+        return 1; // b comes first
+      }
+      
+      // If both are non-numeric, sort alphabetically
+      return a.localeCompare(b);
+    });
+    
     return {
       serviceCategories: filterOptionsData.filters.service_category || [],
       states: filterOptionsData.filters.state_name || [],
-      serviceCodes: filterOptionsData.filters.service_code || [],
+      serviceCodes: serviceCodes,
       programs: filterOptionsData.filters.program || [],
       locationRegions: filterOptionsData.filters.location_region || [],
       modifiers: (filterOptionsData.filters.modifier_1 || []).map((m: string) => ({ value: m, label: m })),
@@ -1121,7 +1145,7 @@ export default function StatePaymentComparison() {
     const filteredCombinations = filterOptionsData.combinations.filter(combo => {
       // Check primary filters only
       if (selections.service_category && combo.service_category !== selections.service_category) return false;
-      if (selections.state_name && combo.state_name !== selections.state_name) return false;
+      if (selections.state_name && combo.state_name?.trim().toUpperCase() !== selections.state_name?.trim().toUpperCase()) return false;
       if (selections.service_code && combo.service_code !== selections.service_code) return false;
       if (selections.service_description && combo.service_description !== selections.service_description) return false;
       
@@ -1162,14 +1186,41 @@ export default function StatePaymentComparison() {
       filteredCombinations
         .map(c => c[filterKey])
         .filter(Boolean)
-    )).sort();
+    ));
+    
+    // Apply custom sorting for service codes
+    if (filterKey === 'service_code') {
+      return availableOptions.sort((a, b) => {
+        // Check if both codes are purely numeric
+        const isANumeric = /^\d+$/.test(a);
+        const isBNumeric = /^\d+$/.test(b);
+        
+        // If both are numeric, sort numerically
+        if (isANumeric && isBNumeric) {
+          return parseInt(a, 10) - parseInt(b, 10);
+        }
+        
+        // If only one is numeric, put numeric first
+        if (isANumeric && !isBNumeric) {
+          return -1; // a comes first
+        }
+        if (!isANumeric && isBNumeric) {
+          return 1; // b comes first
+        }
+        
+        // If both are non-numeric, sort alphabetically
+        return a.localeCompare(b);
+      });
+    }
+    
+    return availableOptions.sort();
 
     // DEBUG: Log when modifier filter is being checked
     if (filterKey === 'modifier_1') {
       console.log('🔍 DEBUG - Modifier Filter Check (Individual Page):', {
         filterKey,
         currentSelections: selections,
-        totalCombinations: filterOptionsData.combinations.length,
+        totalCombinations: filterOptionsData?.combinations?.length || 0,
         filteredCombinations: filteredCombinations.length,
         availableOptions: availableOptions,
         availableOptionsCount: availableOptions.length,
@@ -1195,12 +1246,12 @@ export default function StatePaymentComparison() {
         console.log('🎯 Duration Unit Selected:', selections.duration_unit);
         console.log('🔍 Looking for combinations with duration_unit:', selections.duration_unit);
         const selectedUnits = Array.isArray(selections.duration_unit) ? selections.duration_unit : [selections.duration_unit];
-        const matchingDurationCombos = filterOptionsData.combinations.filter(c => 
-          selectedUnits.includes(c.duration_unit) &&
+        const matchingDurationCombos = filterOptionsData?.combinations?.filter(c => 
+          selectedUnits?.includes(c.duration_unit) &&
           c.service_category === selections.service_category &&
           c.state_name === selections.state_name &&
           c.service_code === selections.service_code
-        );
+        ) || [];
         console.log('📊 Combinations matching duration unit:', matchingDurationCombos.length);
         if (matchingDurationCombos.length > 0) {
           console.log('📋 Sample matching combinations:', matchingDurationCombos.slice(0, 3).map(c => ({
@@ -1418,7 +1469,7 @@ export default function StatePaymentComparison() {
       }
       
       if (selections.state_name) {
-        conditions.push(combo => combo.state_name === selections.state_name);
+        conditions.push(combo => combo.state_name?.trim().toUpperCase() === selections.state_name?.trim().toUpperCase());
       }
       
       if (selections.service_code) {
@@ -1467,7 +1518,27 @@ export default function StatePaymentComparison() {
           .map(c => c.service_code)
           .filter(Boolean)
           .filter(code => !selections.service_code || code === selections.service_code)
-      )).sort();
+      )).sort((a, b) => {
+        // Check if both codes are purely numeric
+        const isANumeric = /^\d+$/.test(a);
+        const isBNumeric = /^\d+$/.test(b);
+        
+        // If both are numeric, sort numerically
+        if (isANumeric && isBNumeric) {
+          return parseInt(a, 10) - parseInt(b, 10);
+        }
+        
+        // If only one is numeric, put numeric first
+        if (isANumeric && !isBNumeric) {
+          return -1; // a comes first
+        }
+        if (!isANumeric && isBNumeric) {
+          return 1; // b comes first
+        }
+        
+        // If both are non-numeric, sort alphabetically
+        return a.localeCompare(b);
+      });
       
       const serviceDescriptions = Array.from(new Set(
         filteredCombinations

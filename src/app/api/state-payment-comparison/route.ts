@@ -155,8 +155,97 @@ export async function GET(request: Request) {
 
     // Build Supabase query
     let query = supabase.from('master_data_july_7').select('*', { count: 'exact' });
+    
+    // DEBUG: Log the parameters being used
+    console.log('🔍 API Debug - Parameters received:', {
+      serviceCategory,
+      state,
+      serviceCode,
+      serviceDescription,
+      program,
+      locationRegion,
+      providerType,
+      modifier,
+      durationUnit,
+      feeScheduleDate,
+      startDate,
+      endDate
+    });
+    
+    // DEBUG: Test query to see if we can get any data at all
+    const testQuery = supabase.from('master_data_july_7').select('service_category, state_name, service_code').limit(5);
+    const { data: testData, error: testError } = await testQuery;
+    console.log('🔍 API Debug - Test query results:', {
+      testDataLength: testData?.length || 0,
+      testError: testError?.message || null,
+      sampleTestData: testData?.slice(0, 2) || []
+    });
+    
+    // DEBUG: Check what service categories exist for HCBS
+    const hcbsQuery = supabase.from('master_data_july_7')
+      .select('service_category')
+      .ilike('service_category', '%HOME AND COMMUNITY%')
+      .limit(10);
+    const { data: hcbsData, error: hcbsError } = await hcbsQuery;
+    console.log('🔍 API Debug - HCBS service categories found:', {
+      hcbsDataLength: hcbsData?.length || 0,
+      hcbsError: hcbsError?.message || null,
+      hcbsCategories: hcbsData?.map(item => item.service_category) || []
+    });
+    
+    // DEBUG: Test each filter individually
+    console.log('🔍 API Debug - Testing filters individually...');
+    
+    // Test 1: Just service category
+    const test1 = supabase.from('master_data_july_7')
+      .select('service_category, state_name, service_code')
+      .eq('service_category', serviceCategory);
+    const { data: test1Data, error: test1Error } = await test1;
+    console.log('🔍 API Debug - Test 1 (service_category only):', {
+      count: test1Data?.length || 0,
+      error: test1Error?.message || null,
+      sample: test1Data?.slice(0, 2) || []
+    });
+    
+    // Test 2: Service category + state
+    const test2 = supabase.from('master_data_july_7')
+      .select('service_category, state_name, service_code')
+      .eq('service_category', serviceCategory)
+      .ilike('state_name', (state || '').trim() + '%'); // Use ILIKE to handle trailing spaces
+    const { data: test2Data, error: test2Error } = await test2;
+    console.log('🔍 API Debug - Test 2 (service_category + state):', {
+      count: test2Data?.length || 0,
+      error: test2Error?.message || null,
+      sample: test2Data?.slice(0, 2) || []
+    });
+    
+    // Test 3: Service category + state + service code
+    const test3 = supabase.from('master_data_july_7')
+      .select('service_category, state_name, service_code')
+      .eq('service_category', serviceCategory)
+      .ilike('state_name', (state || '').trim() + '%') // Use ILIKE to handle trailing spaces
+      .eq('service_code', serviceCode);
+    const { data: test3Data, error: test3Error } = await test3;
+    console.log('🔍 API Debug - Test 3 (all three filters):', {
+      count: test3Data?.length || 0,
+      error: test3Error?.message || null,
+      sample: test3Data?.slice(0, 2) || []
+    });
+    
+    // DEBUG: Check what state names exist for HCBS
+    const stateQuery = supabase.from('master_data_july_7')
+      .select('state_name')
+      .eq('service_category', serviceCategory)
+      .ilike('state_name', '%NEBRASKA%');
+    const { data: stateData, error: stateError } = await stateQuery;
+    console.log('🔍 API Debug - State names for HCBS containing "NEBRASKA":', {
+      stateDataLength: stateData?.length || 0,
+      stateError: stateError?.message || null,
+      stateNames: [...new Set(stateData?.map(item => `"${item.state_name}"`) || [])] // Show unique state names with quotes to see spaces
+    });
+    
     if (serviceCategory) query = query.eq('service_category', serviceCategory);
-    if (state) query = query.eq('state_name', state);
+    if (state) query = query.ilike('state_name', state.trim() + '%'); // Use ILIKE to handle trailing spaces
     if (serviceCode) {
       if (serviceCode.includes(',')) {
         // Handle multi-select - split by comma and use OR
@@ -271,7 +360,17 @@ export async function GET(request: Request) {
 
     // Fetch data
     const { data, error, count } = await query;
+    
+    // DEBUG: Log the query results
+    console.log('🔍 API Debug - Query results:', {
+      dataLength: data?.length || 0,
+      count: count || 0,
+      error: error?.message || null,
+      sampleData: data?.slice(0, 2) || [] // Show first 2 records for debugging
+    });
+    
     if (error) {
+      console.error('❌ API Debug - Supabase error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
     return NextResponse.json({

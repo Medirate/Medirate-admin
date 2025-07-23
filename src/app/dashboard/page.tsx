@@ -218,16 +218,31 @@ export default function Dashboard() {
         if (value) params.append(key, value);
       });
       const url = `/api/state-payment-comparison?${params.toString()}`;
+      
+      // DEBUG: Log the API URL being called
+      console.log('🔍 refreshData - API URL:', url);
+      
       const response = await fetch(url);
+      
+      // DEBUG: Log the response status
+      console.log('🔍 refreshData - Response status:', response.status);
+      
       const result = await response.json();
+      
+      // DEBUG: Log the raw API result
+      console.log('🔍 refreshData - Raw API result:', result);
+      
       if (result && Array.isArray(result.data)) {
+        console.log('✅ refreshData - Valid data array received:', result.data.length, 'items');
         setData(result.data);
         return result;
       } else {
+        console.log('❌ refreshData - Invalid data format:', result);
         setError('Invalid data format received');
         return null;
       }
     } catch (err) {
+      console.error('❌ refreshData - Fetch error:', err);
       setError('Failed to fetch data. Please try again.');
       return null;
     } finally {
@@ -249,7 +264,7 @@ export default function Dashboard() {
       }
       
       if (selections.state_name) {
-        conditions.push(combo => combo.state_name === selections.state_name);
+        conditions.push(combo => combo.state_name?.trim().toUpperCase() === selections.state_name?.trim().toUpperCase());
       }
       
       if (selections.service_code) {
@@ -397,15 +412,27 @@ export default function Dashboard() {
       filters.page = String(currentPage);
       filters.itemsPerPage = String(itemsPerPage);
       if (selections.modifier_1) filters.modifier_1 = selections.modifier_1;
+      
+      // DEBUG: Log the filters being sent
+      console.log('🔍 Dashboard Search - Filters being sent:', filters);
+      console.log('🔍 Dashboard Search - Current selections:', selections);
+      
       // Remove sort config from API call since we're doing client-side sorting
       const result = await refreshData(filters) as RefreshDataResponse | null;
+      
+      // DEBUG: Log the API response
+      console.log('🔍 Dashboard Search - API Response:', result);
+      
       if (result?.data) {
+        console.log('✅ Dashboard Search - Data received:', result.data.length, 'records');
         setTotalCount(result.totalCount);
         setAuthError(null);
       } else {
+        console.log('❌ Dashboard Search - No data in response');
         setLocalError('Received invalid data format from server');
       }
     } catch (err) {
+      console.error('❌ Dashboard Search - Error:', err);
       setLocalError('Failed to fetch data. Please try again.');
     } finally {
       setIsSearching(false);
@@ -1102,7 +1129,7 @@ export default function Dashboard() {
     return filterOptionsData.combinations.find(
       c =>
         c.service_category === selections.service_category &&
-        c.state_name === selections.state_name &&
+        c.state_name?.trim().toUpperCase() === selections.state_name?.trim().toUpperCase() &&
         c.service_code === selections.service_code &&
         c.service_description === selections.service_description &&
         c.program === selections.program &&

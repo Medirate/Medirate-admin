@@ -681,7 +681,7 @@ export default function HistoricalRates() {
     // First get all matching entries
     const allMatchingEntries = data.filter(item => {
       if (selections.service_category && item.service_category !== selections.service_category) return false;
-      if (selections.state_name && item.state_name !== selections.state_name) return false;
+      if (selections.state_name && item.state_name?.trim().toUpperCase() !== selections.state_name.trim().toUpperCase()) return false;
       if (selections.service_code && selections.service_code !== '-') {
         // Handle comma-separated service codes
         const selectedCodes = typeof selections.service_code === 'string' 
