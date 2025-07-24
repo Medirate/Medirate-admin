@@ -25,20 +25,20 @@ const config: Config = {
 			lightBold: '580', // Custom weight between regular (400) and semi-bold (600)
 		  },
 		fontSize: {
-			// Increase all font sizes by 20%
-			'xs': '0.9rem',       // 14.4px (was 12px)
-			'sm': '1.05rem',      // 16.8px (was 14px)
-			'base': '1.2rem',     // 19.2px (was 16px)
-			'lg': '1.35rem',      // 21.6px (was 18px)
-			'xl': '1.5rem',       // 24px (was 20px)
-			'2xl': '1.8rem',      // 28.8px (was 24px)
-			'3xl': '2.25rem',     // 36px (was 30px)
-			'4xl': '2.7rem',      // 43.2px (was 36px)
-			'5xl': '3.6rem',      // 57.6px (was 48px)
-			'6xl': '4.5rem',      // 72px (was 60px)
-			'7xl': '5.4rem',      // 86.4px (was 72px)
-			'8xl': '7.2rem',      // 115.2px (was 96px)
-			'9xl': '9.6rem',      // 153.6px (was 128px)
+			// Use standard Tailwind font sizes for consistent cross-platform rendering
+			'xs': '0.75rem',      // 12px
+			'sm': '0.875rem',     // 14px
+			'base': '1rem',       // 16px
+			'lg': '1.125rem',     // 18px
+			'xl': '1.25rem',      // 20px
+			'2xl': '1.5rem',      // 24px
+			'3xl': '1.875rem',    // 30px
+			'4xl': '2.25rem',     // 36px
+			'5xl': '3rem',        // 48px
+			'6xl': '3.75rem',     // 60px
+			'7xl': '4.5rem',      // 72px
+			'8xl': '6rem',        // 96px
+			'9xl': '8rem',        // 128px
 		},
   		maxWidth: {
   			'8xl': '1408px'

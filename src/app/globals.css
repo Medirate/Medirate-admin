@@ -114,7 +114,7 @@
     background-color: var(--app-background); /* Set universal background */
     margin: 0;
     padding: 0;
-    font-size: 19.2px; /* Increase base font size by 20% (16px * 1.2) */
+    font-size: 16px; /* Standard base font size for consistent cross-platform rendering */
     line-height: 1.6; /* Adjust line height for better readability */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -135,30 +135,26 @@
     text-size-adjust: 100%;
   }
 
-  /* Scale up common UI elements by 20% */
+  /* Windows-specific DPI scaling fix */
+  @media screen and (-ms-high-contrast: active), (-ms-high-contrast: none) {
+    html {
+      zoom: 1;
+    }
+  }
+
+  /* Ensure consistent rendering across all browsers and platforms */
+  * {
+    box-sizing: border-box;
+  }
+
+  /* Remove manual scaling overrides to let Tailwind handle sizing consistently across platforms */
   p, li, td, th, input, textarea, select, button, label {
-    font-size: inherit; /* Use inherited size instead of forcing a specific size */
+    font-size: inherit;
   }
 
-  /* Increase padding and spacing for better visual hierarchy */
   button, input, textarea, select {
-    padding: 0.6em 1.2em; /* Increase padding by 20% */
+    font-size: inherit;
   }
-
-  /* Scale up common spacing classes */
-  .p-1 { padding: 0.3rem !important; } /* was 0.25rem */
-  .p-2 { padding: 0.6rem !important; } /* was 0.5rem */
-  .p-3 { padding: 0.9rem !important; } /* was 0.75rem */
-  .p-4 { padding: 1.2rem !important; } /* was 1rem */
-  .p-5 { padding: 1.5rem !important; } /* was 1.25rem */
-  .p-6 { padding: 1.8rem !important; } /* was 1.5rem */
-
-  .m-1 { margin: 0.3rem !important; } /* was 0.25rem */
-  .m-2 { margin: 0.6rem !important; } /* was 0.5rem */
-  .m-3 { margin: 0.9rem !important; } /* was 0.75rem */
-  .m-4 { margin: 1.2rem !important; } /* was 1rem */
-  .m-5 { margin: 1.5rem !important; } /* was 1.25rem */
-  .m-6 { margin: 1.8rem !important; } /* was 1.5rem */
 
   /* Reusable gradient background */
   .reusable-gradient-bg {
