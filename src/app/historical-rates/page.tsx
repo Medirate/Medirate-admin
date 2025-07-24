@@ -464,7 +464,7 @@ function getAvailableOptionsForFilter(filterKey: keyof Selections, selections: S
   if (!filterOptionsData || !filterOptionsData.combinations) return [];
   
   // For all other filters, ensure that if a fee_schedule_date is selected, we only consider combos where the date is present in the array (or matches the string)
-  return Array.from(new Set(
+  const availableOptions = Array.from(new Set(
     filterOptionsData.combinations
       .filter((combo: any) => {
         // Now check all other selections except the current filterKey
@@ -482,7 +482,70 @@ function getAvailableOptionsForFilter(filterKey: keyof Selections, selections: S
       })
       .map((c: any) => c[filterKey])
       .filter((val: any): val is string => Boolean(val))
-  )).sort() as string[];
+  ));
+  
+  // Apply custom sorting for service codes
+  if (filterKey === 'service_code') {
+    return (availableOptions as string[]).sort((a: string, b: string) => {
+      // Check if both codes are purely numeric
+      const isANumeric = /^\d+$/.test(a);
+      const isBNumeric = /^\d+$/.test(b);
+      
+      // If both are numeric, sort numerically
+      if (isANumeric && isBNumeric) {
+        return parseInt(a, 10) - parseInt(b, 10);
+      }
+      
+      // If only one is numeric, put numeric first
+      if (isANumeric && !isBNumeric) {
+        return -1; // a comes first
+      }
+      if (!isANumeric && isBNumeric) {
+        return 1; // b comes first
+      }
+      
+      // Check if both are HCPCS codes (start with letter)
+      const isAHCPCS = /^[A-Z]\d+$/.test(a);
+      const isBHCPCS = /^[A-Z]\d+$/.test(b);
+      
+      // If both are HCPCS codes, sort alphabetically
+      if (isAHCPCS && isBHCPCS) {
+        return a.localeCompare(b);
+      }
+      
+      // If only one is HCPCS, put HCPCS first
+      if (isAHCPCS && !isBHCPCS) {
+        return -1; // a comes first
+      }
+      if (!isAHCPCS && isBHCPCS) {
+        return 1; // b comes first
+      }
+      
+      // Check if both are "number + letter" codes (like 0362T)
+      const isANumberLetter = /^\d+[A-Z]$/.test(a);
+      const isBNumberLetter = /^\d+[A-Z]$/.test(b);
+      
+      // If both are number+letter codes, sort numerically by the number part
+      if (isANumberLetter && isBNumberLetter) {
+        const aNum = parseInt(a.replace(/[A-Z]$/, ''), 10);
+        const bNum = parseInt(b.replace(/[A-Z]$/, ''), 10);
+        return aNum - bNum;
+      }
+      
+      // If only one is number+letter, put number+letter first
+      if (isANumberLetter && !isBNumberLetter) {
+        return -1; // a comes first
+      }
+      if (!isANumberLetter && isBNumberLetter) {
+        return 1; // b comes first
+      }
+      
+      // For any other format, sort alphabetically
+      return a.localeCompare(b);
+    });
+  }
+  
+  return availableOptions.sort() as string[];
 }
 
 // Helper function to check if there are blank entries for a secondary filter

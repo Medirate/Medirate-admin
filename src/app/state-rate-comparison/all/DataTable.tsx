@@ -96,11 +96,11 @@ export const DataTable = ({
           });
           if (!grouped[key]) grouped[key] = [];
           grouped[key].push(item);
-                  }
-        });
-        
-        // Only keep the latest entry for each group
-        const filteredDataForSet = Object.values(grouped).map(entries => {
+        }
+      });
+      
+      // Only keep the latest entry for each group
+      const filteredDataForSet = Object.values(grouped).map(entries => {
         return entries.reduce((latest, current) => {
           const latestDate = new Date(latest.rate_effective_date);
           const currentDate = new Date(current.rate_effective_date);

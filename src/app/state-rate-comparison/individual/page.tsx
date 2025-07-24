@@ -366,7 +366,43 @@ export default function StatePaymentComparison() {
         return 1; // b comes first
       }
       
-      // If both are non-numeric, sort alphabetically
+      // Check if both are HCPCS codes (start with letter)
+      const isAHCPCS = /^[A-Z]\d+$/.test(a);
+      const isBHCPCS = /^[A-Z]\d+$/.test(b);
+      
+      // If both are HCPCS codes, sort alphabetically
+      if (isAHCPCS && isBHCPCS) {
+        return a.localeCompare(b);
+      }
+      
+      // If only one is HCPCS, put HCPCS first
+      if (isAHCPCS && !isBHCPCS) {
+        return -1; // a comes first
+      }
+      if (!isAHCPCS && isBHCPCS) {
+        return 1; // b comes first
+      }
+      
+      // Check if both are "number + letter" codes (like 0362T)
+      const isANumberLetter = /^\d+[A-Z]$/.test(a);
+      const isBNumberLetter = /^\d+[A-Z]$/.test(b);
+      
+      // If both are number+letter codes, sort numerically by the number part
+      if (isANumberLetter && isBNumberLetter) {
+        const aNum = parseInt(a.replace(/[A-Z]$/, ''), 10);
+        const bNum = parseInt(b.replace(/[A-Z]$/, ''), 10);
+        return aNum - bNum;
+      }
+      
+      // If only one is number+letter, put number+letter first
+      if (isANumberLetter && !isBNumberLetter) {
+        return -1; // a comes first
+      }
+      if (!isANumberLetter && isBNumberLetter) {
+        return 1; // b comes first
+      }
+      
+      // For any other format, sort alphabetically
       return a.localeCompare(b);
     });
     
@@ -1208,7 +1244,43 @@ export default function StatePaymentComparison() {
           return 1; // b comes first
         }
         
-        // If both are non-numeric, sort alphabetically
+        // Check if both are HCPCS codes (start with letter)
+        const isAHCPCS = /^[A-Z]\d+$/.test(a);
+        const isBHCPCS = /^[A-Z]\d+$/.test(b);
+        
+        // If both are HCPCS codes, sort alphabetically
+        if (isAHCPCS && isBHCPCS) {
+          return a.localeCompare(b);
+        }
+        
+        // If only one is HCPCS, put HCPCS first
+        if (isAHCPCS && !isBHCPCS) {
+          return -1; // a comes first
+        }
+        if (!isAHCPCS && isBHCPCS) {
+          return 1; // b comes first
+        }
+        
+        // Check if both are "number + letter" codes (like 0362T)
+        const isANumberLetter = /^\d+[A-Z]$/.test(a);
+        const isBNumberLetter = /^\d+[A-Z]$/.test(b);
+        
+        // If both are number+letter codes, sort numerically by the number part
+        if (isANumberLetter && isBNumberLetter) {
+          const aNum = parseInt(a.replace(/[A-Z]$/, ''), 10);
+          const bNum = parseInt(b.replace(/[A-Z]$/, ''), 10);
+          return aNum - bNum;
+        }
+        
+        // If only one is number+letter, put number+letter first
+        if (isANumberLetter && !isBNumberLetter) {
+          return -1; // a comes first
+        }
+        if (!isANumberLetter && isBNumberLetter) {
+          return 1; // b comes first
+        }
+        
+        // For any other format, sort alphabetically
         return a.localeCompare(b);
       });
     }
