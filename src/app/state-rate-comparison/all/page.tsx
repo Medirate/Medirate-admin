@@ -355,61 +355,35 @@ export default function StatePaymentComparison() {
     
     // Apply custom sorting to service codes
     const serviceCodes = (filterOptionsData.filters.service_code || []).sort((a, b) => {
-      // Check if both codes are purely numeric
-      const isANumeric = /^\d+$/.test(a);
-      const isBNumeric = /^\d+$/.test(b);
+      // Define code types with priority: 1=numeric, 2=number+letter, 3=HCPCS, 4=other
+      const getCodeType = (code: string) => {
+        if (/^\d+$/.test(code)) return 1; // Pure numeric (00001-99999)
+        if (/^\d+[A-Z]$/.test(code)) return 2; // Number+letter (0362T, 0373T)
+        if (/^[A-Z]\d+$/.test(code)) return 3; // HCPCS (A0001-Z9999)
+        return 4; // Other formats
+      };
       
-      // If both are numeric, sort numerically
-      if (isANumeric && isBNumeric) {
+      const aType = getCodeType(a);
+      const bType = getCodeType(b);
+      
+      // If different types, sort by priority (lower number = higher priority)
+      if (aType !== bType) {
+        return aType - bType;
+      }
+      
+      // Same type - sort within the type
+      if (aType === 1) {
+        // Both numeric - sort numerically
         return parseInt(a, 10) - parseInt(b, 10);
-      }
-      
-      // If only one is numeric, put numeric first
-      if (isANumeric && !isBNumeric) {
-        return -1; // a comes first
-      }
-      if (!isANumeric && isBNumeric) {
-        return 1; // b comes first
-      }
-      
-      // Check if both are HCPCS codes (start with letter)
-      const isAHCPCS = /^[A-Z]\d+$/.test(a);
-      const isBHCPCS = /^[A-Z]\d+$/.test(b);
-      
-      // If both are HCPCS codes, sort alphabetically
-      if (isAHCPCS && isBHCPCS) {
-        return a.localeCompare(b);
-      }
-      
-      // If only one is HCPCS, put HCPCS first
-      if (isAHCPCS && !isBHCPCS) {
-        return -1; // a comes first
-      }
-      if (!isAHCPCS && isBHCPCS) {
-        return 1; // b comes first
-      }
-      
-      // Check if both are "number + letter" codes (like 0362T)
-      const isANumberLetter = /^\d+[A-Z]$/.test(a);
-      const isBNumberLetter = /^\d+[A-Z]$/.test(b);
-      
-      // If both are number+letter codes, sort numerically by the number part
-      if (isANumberLetter && isBNumberLetter) {
+      } else if (aType === 2) {
+        // Both number+letter - sort by numeric part
         const aNum = parseInt(a.replace(/[A-Z]$/, ''), 10);
         const bNum = parseInt(b.replace(/[A-Z]$/, ''), 10);
         return aNum - bNum;
+      } else {
+        // HCPCS or other - sort alphabetically
+        return a.localeCompare(b);
       }
-      
-      // If only one is number+letter, put number+letter first
-      if (isANumberLetter && !isBNumberLetter) {
-        return -1; // a comes first
-      }
-      if (!isANumberLetter && isBNumberLetter) {
-        return 1; // b comes first
-      }
-      
-      // For any other format, sort alphabetically
-      return a.localeCompare(b);
     });
     
     return {
@@ -1558,61 +1532,35 @@ export default function StatePaymentComparison() {
     // Apply custom sorting for service codes
     if (filterKey === 'service_code') {
       return availableOptions.sort((a, b) => {
-        // Check if both codes are purely numeric
-        const isANumeric = /^\d+$/.test(a);
-        const isBNumeric = /^\d+$/.test(b);
+        // Define code types with priority: 1=numeric, 2=number+letter, 3=HCPCS, 4=other
+        const getCodeType = (code: string) => {
+          if (/^\d+$/.test(code)) return 1; // Pure numeric (00001-99999)
+          if (/^\d+[A-Z]$/.test(code)) return 2; // Number+letter (0362T, 0373T)
+          if (/^[A-Z]\d+$/.test(code)) return 3; // HCPCS (A0001-Z9999)
+          return 4; // Other formats
+        };
         
-        // If both are numeric, sort numerically
-        if (isANumeric && isBNumeric) {
+        const aType = getCodeType(a);
+        const bType = getCodeType(b);
+        
+        // If different types, sort by priority (lower number = higher priority)
+        if (aType !== bType) {
+          return aType - bType;
+        }
+        
+        // Same type - sort within the type
+        if (aType === 1) {
+          // Both numeric - sort numerically
           return parseInt(a, 10) - parseInt(b, 10);
-        }
-        
-        // If only one is numeric, put numeric first
-        if (isANumeric && !isBNumeric) {
-          return -1; // a comes first
-        }
-        if (!isANumeric && isBNumeric) {
-          return 1; // b comes first
-        }
-        
-        // Check if both are HCPCS codes (start with letter)
-        const isAHCPCS = /^[A-Z]\d+$/.test(a);
-        const isBHCPCS = /^[A-Z]\d+$/.test(b);
-        
-        // If both are HCPCS codes, sort alphabetically
-        if (isAHCPCS && isBHCPCS) {
-          return a.localeCompare(b);
-        }
-        
-        // If only one is HCPCS, put HCPCS first
-        if (isAHCPCS && !isBHCPCS) {
-          return -1; // a comes first
-        }
-        if (!isAHCPCS && isBHCPCS) {
-          return 1; // b comes first
-        }
-        
-        // Check if both are "number + letter" codes (like 0362T)
-        const isANumberLetter = /^\d+[A-Z]$/.test(a);
-        const isBNumberLetter = /^\d+[A-Z]$/.test(b);
-        
-        // If both are number+letter codes, sort numerically by the number part
-        if (isANumberLetter && isBNumberLetter) {
+        } else if (aType === 2) {
+          // Both number+letter - sort by numeric part
           const aNum = parseInt(a.replace(/[A-Z]$/, ''), 10);
           const bNum = parseInt(b.replace(/[A-Z]$/, ''), 10);
           return aNum - bNum;
+        } else {
+          // HCPCS or other - sort alphabetically
+          return a.localeCompare(b);
         }
-        
-        // If only one is number+letter, put number+letter first
-        if (isANumberLetter && !isBNumberLetter) {
-          return -1; // a comes first
-        }
-        if (!isANumberLetter && isBNumberLetter) {
-          return 1; // b comes first
-        }
-        
-        // For any other format, sort alphabetically
-        return a.localeCompare(b);
       });
     }
     
@@ -1669,11 +1617,48 @@ export default function StatePaymentComparison() {
     });
     
     // Get unique values for the requested filter
-    return Array.from(new Set(
+    const uniqueValues = Array.from(new Set(
       filteredCombinations
         .map(c => c[filterKey])
         .filter(Boolean)
-    )).sort();
+    ));
+    
+    // Apply custom sorting for service codes
+    if (filterKey === 'service_code') {
+      return uniqueValues.sort((a, b) => {
+        // Define code types with priority: 1=numeric, 2=number+letter, 3=HCPCS, 4=other
+        const getCodeType = (code: string) => {
+          if (/^\d+$/.test(code)) return 1; // Pure numeric (00001-99999)
+          if (/^\d+[A-Z]$/.test(code)) return 2; // Number+letter (0362T, 0373T)
+          if (/^[A-Z]\d+$/.test(code)) return 3; // HCPCS (A0001-Z9999)
+          return 4; // Other formats
+        };
+        
+        const aType = getCodeType(a);
+        const bType = getCodeType(b);
+        
+        // If different types, sort by priority (lower number = higher priority)
+        if (aType !== bType) {
+          return aType - bType;
+        }
+        
+        // Same type - sort within the type
+        if (aType === 1) {
+          // Both numeric - sort numerically
+          return parseInt(a, 10) - parseInt(b, 10);
+        } else if (aType === 2) {
+          // Both number+letter - sort by numeric part
+          const aNum = parseInt(a.replace(/[A-Z]$/, ''), 10);
+          const bNum = parseInt(b.replace(/[A-Z]$/, ''), 10);
+          return aNum - bNum;
+        } else {
+          // HCPCS or other - sort alphabetically
+          return a.localeCompare(b);
+        }
+      });
+    }
+    
+    return uniqueValues.sort();
   };
 
   // Helper function to check if there are blank entries for a secondary filter
@@ -1832,27 +1817,35 @@ export default function StatePaymentComparison() {
           .filter(Boolean)
           .filter(code => !selections.service_code || code === selections.service_code)
       )).sort((a, b) => {
-        // Check if both codes are purely numeric
-        const isANumeric = /^\d+$/.test(a);
-        const isBNumeric = /^\d+$/.test(b);
+        // Define code types with priority: 1=numeric, 2=number+letter, 3=HCPCS, 4=other
+        const getCodeType = (code: string) => {
+          if (/^\d+$/.test(code)) return 1; // Pure numeric (00001-99999)
+          if (/^\d+[A-Z]$/.test(code)) return 2; // Number+letter (0362T, 0373T)
+          if (/^[A-Z]\d+$/.test(code)) return 3; // HCPCS (A0001-Z9999)
+          return 4; // Other formats
+        };
         
-
+        const aType = getCodeType(a);
+        const bType = getCodeType(b);
         
-        // If both are numeric, sort numerically
-        if (isANumeric && isBNumeric) {
+        // If different types, sort by priority (lower number = higher priority)
+        if (aType !== bType) {
+          return aType - bType;
+        }
+        
+        // Same type - sort within the type
+        if (aType === 1) {
+          // Both numeric - sort numerically
           return parseInt(a, 10) - parseInt(b, 10);
+        } else if (aType === 2) {
+          // Both number+letter - sort by numeric part
+          const aNum = parseInt(a.replace(/[A-Z]$/, ''), 10);
+          const bNum = parseInt(b.replace(/[A-Z]$/, ''), 10);
+          return aNum - bNum;
+        } else {
+          // HCPCS or other - sort alphabetically
+          return a.localeCompare(b);
         }
-        
-        // If only one is numeric, put numeric first
-        if (isANumeric && !isBNumeric) {
-          return -1; // a comes first
-        }
-        if (!isANumeric && isBNumeric) {
-          return 1; // b comes first
-        }
-        
-        // If both are non-numeric, sort alphabetically
-        return a.localeCompare(b);
       });
       
       const serviceDescriptions = Array.from(new Set(
