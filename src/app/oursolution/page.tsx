@@ -311,7 +311,7 @@ export default function OurSolution() {
         </div>
         <div className="mt-12 text-center">
           <a
-            href="https://calendar.app.google/q3xeU2244eisFsXC7"
+            href="https://calendar.google.com/calendar/u/0/appointments/schedules/AcZssZ1QOXygd6Dpekn_BDsmrizOLq3D9aX8iq_aopMjF5o4Z2_APztYi8VXo5QMn2ab0sDZ5rTX18ii"
             target="_blank"
             rel="noopener noreferrer"
             className="relative bg-[#012C61] text-white px-6 py-3 rounded-lg overflow-hidden group transition-all duration-500 ease-in-out w-64 mx-auto flex items-center justify-center space-x-2"
