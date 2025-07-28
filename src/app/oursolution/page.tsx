@@ -285,7 +285,7 @@ export default function OurSolution() {
                 </thead>
                 <tbody>
                   <tr>
-                    <td className="p-2 border">Applied Behavioral Analysis (ABA) and Early Intervention (EI) Services</td>
+                    <td className="p-2 border">Applied Behavior Analysis (ABA) and Early Intervention (EI) Services</td>
                     <td className="p-2 border flex justify-center"><Check className="text-green-600" /></td>
                   </tr>
                   <tr>
@@ -293,7 +293,7 @@ export default function OurSolution() {
                     <td className="p-2 border flex justify-center"><Check className="text-green-600" /></td>
                   </tr>
                   <tr>
-                    <td className="p-2 border">Behavioral Health services</td>
+                    <td className="p-2 border">Behavior Health services</td>
                     <td className="p-2 border flex justify-center"><Check className="text-green-600" /></td>
                   </tr>
                   <tr>
