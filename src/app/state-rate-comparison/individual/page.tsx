@@ -172,6 +172,17 @@ const customFilterOption = (option: any, inputValue: string) => {
   return label.includes(searchTerm);
 };
 
+// New "jump to first letter" filter function for specific fields
+const jumpToLetterFilterOption = (option: any, inputValue: string) => {
+  if (!inputValue) return true; // Show all options when no input
+  
+  const label = option.label.toLowerCase();
+  const searchTerm = inputValue.toLowerCase();
+  
+  // Only match if the label starts with the search term (jump to first letter behavior)
+  return label.startsWith(searchTerm);
+};
+
 // Generate a stable unique key for a row
 function getRowKey(item: ServiceData) {
   return [
@@ -2615,7 +2626,7 @@ export default function StatePaymentComparison() {
                           onChange={option => wrappedHandleStateChange(index, option?.value || "")}
                           placeholder="Select State"
                           isSearchable
-                          filterOption={customFilterOption}
+                          filterOption={jumpToLetterFilterOption}
                           className={`react-select-container ${missingFields.state ? 'border-red-500' : ''}`}
                         />
                         {missingFields.state && <div className="text-xs text-red-500 mt-1">Please select a state.</div>}
@@ -2690,7 +2701,7 @@ export default function StatePaymentComparison() {
                           placeholder="Select Program"
                           isMulti
                           isSearchable
-                          filterOption={customFilterOption}
+                          filterOption={jumpToLetterFilterOption}
                           isDisabled={(() => {
                             const availablePrograms = getAvailableOptionsForFilterSet('program', index);
                             return (availablePrograms || []).length === 0;
@@ -2721,7 +2732,7 @@ export default function StatePaymentComparison() {
                           placeholder="Select Location/Region"
                           isMulti
                           isSearchable
-                          filterOption={customFilterOption}
+                          filterOption={jumpToLetterFilterOption}
                           isDisabled={(() => {
                             const availableLocationRegions = getAvailableOptionsForFilterSet('location_region', index);
                             return (availableLocationRegions || []).length === 0;
@@ -2763,7 +2774,7 @@ export default function StatePaymentComparison() {
                           placeholder="Select Modifier"
                           isMulti
                           isSearchable
-                          filterOption={customFilterOption}
+                          filterOption={jumpToLetterFilterOption}
                           isDisabled={(() => {
                             const availableModifiers = getAvailableOptionsForFilterSet('modifier_1', index);
                             return (availableModifiers || []).length === 0;
@@ -2794,7 +2805,7 @@ export default function StatePaymentComparison() {
                           placeholder="Select Provider Type"
                           isMulti
                           isSearchable
-                          filterOption={customFilterOption}
+                          filterOption={jumpToLetterFilterOption}
                           isDisabled={(() => {
                             const availableProviderTypes = getAvailableOptionsForFilterSet('provider_type', index);
                             return (availableProviderTypes || []).length === 0;

@@ -70,6 +70,17 @@ const customFilterOption = (option: any, inputValue: string) => {
   return label.includes(searchTerm);
 };
 
+// New "jump to first letter" filter function for specific fields
+const jumpToLetterFilterOption = (option: any, inputValue: string) => {
+  if (!inputValue) return true; // Show all options when no input
+  
+  const label = option.label.toLowerCase();
+  const searchTerm = inputValue.toLowerCase();
+  
+  // Only match if the label starts with the search term (jump to first letter behavior)
+  return label.startsWith(searchTerm);
+};
+
 // Move extractFilters above the component definition to avoid linter error
 function extractFilters(
   data: ServiceData[],
@@ -1532,6 +1543,8 @@ export default function HistoricalRates() {
                         onChange={option => handleSelectionChange('state_name', option?.value || null)}
                         placeholder="Select State"
                         isClearable
+                        isSearchable
+                        filterOption={jumpToLetterFilterOption}
                         isDisabled={!selections.service_category || availableStates.length === 0}
                         className="react-select-container"
                         classNamePrefix="react-select"
@@ -1588,6 +1601,8 @@ export default function HistoricalRates() {
                         placeholder="Select Program"
                         isMulti
                         isClearable
+                        isSearchable
+                        filterOption={jumpToLetterFilterOption}
                         isDisabled={!selections.service_category || !selections.state_name || availablePrograms.length === 0}
                         className="react-select-container"
                         classNamePrefix="react-select"
@@ -1607,6 +1622,8 @@ export default function HistoricalRates() {
                         placeholder="Select Location/Region"
                         isMulti
                         isClearable
+                        isSearchable
+                        filterOption={jumpToLetterFilterOption}
                         isDisabled={!selections.service_category || !selections.state_name || availableLocationRegions.length === 0}
                         className="react-select-container"
                         classNamePrefix="react-select"
@@ -1626,6 +1643,8 @@ export default function HistoricalRates() {
                         placeholder="Select Provider Type"
                         isMulti
                         isClearable
+                        isSearchable
+                        filterOption={jumpToLetterFilterOption}
                         isDisabled={!selections.service_category || !selections.state_name || availableProviderTypes.length === 0}
                         className="react-select-container"
                         classNamePrefix="react-select"
@@ -1682,6 +1701,8 @@ export default function HistoricalRates() {
                         placeholder="Select Modifier"
                         isMulti
                         isClearable
+                        isSearchable
+                        filterOption={jumpToLetterFilterOption}
                         isDisabled={!selections.service_category || !selections.state_name || availableModifiers.length === 0}
                         className="react-select-container"
                         classNamePrefix="react-select"

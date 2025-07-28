@@ -169,6 +169,17 @@ const customFilterOption = (option: any, inputValue: string) => {
   return label.includes(searchTerm);
 };
 
+// New "jump to first letter" filter function for specific fields
+const jumpToLetterFilterOption = (option: any, inputValue: string) => {
+  if (!inputValue) return true; // Show all options when no input
+  
+  const label = option.label.toLowerCase();
+  const searchTerm = inputValue.toLowerCase();
+  
+  // Only match if the label starts with the search term (jump to first letter behavior)
+  return label.startsWith(searchTerm);
+};
+
 export default function Dashboard() {
   const { isAuthenticated, isLoading, user } = useKindeBrowserClient();
   const router = useRouter();
@@ -1466,6 +1477,8 @@ export default function Dashboard() {
                     onChange={(option) => handleSelectionChange('state_name', option?.value || null)}
                     placeholder="Select State"
                     isClearable
+                    isSearchable
+                    filterOption={jumpToLetterFilterOption}
                     isDisabled={!selections.service_category || availableStates.length === 0}
                     className={clsx("react-select-container", pendingFilters.has('state_name') ? 'pending-outline' : 'applied-outline')}
                     classNamePrefix="react-select"
@@ -1524,6 +1537,8 @@ export default function Dashboard() {
                     placeholder="Select Program"
                     isMulti
                     isClearable
+                    isSearchable
+                    filterOption={jumpToLetterFilterOption}
                     isDisabled={!selections.service_category || !selections.state_name || availablePrograms.length === 0}
                     className={clsx("react-select-container", pendingFilters.has('program') ? 'pending-outline' : 'applied-outline')}
                     classNamePrefix="react-select"
@@ -1544,6 +1559,8 @@ export default function Dashboard() {
                     placeholder="Select Location/Region"
                     isMulti
                     isClearable
+                    isSearchable
+                    filterOption={jumpToLetterFilterOption}
                     isDisabled={!selections.service_category || !selections.state_name || availableLocationRegions.length === 0}
                     className={clsx("react-select-container", pendingFilters.has('location_region') ? 'pending-outline' : 'applied-outline')}
                     classNamePrefix="react-select"
@@ -1564,6 +1581,8 @@ export default function Dashboard() {
                     placeholder="Select Provider Type"
                     isMulti
                     isClearable
+                    isSearchable
+                    filterOption={jumpToLetterFilterOption}
                     isDisabled={!selections.service_category || !selections.state_name || availableProviderTypes.length === 0}
                     className={clsx("react-select-container", pendingFilters.has('provider_type') ? 'pending-outline' : 'applied-outline')}
                     classNamePrefix="react-select"
@@ -1607,6 +1626,8 @@ export default function Dashboard() {
                     placeholder="Select Modifier"
                         isMulti
                         isClearable
+                        isSearchable
+                        filterOption={jumpToLetterFilterOption}
                     isDisabled={!selections.service_category || !selections.state_name || availableModifiers.length === 0}
                     className={clsx("react-select-container", pendingFilters.has('modifier_1') ? 'pending-outline' : 'applied-outline')}
                         classNamePrefix="react-select"
