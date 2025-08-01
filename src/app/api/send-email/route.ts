@@ -5,6 +5,12 @@ const BREVO_API_KEY = process.env.BREVO_API_KEY;
 const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
 const CONTACT_EMAIL = 'contact@medirate.net';
 
+// Additional recipients for contact us and support emails
+const ADDITIONAL_RECIPIENTS = [
+  { email: 'dev@metasysconsulting.com', name: 'MetaSys Dev Team' },
+  { email: 'nischalareddy@metasysconsulting.com', name: 'Nischala Reddy' }
+];
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -39,7 +45,10 @@ export async function POST(req: Request) {
       },
       body: JSON.stringify({
         sender: { email: CONTACT_EMAIL, name: 'MediRate Contact Form' },
-        to: [{ email: CONTACT_EMAIL, name: 'MediRate Contact' }],
+        to: [
+          { email: CONTACT_EMAIL, name: 'MediRate Contact' },
+          ...ADDITIONAL_RECIPIENTS
+        ],
         subject: `Contact Us: Message from ${firstName} ${lastName}`,
         htmlContent,
         replyTo: { email, name: `${firstName} ${lastName}` },
