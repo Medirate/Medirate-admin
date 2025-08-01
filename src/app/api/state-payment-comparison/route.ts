@@ -55,14 +55,15 @@ export async function GET(request: Request) {
       // Handle service code filtering (single or multi-select)
       if (serviceCode) {
         if (serviceCode.includes(',')) {
-          // Handle multi-select - split by comma and use OR
-          const codes = serviceCode.split(',').map(c => c.trim()).filter(c => c);
-          if (codes.length > 0) {
-            const orConditions = codes.map(c => `service_code.eq.${c}`).join(',');
-            query = query.or(orConditions);
-          }
+          // Multi-select service codes are now handled by frontend union approach
+          // This API endpoint will no longer receive multi-select service codes
+          return NextResponse.json({ 
+            error: 'Multi-select service codes should be handled by frontend union approach' 
+          }, { status: 400 });
         } else {
-          query = query.eq('service_code', serviceCode);
+          const trimmedCode = serviceCode.trim();
+          console.log(`🔍 API: Single service code: "${serviceCode}" → "${trimmedCode}"`);
+          query = query.eq('service_code', trimmedCode);
         }
       }
 
@@ -93,6 +94,10 @@ export async function GET(request: Request) {
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
+
+      // Debug: Check raw data before state averaging
+      const uniqueStates = [...new Set(data?.map((item: any) => item.state_name) || [])];
+      console.log(`🔍 API: Raw query found ${data?.length || 0} records across ${uniqueStates.length} unique states`);
 
       // Group by state and unique combination, then pick latest per combo
       const stateCombos: { [state: string]: { [combo: string]: any } } = {};
@@ -128,6 +133,10 @@ export async function GET(request: Request) {
           count: rates.length
         };
       });
+
+      // Debug: Check how many states survived the averaging
+      const validAverages = stateAverages.filter(s => s.avg_rate > 0);
+      console.log(`🔍 API: After state averaging: ${validAverages.length} states with valid rates`);
 
       return NextResponse.json({
         stateAverages,
@@ -248,14 +257,14 @@ export async function GET(request: Request) {
     if (state) query = query.ilike('state_name', state.trim() + '%'); // Use ILIKE to handle trailing spaces
     if (serviceCode) {
       if (serviceCode.includes(',')) {
-        // Handle multi-select - split by comma and use OR
-        const codes = serviceCode.split(',').map(c => c.trim()).filter(c => c);
-        if (codes.length > 0) {
-          const orConditions = codes.map(c => `service_code.eq.${c}`).join(',');
-          query = query.or(orConditions);
-        }
+        // Multi-select service codes are now handled by frontend union approach
+        // This API endpoint will no longer receive multi-select service codes
+        return NextResponse.json({ 
+          error: 'Multi-select service codes should be handled by frontend union approach' 
+        }, { status: 400 });
       } else {
-        query = query.eq('service_code', serviceCode);
+        const trimmedCode = serviceCode.trim();
+        query = query.eq('service_code', trimmedCode);
       }
     }
     if (serviceDescription) query = query.eq('service_description', serviceDescription);

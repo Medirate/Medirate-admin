@@ -1040,8 +1040,11 @@ export default function StatePaymentComparison() {
     filterSets.forEach(filterSet => {
       const filteredDataForSet = latestRates.filter((item) => (
         item.service_category === filterSet.serviceCategory &&
-        filterSet.states.includes(item.state_name?.trim().toUpperCase()) &&
-        item.service_code === filterSet.serviceCode &&
+        (filterSet.states.includes("ALL_STATES") || filterSet.states.some(state => state.trim().toUpperCase() === item.state_name?.trim().toUpperCase())) &&
+        // Handle multi-select service codes (OR logic - any one of the codes)
+        (filterSet.serviceCode.includes(',') 
+          ? filterSet.serviceCode.split(',').map(code => code.trim()).includes(item.service_code?.trim())
+          : item.service_code === filterSet.serviceCode) &&
         (!filterSet.program || item.program === filterSet.program) &&
         (!filterSet.locationRegion || item.location_region === filterSet.locationRegion) &&
         (!filterSet.modifier || [item.modifier_1, item.modifier_2, item.modifier_3, item.modifier_4].includes(filterSet.modifier)) &&
@@ -1049,6 +1052,45 @@ export default function StatePaymentComparison() {
         (!filterSet.providerType || item.provider_type === filterSet.providerType) &&
         (!filterSet.durationUnits || filterSet.durationUnits.length === 0 || (item.duration_unit && filterSet.durationUnits.includes(item.duration_unit)))
       ));
+
+      // Concise debug logging  
+      if (filterSet.serviceCode) {
+        const codes = filterSet.serviceCode.includes(',') ? filterSet.serviceCode.split(',').map(code => code.trim()) : [filterSet.serviceCode];
+        console.log(`🔍 IND: [${codes.join('+')}] → filtering ${latestRates.length} records`);
+        
+        // Check what happens after each filter step
+        const afterServiceCode = latestRates.filter(item => 
+          filterSet.serviceCode.includes(',') 
+            ? filterSet.serviceCode.split(',').map(code => code.trim()).includes(item.service_code?.trim())
+            : item.service_code === filterSet.serviceCode
+        );
+        
+        const afterCategory = afterServiceCode.filter(item => 
+          !filterSet.serviceCategory || item.service_category === filterSet.serviceCategory
+        );
+        
+        const afterStates = afterCategory.filter(item => 
+          !filterSet.states?.length || filterSet.states.includes("ALL_STATES") || filterSet.states.some(state => state.trim().toUpperCase() === item.state_name?.trim().toUpperCase())
+        );
+        
+        // Debug states filtering
+        console.log(`🔍 States filter debug:`, {
+          statesArrayLength: filterSet.states?.length,
+          firstFewStates: filterSet.states?.slice(0, 3),
+          sampleItemStateName: afterCategory[0]?.state_name,
+          statesFilterShouldBeSkipped: !filterSet.states?.length || filterSet.states.includes("ALL_STATES")
+        });
+        
+        console.log(`🔍 Filter chain: Service(${afterServiceCode.length}) → Category(${afterCategory.length}) → States(${afterStates.length}) → Final(${filteredDataForSet.length})`);
+        console.log(`🔍 Applied filters:`, {
+          serviceCategory: filterSet.serviceCategory,
+          statesCount: filterSet.states?.length,
+          hasOtherFilters: !!filterSet.program || !!filterSet.locationRegion || !!filterSet.providerType || !!filterSet.modifier
+        });
+        
+        const uniqueStates = [...new Set(filteredDataForSet.map(item => item.state_name))];
+        console.log(`🎯 IND: [${codes.join('+')}] → ${uniqueStates.length} states`);
+      }
 
       // If "All States" is selected, calculate the average rate for each state
       if (filterSet.states.length === filterOptions.states.length && filterSets[0].states.length === filterOptions.states.length) {

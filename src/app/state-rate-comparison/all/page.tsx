@@ -966,7 +966,174 @@ export default function StatePaymentComparison() {
   // Fetch state averages for All States mode
   const fetchAllStatesAverages = useCallback(async (serviceCategory: string, serviceCode: string) => {
     try {
-      // Build query parameters for the API call
+      // Handle multi-select service codes with frontend union
+      if (serviceCode.includes(',')) {
+        const codes = serviceCode.split(',').map(c => c.trim());
+        console.log(`🔄 Frontend Union: Making ${codes.length} separate API calls for state averages`);
+        
+        const allStateAverages: any[] = [];
+        const allEntries: ServiceData[] = [];
+        
+        for (const code of codes) {
+          // Build query parameters for state averages
+          const params = new URLSearchParams();
+          params.append('mode', 'stateAverages');
+          params.append('serviceCategory', serviceCategory);
+          params.append('serviceCode', code); // Single code
+      
+                // Add all filter parameters from the first filter set
+          if (filterSets[0]) {
+            const filterSet = filterSets[0];
+            if (filterSet.program) params.append('program', filterSet.program);
+            if (filterSet.locationRegion) params.append('locationRegion', filterSet.locationRegion);
+            if (filterSet.providerType) params.append('providerType', filterSet.providerType);
+            if (filterSet.modifier) params.append('modifier', filterSet.modifier);
+            if (filterSet.serviceDescription) params.append('serviceDescription', filterSet.serviceDescription);
+            if (filterSet.durationUnits && filterSet.durationUnits.length > 0) {
+              filterSet.durationUnits.forEach(unit => params.append('durationUnit', unit));
+            }
+          }
+          
+          // Also check selections state for additional filters
+          if (selections.duration_unit && selections.duration_unit !== '-') {
+            const selectedUnits = selections.duration_unit.split(',').map(unit => unit.trim());
+            selectedUnits.forEach(unit => params.append('durationUnit', unit));
+          }
+          if (selections.program && selections.program !== '-') {
+            params.append('program', selections.program);
+          }
+          if (selections.location_region && selections.location_region !== '-') {
+            params.append('locationRegion', selections.location_region);
+          }
+          if (selections.provider_type && selections.provider_type !== '-') {
+            params.append('providerType', selections.provider_type);
+          }
+          if (selections.modifier_1 && selections.modifier_1 !== '-') {
+            params.append('modifier', selections.modifier_1);
+          }
+          
+          console.log(`🌍 API Call 1.${codes.indexOf(code) + 1} - State Averages (${code}):`, `/api/state-payment-comparison?${params.toString()}`);
+          
+          const res = await fetch(`/api/state-payment-comparison?${params.toString()}`);
+          if (!res.ok) throw new Error(`Failed to fetch state averages for ${code}`);
+          const data = await res.json();
+          
+          console.log(`✅ API Response 1.${codes.indexOf(code) + 1} - State Averages (${code}):`, data.stateAverages?.length || 0, 'entries');
+          
+          if (data.stateAverages) {
+            allStateAverages.push(...data.stateAverages);
+          }
+          
+          // Also fetch individual entries for this code
+          const entriesParams = new URLSearchParams();
+          entriesParams.append('serviceCategory', serviceCategory);
+          entriesParams.append('serviceCode', code);
+          entriesParams.append('itemsPerPage', '1000');
+          
+          // Add all filter parameters from the first filter set
+          if (filterSets[0]) {
+            const filterSet = filterSets[0];
+            if (filterSet.program) entriesParams.append('program', filterSet.program);
+            if (filterSet.locationRegion) entriesParams.append('locationRegion', filterSet.locationRegion);
+            if (filterSet.providerType) entriesParams.append('providerType', filterSet.providerType);
+            if (filterSet.modifier) entriesParams.append('modifier', filterSet.modifier);
+            if (filterSet.serviceDescription) entriesParams.append('serviceDescription', filterSet.serviceDescription);
+            if (filterSet.durationUnits && filterSet.durationUnits.length > 0) {
+              filterSet.durationUnits.forEach(unit => entriesParams.append('durationUnit', unit));
+            }
+          }
+          
+          // Also check selections state for additional filters
+          if (selections.duration_unit && selections.duration_unit !== '-') {
+            const selectedUnits = selections.duration_unit.split(',').map(unit => unit.trim());
+            selectedUnits.forEach(unit => entriesParams.append('durationUnit', unit));
+          }
+          if (selections.program && selections.program !== '-') {
+            entriesParams.append('program', selections.program);
+          }
+          if (selections.location_region && selections.location_region !== '-') {
+            entriesParams.append('locationRegion', selections.location_region);
+          }
+          if (selections.provider_type && selections.provider_type !== '-') {
+            entriesParams.append('providerType', selections.provider_type);
+          }
+          if (selections.modifier_1 && selections.modifier_1 !== '-') {
+            entriesParams.append('modifier', selections.modifier_1);
+          }
+          
+          console.log(`🌍 API Call 2.${codes.indexOf(code) + 1} - Individual Entries (${code}):`, `/api/state-payment-comparison?${entriesParams.toString()}`);
+          
+          const entriesRes = await fetch(`/api/state-payment-comparison?${entriesParams.toString()}`);
+          if (entriesRes.ok) {
+            const entriesData = await entriesRes.json();
+            const entries: ServiceData[] = entriesData.data || [];
+            console.log(`✅ API Response 2.${codes.indexOf(code) + 1} - Individual Entries (${code}):`, entries.length, 'entries');
+            allEntries.push(...entries);
+          }
+        }
+        
+        // Remove duplicates from state averages by state_name, keeping the latest
+        const stateAveragesMap = new Map();
+        allStateAverages.forEach(avg => {
+          const existing = stateAveragesMap.get(avg.state_name);
+          if (!existing || new Date(avg.rate_effective_date || 0) > new Date(existing.rate_effective_date || 0)) {
+            stateAveragesMap.set(avg.state_name, avg);
+          }
+        });
+        
+        const unionStateAverages = Array.from(stateAveragesMap.values());
+        console.log(`🎯 Frontend Union: Combined ${allStateAverages.length} state averages into ${unionStateAverages.length} unique states`);
+        console.log(`🎯 Frontend Union: Combined ${allEntries.length} individual entries`);
+        
+        setAllStatesAverages(unionStateAverages);
+        
+        // Process individual entries the same way as single code
+        const stateEntries: { [state: string]: ServiceData[] } = {};
+        const latestEntries: { [state: string]: ServiceData } = {};
+        
+        allEntries.forEach((entry: ServiceData) => {
+          const state = entry.state_name;
+          if (!stateEntries[state]) {
+            stateEntries[state] = [];
+          }
+          stateEntries[state].push(entry);
+          
+          // Track the latest entry for each state
+          if (!latestEntries[state] || new Date(entry.rate_effective_date) > new Date(latestEntries[state].rate_effective_date)) {
+            latestEntries[state] = entry;
+          }
+        });
+        
+        setStateAverageEntries(stateEntries);
+        
+        const statesWithData = Object.keys(stateEntries).filter(state => stateEntries[state].length > 0);
+        console.log('📊 State Average Entries populated (Union):', statesWithData.length, 'states with data');
+        
+        // Initialize selected entries for average calculation
+        const initialSelected: { [state: string]: Set<string> } = {};
+        Object.keys(stateEntries).forEach(state => {
+          const grouped: { [key: string]: ServiceData[] } = {};
+          stateEntries[state].forEach(entry => {
+            const key = `${entry.service_code}_${entry.rate}_${entry.duration_unit}_${entry.program}_${entry.location_region}_${entry.provider_type}_${entry.modifier_1}`;
+            if (!grouped[key]) grouped[key] = [];
+            grouped[key].push(entry);
+          });
+          
+          const deduplicatedEntries: ServiceData[] = [];
+          Object.values(grouped).forEach(group => {
+            group.sort((a, b) => new Date(b.rate_effective_date).getTime() - new Date(a.rate_effective_date).getTime());
+            deduplicatedEntries.push(group[0]);
+          });
+          
+          initialSelected[state] = new Set(deduplicatedEntries.map(entry => getRowKey(entry)));
+        });
+        setStateSelectedForAverage(initialSelected);
+        
+        console.log('✅ Initial selections set for all states (using deduplicated union entries)');
+        return; // Exit early for multi-select case
+      }
+      
+      // Single service code - use existing logic
       const params = new URLSearchParams();
       params.append('mode', 'stateAverages');
       params.append('serviceCategory', serviceCategory);
@@ -1088,22 +1255,7 @@ export default function StatePaymentComparison() {
           });
         }
         
-        const minnesotaEntries = entries.filter(e => e.state_name?.toLowerCase().includes('minnesota') || e.state_name?.toLowerCase().includes('mn'));
-        console.log('✅ API Response 2 - Individual Entries:', entries.length, 'total,', minnesotaEntries.length, 'for Minnesota');
-        
-        if (minnesotaEntries.length > 0) {
-          console.log('🔍 Minnesota raw entries (full data):', minnesotaEntries);
-          console.log('🔍 Minnesota rates specifically:', minnesotaEntries.map(e => ({
-            state: e.state_name,
-            rate: e.rate,
-            rate_typeof: typeof e.rate,
-            rate_per_hour: e.rate_per_hour,
-            rate_per_hour_typeof: typeof e.rate_per_hour,
-            duration_unit: e.duration_unit,
-            service_code: e.service_code,
-            program: e.program
-          })));
-        }
+        console.log('✅ API Response 2 - Individual Entries:', entries.length, 'total entries fetched');
         
         // Group entries by state and find the latest entry for each state
         const stateEntries: { [state: string]: ServiceData[] } = {};
@@ -1247,7 +1399,7 @@ export default function StatePaymentComparison() {
     filterSets.forEach(filterSet => {
       const filteredDataForSet = latestRates.filter((item) => (
         item.service_category === filterSet.serviceCategory &&
-        filterSet.states.includes(item.state_name?.trim().toUpperCase()) &&
+        (filterSet.states.includes("ALL_STATES") || filterSet.states.some(state => state.trim().toUpperCase() === item.state_name?.trim().toUpperCase())) &&
         // Handle multi-select service codes (OR logic - any one of the codes)
         (filterSet.serviceCode.includes(',') 
           ? filterSet.serviceCode.split(',').map(code => code.trim()).includes(item.service_code?.trim())
@@ -1259,6 +1411,45 @@ export default function StatePaymentComparison() {
         (!filterSet.providerType || item.provider_type === filterSet.providerType) &&
         (!filterSet.durationUnits || filterSet.durationUnits.length === 0 || (item.duration_unit && filterSet.durationUnits.includes(item.duration_unit)))
       ));
+
+      // Concise debug logging
+      if (filterSet.serviceCode) {
+        const codes = filterSet.serviceCode.includes(',') ? filterSet.serviceCode.split(',').map(code => code.trim()) : [filterSet.serviceCode];
+        console.log(`🔍 ALL: [${codes.join('+')}] → filtering ${latestRates.length} records`);
+        
+        // Check what happens after each filter step
+        const afterServiceCode = latestRates.filter(item => 
+          filterSet.serviceCode.includes(',') 
+            ? filterSet.serviceCode.split(',').map(code => code.trim()).includes(item.service_code?.trim())
+            : item.service_code === filterSet.serviceCode
+        );
+        
+        const afterCategory = afterServiceCode.filter(item => 
+          !filterSet.serviceCategory || item.service_category === filterSet.serviceCategory
+        );
+        
+        const afterStates = afterCategory.filter(item => 
+          !filterSet.states?.length || filterSet.states.includes("ALL_STATES") || filterSet.states.some(state => state.trim().toUpperCase() === item.state_name?.trim().toUpperCase())
+        );
+        
+        // Debug states filtering
+        console.log(`🔍 States filter debug:`, {
+          statesArrayLength: filterSet.states?.length,
+          firstFewStates: filterSet.states?.slice(0, 3),
+          sampleItemStateName: afterCategory[0]?.state_name,
+          statesFilterShouldBeSkipped: !filterSet.states?.length || filterSet.states.includes("ALL_STATES")
+        });
+        
+        console.log(`🔍 Filter chain: Service(${afterServiceCode.length}) → Category(${afterCategory.length}) → States(${afterStates.length}) → Final(${filteredDataForSet.length})`);
+        console.log(`🔍 Applied filters:`, {
+          serviceCategory: filterSet.serviceCategory,
+          statesCount: filterSet.states?.length,
+          hasOtherFilters: !!filterSet.program || !!filterSet.locationRegion || !!filterSet.providerType || !!filterSet.modifier
+        });
+        
+        const uniqueStates = [...new Set(filteredDataForSet.map(item => item.state_name))];
+        console.log(`🎯 ALL: [${codes.join('+')}] → ${uniqueStates.length} states`);
+      }
 
       // If "All States" is selected, calculate the average rate for each state
       if (filterSet.states.length === filterOptions.states.length && filterSets[0].states.length === filterOptions.states.length) {
@@ -1291,13 +1482,7 @@ export default function StatePaymentComparison() {
             'average': averageRate
           };
           
-          // Log average calculation details
-          console.log(`📊 Average calculation for ${state}:`, {
-            totalEntries: rates.length,
-            rates: rates,
-            average: averageRate,
-            showRatePerHour: showRatePerHour
-          });
+          // Average calculated for state
         });
       } else {
         // Otherwise, process data as usual
@@ -1355,38 +1540,11 @@ export default function StatePaymentComparison() {
     const stateEntries = stateAverageEntries[state] || [];
     const selectedKeys = stateSelectedForAverage[state] || new Set();
     
-    // Special logging for Minnesota
-    const isMinnesota = state.toLowerCase().includes('minnesota') || state.toLowerCase().includes('mn');
-    if (isMinnesota) {
-      console.log(`🔍 MINNESOTA DEBUG - calculateStateAverage for ${state}:`, {
-        stateEntries: stateEntries.length,
-      selectedKeys: Array.from(selectedKeys),
-        selectedKeysSize: selectedKeys.size,
-        rawStateEntries: stateEntries.map(entry => ({
-        state: entry.state_name,
-          serviceCode: entry.service_code,
-          durationUnit: entry.duration_unit,
-        rate: entry.rate,
-        program: entry.program,
-          location_region: entry.location_region,
-          rowKey: getRowKey(entry)
-      }))
-    });
-    }
-    
     // Get the latest entries (what's shown in the table) for comparison
     const latestEntriesForState = latestRates.filter(item => item.state_name === state);
     
-    // Only log for states with no entries or for debugging specific states
-    const isDebugState = state.toLowerCase().includes('minnesota') || state.toLowerCase().includes('mn');
-    if (isDebugState) {
-      console.log(`🔍 ${state}: ${stateEntries.length} entries, ${selectedKeys.size} selected, showRatePerHour=${showRatePerHour}`);
-    }
-    
     if (stateEntries.length === 0 || selectedKeys.size === 0) {
-      if (isDebugState) {
-        console.log(`❌ No entries/selections for ${state}`);
-      }
+      // No entries or selections available for this state
       return 0;
     }
     
@@ -1428,15 +1586,11 @@ export default function StatePaymentComparison() {
     const selectedEntries = deduplicatedEntries.filter(entry => selectedKeys.has(getRowKey(entry)));
     
     if (selectedEntries.length === 0) {
-      if (isDebugState) {
-      console.log(`❌ No selected entries found for ${state} after deduplication`);
-      }
+      // No selected entries found for state
       return 0;
     }
     
-    if (isDebugState) {
-      console.log(`📋 ${state}: ${selectedEntries.length} selected entries after deduplication`);
-    }
+    // Entries selected for averaging calculation
     
     const rates = selectedEntries.map(entry => {
       // Try rate field first, then rate_per_hour as fallback
@@ -1444,16 +1598,7 @@ export default function StatePaymentComparison() {
       let rateValue = parseFloat(rateToUse?.replace('$', '') || '0');
       const durationUnit = entry.duration_unit?.toUpperCase();
       
-      if (isDebugState) {
-        console.log(`💰 ${state} Rate Processing:`, {
-          originalRate: entry.rate,
-          ratePerHour: entry.rate_per_hour,
-          rateToUse: rateToUse,
-          parsedRate: rateValue,
-          durationUnit: durationUnit,
-          showRatePerHour: showRatePerHour
-        });
-      }
+      // Rate processing (verbose logging removed)
       
       if (showRatePerHour) {
         if (durationUnit === '15 MINUTES') {
@@ -1462,32 +1607,24 @@ export default function StatePaymentComparison() {
           rateValue *= 2;
         } else if (durationUnit !== 'PER HOUR' && durationUnit !== 'PER SESSION') {
           // Only set to 0 for duration units we can't handle, but keep PER SESSION rates as-is
-          if (isDebugState) {
-            console.log(`⚠️ ${state}: Setting rate to 0 because duration unit "${durationUnit}" cannot be converted to hourly`);
-          }
+          // Duration unit cannot be converted to hourly rate
           rateValue = 0;
         }
         // For PER SESSION, keep the original rate (don't convert)
       }
       
-      if (isDebugState) {
-        console.log(`💰 ${state} Final rate value:`, rateValue);
-      }
+      // Final rate calculated
       
       return rateValue;
     }).filter(rate => rate > 0);
     
     if (rates.length === 0) {
-      if (isDebugState) {
-      console.log(`❌ No valid rates found for ${state}`);
-      }
+      // No valid rates found for state
       return 0;
     }
     
     const average = rates.reduce((sum, rate) => sum + rate, 0) / rates.length;
-    if (isDebugState) {
-      console.log(`✅ ${state}: avg=$${average.toFixed(2)} from ${rates.length} rates`);
-    }
+    // Average calculated successfully
     
     return average;
   }, [stateAverageEntries, stateSelectedForAverage, showRatePerHour, latestRates]);
@@ -1970,8 +2107,7 @@ export default function StatePaymentComparison() {
         return typeof avg === 'number' && !isNaN(avg) && avg > 0;
       });
       
-      const minnesotaIncluded = statesWithData.some(s => s.toLowerCase().includes('minnesota') || s.toLowerCase().includes('mn'));
-      console.log('📊 Chart:', statesWithData.length, 'states with data' + (minnesotaIncluded ? ', including Minnesota' : ''));
+          console.log('📊 Chart:', statesWithData.length, 'states with data');
       
       // Only process chart data for states that actually have valid rates
       const chartData = statesWithData.map((state: any) => {

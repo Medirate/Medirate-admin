@@ -9,26 +9,21 @@ function getEnv(name: string): string {
   return value;
 }
 
-// Helper to get file name for a given date (MMYY Medicaid Rates bill sheet with categories.xlsx)
-function getFileNameForDate(date: Date): string {
-  const month = date.toLocaleString("en-US", { month: "2-digit" });
-  const year = date.toLocaleString("en-US", { year: "2-digit" });
-  return `${month}${year} Medicaid Rates bill sheet with categories.xlsx`;
+// Get the current working file name (always the same)
+function getCurrentFileName(): string {
+  return "Medicaid Rates bill sheet with categories.xlsx";
 }
 
-// Find the latest available file in Azure Blob Storage (up to 12 months back)
-async function findLatestFile(blobServiceClient: BlobServiceClient, containerName: string): Promise<string> {
-  let currentDate = new Date();
-  for (let i = 0; i < 12; i++) {
-    const fileName = getFileNameForDate(currentDate);
-    const containerClient = blobServiceClient.getContainerClient(containerName);
-    const blobClient = containerClient.getBlobClient(fileName);
-    const exists = await blobClient.exists();
-    if (exists) return fileName;
-    // Go to previous month
-    currentDate.setMonth(currentDate.getMonth() - 1);
+// Check if the current file exists in Azure Blob Storage
+async function findCurrentFile(blobServiceClient: BlobServiceClient, containerName: string): Promise<string> {
+  const fileName = getCurrentFileName();
+  const containerClient = blobServiceClient.getContainerClient(containerName);
+  const blobClient = containerClient.getBlobClient(fileName);
+  const exists = await blobClient.exists();
+  if (exists) {
+    return fileName;
   }
-  throw new Error("No available files found in the last 12 months");
+  throw new Error(`File not found: ${fileName}`);
 }
 
 // Helper to read a Node.js Readable stream into a Buffer
@@ -61,9 +56,9 @@ export async function POST(req: NextRequest) {
     const blobServiceClient = BlobServiceClient.fromConnectionString(AZURE_CONNECTION_STRING);
     log('Azure Blob Storage connection successful.', 'success', 'connection');
 
-    // Find the latest file
-    log('Searching for latest Excel file in Azure Blob Storage...', 'info', 'download');
-    const fileName = await findLatestFile(blobServiceClient, CONTAINER_NAME);
+    // Find the current working file
+    log('Searching for current Excel file in Azure Blob Storage...', 'info', 'download');
+    const fileName = await findCurrentFile(blobServiceClient, CONTAINER_NAME);
     log(`Found file: ${fileName}`, 'success', 'download');
 
     // Download the file to memory
