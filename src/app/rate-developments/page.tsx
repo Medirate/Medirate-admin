@@ -555,7 +555,7 @@ export default function RateDevelopments() {
     }
   }, [bills]);
 
-  const uniqueServiceLines = useMemo(() => Array.from(new Set(serviceLines)), [serviceLines]);
+  const uniqueServiceLines = useMemo(() => Array.from(new Set(serviceLines)).sort(), [serviceLines]);
 
   // Dynamic service lines based on selected states
   const availableProviderServiceLines = useMemo(() => {
@@ -601,7 +601,7 @@ export default function RateDevelopments() {
       }
     });
     
-    const result = Array.from(serviceLinesInSelectedStates);
+    const result = Array.from(serviceLinesInSelectedStates).sort();
     console.log('Final available provider service lines:', result);
     
     return result;
@@ -631,7 +631,7 @@ export default function RateDevelopments() {
       }
     });
     
-    return Array.from(serviceLinesInSelectedStates);
+    return Array.from(serviceLinesInSelectedStates).sort();
   }, [bills, selectedLegislativeStates, uniqueServiceLines]);
 
   // Reset all filters function

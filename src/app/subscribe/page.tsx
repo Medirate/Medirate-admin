@@ -461,8 +461,8 @@ const StripePricingTableWithFooter = () => {
         {(isAuthenticated && (formFilled || hasActiveSubscription || isSubUser)) && (
         <div id="pricing-table" className="w-full max-w-4xl transform scale-110" style={{ transformOrigin: "center" }}>
           {React.createElement("stripe-pricing-table", {
-            "pricing-table-id": "prctbl_1QhgA9EA5fbmDyeFHEeLwdrJ",
-            "publishable-key": "pk_test_51QhZ80EA5fbmDyeFadp5z5QeaxeFyaUhRpS4nq3rXQh6Zap8nsAKw5D3lalc3ewBtBpecpBzeULgZx7H1jxragFs00IAS0L60o",
+            "pricing-table-id": "prctbl_1RBMKo2NeWrBDfGslMwYkTKz",
+            "publishable-key": "pk_live_51QXT6G2NeWrBDfGsjthMPwaWhPV7UIzSJjZ3fpmANYKT58UCVSnoHaHKyozK9EptYNbV3Y1y5SX1QQcuI9dK5pZW00VQH9T3Hh",
           })}
         </div>
         )}

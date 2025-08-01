@@ -393,7 +393,7 @@ export default function StatePaymentComparison() {
         return aNum - bNum;
       } else {
         // HCPCS or other - sort alphabetically
-        return a.localeCompare(b);
+      return a.localeCompare(b);
       }
     });
     
@@ -1707,7 +1707,7 @@ export default function StatePaymentComparison() {
           return aNum - bNum;
         } else {
           // HCPCS or other - sort alphabetically
-          return a.localeCompare(b);
+        return a.localeCompare(b);
         }
       });
     }
@@ -1992,7 +1992,7 @@ export default function StatePaymentComparison() {
           return aNum - bNum;
         } else {
           // HCPCS or other - sort alphabetically
-          return a.localeCompare(b);
+        return a.localeCompare(b);
         }
       });
       
