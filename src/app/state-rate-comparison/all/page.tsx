@@ -3089,6 +3089,13 @@ export default function StatePaymentComparison() {
     }
   };
 
+  // Reset search state when key filters change to prevent showing stale chart data
+  useEffect(() => {
+    if (hasSearchedOnce) {
+      setHasSearchedOnce(false);
+    }
+  }, [filterSets[0]?.serviceCategory, filterSets[0]?.serviceCode, filterSets[0]?.durationUnits, selections.duration_unit, selections.program, selections.location_region, selections.provider_type]);
+
   // Add useEffect to load filter options when component mounts
   useEffect(() => {
     async function loadUltraFilterOptions() {
@@ -3679,7 +3686,7 @@ export default function StatePaymentComparison() {
                     )}
                     
                     {/* Check if there are any states with data */}
-                    {isAllStatesSelected && filterSets[0]?.serviceCode && allStatesAverages && (() => {
+                    {isAllStatesSelected && filterSets[0]?.serviceCode && allStatesAverages && hasSearchedOnce && (() => {
                       const statesWithData = filterOptions.states.filter((state: any) => {
                         const avg = calculateStateAverage(state);
                         return typeof avg === 'number' && !isNaN(avg) && avg > 0;
