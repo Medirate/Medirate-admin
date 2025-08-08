@@ -17,13 +17,16 @@ function parseRate(rateText: string): number {
 }
 
 export async function GET(request: Request) {
+  console.log('🚀 API HIT - state-payment-comparison endpoint called!');
   try {
     // Validate authentication
     const { getUser } = getKindeServerSession();
     const user = await getUser();
     if (!user || !user.email) {
+      console.log('❌ API - Authentication failed');
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    console.log('✅ API - Authentication successful for user:', user.email);
 
     const { searchParams } = new URL(request.url);
     const mode = searchParams.get("mode");
@@ -50,7 +53,7 @@ export async function GET(request: Request) {
       let query = supabase
         .from('master_data_july_7')
         .select('state_name, rate, duration_unit, rate_effective_date')
-        .eq('service_category', serviceCategory);
+        .ilike('service_category', serviceCategory.trim());
       
       // Handle service code filtering (single or multi-select)
       if (serviceCode) {
@@ -63,19 +66,20 @@ export async function GET(request: Request) {
         } else {
           const trimmedCode = serviceCode.trim();
           console.log(`🔍 API: Single service code: "${serviceCode}" → "${trimmedCode}"`);
-          query = query.eq('service_code', trimmedCode);
+          query = query.ilike('service_code', trimmedCode);
         }
       }
 
-      // Apply additional filters
-      if (program && program !== '-') query = query.eq('program', program);
-      if (locationRegion && locationRegion !== '-') query = query.eq('location_region', locationRegion);
-      if (providerType && providerType !== '-') query = query.eq('provider_type', providerType);
-      if (durationUnit && durationUnit !== '-') query = query.eq('duration_unit', durationUnit);
-      if (serviceDescription && serviceDescription !== '-') query = query.eq('service_description', serviceDescription);
+      // Apply additional filters with ILIKE to handle trailing spaces
+      if (program && program !== '-') query = query.ilike('program', program.trim());
+      if (locationRegion && locationRegion !== '-') query = query.ilike('location_region', locationRegion.trim());
+      if (providerType && providerType !== '-') query = query.ilike('provider_type', providerType.trim());
+      if (durationUnit && durationUnit !== '-') query = query.ilike('duration_unit', durationUnit.trim());
+      if (serviceDescription && serviceDescription !== '-') query = query.ilike('service_description', serviceDescription.trim());
       
       if (modifier && modifier !== '-') {
-        query = query.or(`modifier_1.eq.${modifier},modifier_2.eq.${modifier},modifier_3.eq.${modifier},modifier_4.eq.${modifier}`);
+        const trimmedModifier = modifier.trim();
+        query = query.or(`modifier_1.ilike.${trimmedModifier},modifier_2.ilike.${trimmedModifier},modifier_3.ilike.${trimmedModifier},modifier_4.ilike.${trimmedModifier}`);
       }
 
       // Apply date filters
@@ -253,8 +257,54 @@ export async function GET(request: Request) {
       stateNames: [...new Set(stateData?.map(item => `"${item.state_name}"`) || [])] // Show unique state names with quotes to see spaces
     });
     
-    if (serviceCategory) query = query.eq('service_category', serviceCategory);
-    if (state) query = query.ilike('state_name', state.trim() + '%'); // Use ILIKE to handle trailing spaces
+    if (serviceCategory) {
+      // Use ILIKE to handle potential trailing spaces
+      const trimmedCategory = serviceCategory.trim();
+      console.log(`🔍 API Debug - Service category filtering: "${serviceCategory}" → "${trimmedCategory}"`);
+      
+      // Test different service category approaches
+      const exactCatTest = supabase.from('master_data_july_7')
+        .select('service_category')
+        .eq('service_category', trimmedCategory)
+        .limit(5);
+      const { data: exactCatData } = await exactCatTest;
+      console.log(`🔍 API Debug - Exact category match for "${trimmedCategory}":`, exactCatData?.length || 0);
+      
+      const spaceCatTest = supabase.from('master_data_july_7')
+        .select('service_category')
+        .eq('service_category', trimmedCategory + ' ')
+        .limit(5);
+      const { data: spaceCatData } = await spaceCatTest;
+      console.log(`🔍 API Debug - Category with trailing space "${trimmedCategory} ":`, spaceCatData?.length || 0);
+      
+      // Use ILIKE with wildcards to handle any trailing spaces
+      console.log(`🔍 API Debug - Using ILIKE pattern for service category: "%${trimmedCategory}%"`);
+      query = query.ilike('service_category', `%${trimmedCategory}%`);
+    }
+    if (state) {
+      // Use ILIKE to handle trailing spaces on both sides
+      const trimmedState = state.trim();
+      console.log(`🔍 API Debug - State filtering: "${state}" → "${trimmedState}"`);
+      
+      // Test different state name approaches
+      const exactStateTest = supabase.from('master_data_july_7')
+        .select('state_name')
+        .eq('state_name', trimmedState)
+        .limit(5);
+      const { data: exactStateData } = await exactStateTest;
+      console.log(`🔍 API Debug - Exact state match for "${trimmedState}":`, exactStateData?.length || 0);
+      
+      const spaceStateTest = supabase.from('master_data_july_7')
+        .select('state_name')
+        .eq('state_name', trimmedState + ' ')
+        .limit(5);
+      const { data: spaceStateData } = await spaceStateTest;
+      console.log(`🔍 API Debug - State with trailing space "${trimmedState} ":`, spaceStateData?.length || 0);
+      
+      // Use ILIKE with wildcards to handle any trailing spaces
+      console.log(`🔍 API Debug - Using ILIKE pattern for state: "%${trimmedState}%"`);
+      query = query.ilike('state_name', `%${trimmedState}%`);
+    }
     if (serviceCode) {
       if (serviceCode.includes(',')) {
         // Multi-select service codes are now handled by frontend union approach
@@ -264,52 +314,88 @@ export async function GET(request: Request) {
         }, { status: 400 });
       } else {
         const trimmedCode = serviceCode.trim();
-        query = query.eq('service_code', trimmedCode);
+        console.log(`🔍 API Debug - Service code filtering: "${serviceCode}" → "${trimmedCode}"`);
+        
+        // Test different approaches to find the service code
+        // First try exact match
+        const exactTest = supabase.from('master_data_july_7')
+          .select('service_code, state_name, service_category')
+          .eq('service_code', trimmedCode)
+          .limit(5);
+        const { data: exactData } = await exactTest;
+        console.log(`🔍 API Debug - Exact match for "${trimmedCode}":`, exactData?.length || 0);
+        
+        // Try with trailing space
+        const spaceTest = supabase.from('master_data_july_7')
+          .select('service_code, state_name, service_category')
+          .eq('service_code', trimmedCode + ' ')
+          .limit(5);
+        const { data: spaceData } = await spaceTest;
+        console.log(`🔍 API Debug - With trailing space "${trimmedCode} ":`, spaceData?.length || 0);
+        
+        // Try ILIKE with wildcards
+        const ilikeTest = supabase.from('master_data_july_7')
+          .select('service_code, state_name, service_category')
+          .ilike('service_code', `%${trimmedCode}%`)
+          .limit(5);
+        const { data: ilikeData } = await ilikeTest;
+        console.log(`🔍 API Debug - ILIKE with wildcards "%${trimmedCode}%":`, ilikeData?.length || 0);
+        
+        // Use ILIKE with wildcards since service codes have varying trailing spaces
+        console.log(`🔍 API Debug - Using ILIKE pattern for service code: "%${trimmedCode}%"`);
+        query = query.ilike('service_code', `%${trimmedCode}%`);
       }
     }
-    if (serviceDescription) query = query.eq('service_description', serviceDescription);
+    if (serviceDescription) {
+      const trimmedDescription = serviceDescription.trim();
+      // Use ILIKE to handle potential trailing spaces
+      query = query.ilike('service_description', trimmedDescription);
+    }
     
     // Handle secondary filters with "-" option for empty values and multi-select support
     if (program) {
       if (program === '-') {
         query = query.or('program.is.null,program.eq.');
       } else if (program.includes(',')) {
-        // Handle multi-select - split by comma and use OR
+        // Handle multi-select - split by comma and use OR with ILIKE
         const programs = program.split(',').map(p => p.trim()).filter(p => p);
         if (programs.length > 0) {
-          const orConditions = programs.map(p => `program.eq.${p}`).join(',');
+          const orConditions = programs.map(p => `program.ilike.${p}`).join(',');
           query = query.or(orConditions);
         }
       } else {
-        query = query.eq('program', program);
+        // Use ILIKE to handle trailing spaces
+        query = query.ilike('program', program.trim());
       }
     }
     if (locationRegion) {
       if (locationRegion === '-') {
         query = query.or('location_region.is.null,location_region.eq.');
       } else if (locationRegion.includes(',')) {
-        // Handle multi-select - split by comma and use OR
+        // Handle multi-select - split by comma and use OR with ILIKE
         const regions = locationRegion.split(',').map(r => r.trim()).filter(r => r);
         if (regions.length > 0) {
-          const orConditions = regions.map(r => `location_region.eq.${r}`).join(',');
+          const orConditions = regions.map(r => `location_region.ilike.${r}`).join(',');
           query = query.or(orConditions);
         }
       } else {
-        query = query.eq('location_region', locationRegion);
+        // Use ILIKE to handle trailing spaces
+        query = query.ilike('location_region', locationRegion.trim());
       }
     }
     if (providerType) {
       if (providerType === '-') {
         query = query.or('provider_type.is.null,provider_type.eq.');
       } else if (providerType.includes(',')) {
-        // Handle multi-select - split by comma and use OR
+        // Handle multi-select - split by comma and use OR with ILIKE
         const types = providerType.split(',').map(t => t.trim()).filter(t => t);
         if (types.length > 0) {
-          const orConditions = types.map(t => `provider_type.eq.${t}`).join(',');
+          const orConditions = types.map(t => `provider_type.ilike.${t}`).join(',');
           query = query.or(orConditions);
         }
       } else {
-        query = query.eq('provider_type', providerType);
+        // Use ILIKE to handle trailing spaces
+        query = query.ilike('provider_type', providerType.trim());
       }
     }
     if (modifier) {
@@ -317,31 +403,33 @@ export async function GET(request: Request) {
         // Show entries with no modifiers
         query = query.is('modifier_1', null).is('modifier_2', null).is('modifier_3', null).is('modifier_4', null);
       } else if (modifier.includes(',')) {
-        // Handle multi-select - split by comma and check all modifier columns
+        // Handle multi-select - split by comma and check all modifier columns with ILIKE
         const modifiers = modifier.split(',').map(m => m.trim()).filter(m => m);
         if (modifiers.length > 0) {
           const orConditions = modifiers.map(m => 
-            `modifier_1.eq.${m},modifier_2.eq.${m},modifier_3.eq.${m},modifier_4.eq.${m}`
+            `modifier_1.ilike.${m},modifier_2.ilike.${m},modifier_3.ilike.${m},modifier_4.ilike.${m}`
           ).join(',');
           query = query.or(orConditions);
         }
       } else {
-      // Check all modifier columns
-      query = query.or(`modifier_1.eq.${modifier},modifier_2.eq.${modifier},modifier_3.eq.${modifier},modifier_4.eq.${modifier}`);
+        // Check all modifier columns with ILIKE to handle trailing spaces
+        const trimmedModifier = modifier.trim();
+        query = query.or(`modifier_1.ilike.${trimmedModifier},modifier_2.ilike.${trimmedModifier},modifier_3.ilike.${trimmedModifier},modifier_4.ilike.${trimmedModifier}`);
       }
     }
     if (durationUnit) {
       if (durationUnit === '-') {
         query = query.or('duration_unit.is.null,duration_unit.eq.');
       } else if (durationUnit.includes(',')) {
-        // Handle multi-select - split by comma and use OR
+        // Handle multi-select - split by comma and use OR with ILIKE
         const units = durationUnit.split(',').map(u => u.trim()).filter(u => u);
         if (units.length > 0) {
-          const orConditions = units.map(u => `duration_unit.eq.${u}`).join(',');
+          const orConditions = units.map(u => `duration_unit.ilike.${u}`).join(',');
           query = query.or(orConditions);
         }
       } else {
-        query = query.eq('duration_unit', durationUnit);
+        // Use ILIKE to handle trailing spaces
+        query = query.ilike('duration_unit', durationUnit.trim());
       }
     }
     if (feeScheduleDate) {
@@ -393,3 +481,4 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
+
