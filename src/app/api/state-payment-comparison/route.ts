@@ -356,16 +356,12 @@ export async function GET(request: Request) {
     if (program) {
       if (program === '-') {
         query = query.or('program.is.null,program.eq.');
-      } else if (program.includes(',')) {
-        // Handle multi-select - split by comma and use OR with ILIKE
-        const programs = program.split(',').map(p => p.trim()).filter(p => p);
-        if (programs.length > 0) {
-          const orConditions = programs.map(p => `program.ilike.${p}`).join(',');
-          query = query.or(orConditions);
-        }
       } else {
-        // Use ILIKE to handle trailing spaces
-        query = query.ilike('program', program.trim());
+        // Always use exact match for program since it doesn't have trailing spaces
+        // Note: Program names can contain commas, so don't treat commas as multi-select separators
+        const trimmedProgram = program.trim();
+        console.log(`🔍 API Debug - Program filtering: "${program}" → "${trimmedProgram}"`);
+        query = query.eq('program', trimmedProgram);
       }
     }
     if (locationRegion) {
@@ -454,6 +450,18 @@ export async function GET(request: Request) {
     const from = (page - 1) * itemsPerPage;
     const to = from + itemsPerPage - 1;
     query = query.range(from, to);
+
+    // DEBUG: Add final query summary
+    console.log('🔍 API Debug - Final query summary:', {
+      serviceCategory: serviceCategory || 'NOT_SET',
+      state: state || 'NOT_SET', 
+      serviceCode: serviceCode || 'NOT_SET',
+      program: program || 'NOT_SET',
+      locationRegion: locationRegion || 'NOT_SET',
+      providerType: providerType || 'NOT_SET',
+      modifier: modifier || 'NOT_SET',
+      durationUnit: durationUnit || 'NOT_SET'
+    });
 
     // Fetch data
     const { data, error, count } = await query;

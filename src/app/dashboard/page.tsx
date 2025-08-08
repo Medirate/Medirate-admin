@@ -1532,10 +1532,9 @@ export default function Dashboard() {
                   <Select
                     instanceId="program_select"
                     options={getDropdownOptions(availablePrograms, false)}
-                    value={selections.program ? selections.program.split(',').map(p => ({ value: p.trim(), label: p.trim() })) : null}
-                    onChange={(options) => handleSelectionChange('program', options ? options.map(opt => opt.value).join(',') : null)}
+                    value={selections.program ? { value: selections.program, label: selections.program } : null}
+                    onChange={(option) => handleSelectionChange('program', option ? option.value : null)}
                     placeholder="Select Program"
-                    isMulti
                     isClearable
                     isSearchable
                     filterOption={jumpToLetterFilterOption}
