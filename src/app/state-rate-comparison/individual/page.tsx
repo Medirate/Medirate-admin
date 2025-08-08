@@ -1927,17 +1927,8 @@ export default function StatePaymentComparison() {
           else if (durationUnit === '30 MINUTES') rateValue *= 2;
           else if (durationUnit !== 'PER HOUR') rateValue = 0;
         }
-        // Label: State - Service Code - Modifiers (customize as needed)
-        const label = [
-          item.state_name,
-          item.service_code,
-          item.modifier_1,
-          item.modifier_2,
-          item.modifier_3,
-          item.modifier_4,
-          item.program,
-          item.location_region
-        ].filter(Boolean).join(' | ');
+        // Label: Only state name
+        const label = item.state_name;
         allSelectedEntries.push({
           label,
           value: Math.round(rateValue * 100) / 100,
@@ -2332,8 +2323,10 @@ export default function StatePaymentComparison() {
       const exists = prevArr.some(i => getRowKey(i) === key);
       let newArr;
       if (exists) {
+        // If clicking on selected item, deselect it
         newArr = prevArr.filter(i => getRowKey(i) !== key);
-    } else {
+      } else {
+        // Allow multiple selections per state - add to existing selections
         newArr = [...prevArr, item];
       }
       // If newArr is empty, remove the state key entirely
