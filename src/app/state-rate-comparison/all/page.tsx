@@ -663,7 +663,7 @@ export default function StatePaymentComparison() {
     // Update the selected entry
     setSelectedEntry(prev => 
       prev?.state_name === item.state_name &&
-      prev?.service_code === item.service_code &&
+      prev?.service_code?.trim() === item.service_code?.trim() &&
       prev?.program === item.program &&
       prev?.location_region === item.location_region &&
       prev?.modifier_1 === item.modifier_1 &&
@@ -1236,7 +1236,7 @@ export default function StatePaymentComparison() {
         const entries: ServiceData[] = entriesData.data || [];
         
         // Check for potential data contamination - look for specific service codes in unexpected states
-        const s5116Entries = entries.filter(e => e.service_code === 'S5116 U6');
+        const s5116Entries = entries.filter(e => e.service_code?.trim() === 'S5116 U6');
         if (s5116Entries.length > 0) {
           console.log('🚨 S5116 U6 DATA QUALITY CHECK:', {
             totalS5116Entries: s5116Entries.length,
@@ -1403,7 +1403,7 @@ export default function StatePaymentComparison() {
         // Handle multi-select service codes (OR logic - any one of the codes)
         (filterSet.serviceCode.includes(',') 
           ? filterSet.serviceCode.split(',').map(code => code.trim()).includes(item.service_code?.trim())
-          : item.service_code === filterSet.serviceCode) &&
+          : item.service_code?.trim() === filterSet.serviceCode?.trim()) &&
         (!filterSet.program || item.program === filterSet.program) &&
         (!filterSet.locationRegion || item.location_region === filterSet.locationRegion) &&
         (!filterSet.modifier || [item.modifier_1, item.modifier_2, item.modifier_3, item.modifier_4].includes(filterSet.modifier)) &&
@@ -1421,7 +1421,7 @@ export default function StatePaymentComparison() {
         const afterServiceCode = latestRates.filter(item => 
           filterSet.serviceCode.includes(',') 
             ? filterSet.serviceCode.split(',').map(code => code.trim()).includes(item.service_code?.trim())
-            : item.service_code === filterSet.serviceCode
+            : item.service_code?.trim() === filterSet.serviceCode?.trim()
         );
         
         const afterCategory = afterServiceCode.filter(item => 
@@ -1919,7 +1919,7 @@ export default function StatePaymentComparison() {
       }
       
       if (selections.service_code) {
-        conditions.push(combo => combo.service_code === selections.service_code);
+        conditions.push(combo => combo.service_code?.trim() === selections.service_code?.trim());
       }
       
       if (selections.service_description) {
@@ -1963,7 +1963,7 @@ export default function StatePaymentComparison() {
         filteredCombinations
           .map(c => c.service_code)
           .filter(Boolean)
-          .filter(code => !selections.service_code || code === selections.service_code)
+          .filter(code => !selections.service_code || code?.trim() === selections.service_code?.trim())
       )).sort((a, b) => {
         // Define code types with priority: 1=numeric, 2=number+letter, 3=HCPCS, 4=other
         const getCodeType = (code: string) => {
@@ -2683,7 +2683,7 @@ export default function StatePaymentComparison() {
     const rates = data
       .filter((item: ServiceData) => 
         item.service_category === serviceCategory &&
-        item.service_code === serviceCode
+        item.service_code?.trim() === serviceCode?.trim()
       )
       .map((item: ServiceData) => 
         (() => {
@@ -2889,7 +2889,7 @@ export default function StatePaymentComparison() {
           }
           
           // Check for potential data contamination in the combinations data
-          const s5116Combinations = combinations.filter(c => c.service_code === 'S5116 U6');
+          const s5116Combinations = combinations.filter(c => c.service_code?.trim() === 'S5116 U6');
           if (s5116Combinations.length > 0) {
             console.log('🚨 S5116 U6 COMBINATIONS DATA CHECK:', {
               totalS5116Combinations: s5116Combinations.length,

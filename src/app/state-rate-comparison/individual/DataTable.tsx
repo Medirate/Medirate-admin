@@ -51,7 +51,7 @@ export const DataTable = ({
             codeMatch = selectedCodes.includes(item.service_code?.trim() || '');
           } else {
             // Handle single service code
-            codeMatch = item.service_code === filterSet.serviceCode;
+            codeMatch = item.service_code?.trim() === filterSet.serviceCode?.trim();
           }
         } else {
           codeMatch = true; // No service code filter
