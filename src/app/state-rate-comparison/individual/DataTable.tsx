@@ -1,5 +1,18 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 import { FilterSet, ServiceData } from './types';
+
+// Column filter types
+interface ColumnFilter {
+  [columnKey: string]: string[];  // Array of selected values for each column
+}
+
+interface ColumnFilterDropdownProps {
+  columnKey: string;
+  data: ServiceData[];
+  currentFilters: ColumnFilter;
+  onFilterChange: (columnKey: string, selectedValues: string[]) => void;
+  formatValue: (value: string | undefined) => string;
+}
 
 interface DataTableProps {
   filterSets: FilterSet[];
@@ -16,6 +29,149 @@ interface DataTableProps {
 
 const ITEMS_PER_PAGE = 25;
 
+// Column Filter Dropdown Component
+const ColumnFilterDropdown = ({ 
+  columnKey, 
+  data, 
+  currentFilters, 
+  onFilterChange, 
+  formatValue 
+}: ColumnFilterDropdownProps) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+        setSearchTerm('');
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Get unique values for this column from the current data
+  const uniqueValues = useMemo(() => {
+    const values = new Set<string>();
+    data.forEach(item => {
+      const value = item[columnKey as keyof ServiceData];
+      if (value && value !== '-') {
+        values.add(String(value).trim());
+      }
+    });
+    return Array.from(values).sort();
+  }, [data, columnKey]);
+
+  // Filter values based on search term
+  const filteredValues = uniqueValues.filter(value =>
+    formatValue(value).toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const selectedValues = currentFilters[columnKey] || [];
+  const hasActiveFilter = selectedValues.length > 0 && selectedValues.length < uniqueValues.length;
+
+  const handleValueToggle = (value: string) => {
+    const newSelectedValues = selectedValues.includes(value)
+      ? selectedValues.filter(v => v !== value)
+      : [...selectedValues, value];
+    
+    onFilterChange(columnKey, newSelectedValues);
+  };
+
+  const handleSelectAll = () => {
+    onFilterChange(columnKey, uniqueValues);
+  };
+
+  const handleClearAll = () => {
+    onFilterChange(columnKey, []);
+  };
+
+  return (
+    <div className="relative inline-block" ref={dropdownRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={`ml-1 p-1 rounded hover:bg-gray-100 transition-colors ${
+          hasActiveFilter ? 'text-blue-600' : 'text-gray-400'
+        }`}
+        title="Filter column"
+      >
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {isOpen && (
+        <div className="absolute top-full right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-50 w-64">
+          {/* Search box */}
+          <div className="p-2 border-b border-gray-200">
+            <input
+              type="text"
+              placeholder="Search..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+
+          {/* Select All / Clear All */}
+          <div className="p-2 border-b border-gray-200 flex justify-between">
+            <button
+              onClick={handleSelectAll}
+              className="text-xs text-blue-600 hover:underline"
+            >
+              Select All
+            </button>
+            <button
+              onClick={handleClearAll}
+              className="text-xs text-red-600 hover:underline"
+            >
+              Clear All
+            </button>
+          </div>
+
+          {/* Values list */}
+          <div className="max-h-48 overflow-y-auto">
+            {filteredValues.length === 0 ? (
+              <div className="p-2 text-sm text-gray-500">No values found</div>
+            ) : (
+              filteredValues.map((value) => {
+                const isSelected = selectedValues.includes(value);
+                const displayValue = formatValue(value);
+                
+                return (
+                  <label
+                    key={value}
+                    className="flex items-center px-2 py-1 hover:bg-gray-50 cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => handleValueToggle(value)}
+                      className="mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-sm truncate" title={displayValue}>
+                      {displayValue}
+                    </span>
+                  </label>
+                );
+              })
+            )}
+          </div>
+
+          {/* Footer with count */}
+          <div className="p-2 border-t border-gray-200 text-xs text-gray-500">
+            {selectedValues.length} of {uniqueValues.length} selected
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const DataTable = ({
   filterSets,
   latestRates,
@@ -30,9 +186,25 @@ export const DataTable = ({
 }: DataTableProps) => {
   // Track current page for each filter set
   const [currentPages, setCurrentPages] = useState<{ [filterIndex: number]: number }>({});
+  
+  // Track column filters for each filter set
+  const [columnFilters, setColumnFilters] = useState<{ [filterIndex: number]: ColumnFilter }>({});
 
   const handlePageChange = (filterIndex: number, page: number) => {
     setCurrentPages(prev => ({ ...prev, [filterIndex]: page }));
+  };
+
+  const handleColumnFilterChange = (filterIndex: number, columnKey: string, selectedValues: string[]) => {
+    setColumnFilters(prev => ({
+      ...prev,
+      [filterIndex]: {
+        ...prev[filterIndex],
+        [columnKey]: selectedValues
+      }
+    }));
+    
+    // Reset pagination when filters change
+    setCurrentPages(prev => ({ ...prev, [filterIndex]: 1 }));
   };
 
   const tableContent = useMemo(() => {
@@ -91,12 +263,23 @@ export const DataTable = ({
       });
       
       // Only keep the latest entry for each group
-      const filteredDataForSet = Object.values(grouped).map(entries => {
+      let filteredDataForSet = Object.values(grouped).map(entries => {
         return entries.reduce((latest, current) => {
           const latestDate = new Date(latest.rate_effective_date);
           const currentDate = new Date(current.rate_effective_date);
           return currentDate > latestDate ? current : latest;
         });
+      });
+
+      // Apply column filters
+      const currentColumnFilters = columnFilters[filterIndex] || {};
+      Object.entries(currentColumnFilters).forEach(([columnKey, selectedValues]) => {
+        if (selectedValues.length > 0) {
+          filteredDataForSet = filteredDataForSet.filter(item => {
+            const value = item[columnKey as keyof ServiceData];
+            return selectedValues.includes(String(value || '').trim());
+          });
+        }
       });
 
       // Pagination logic
@@ -174,46 +357,228 @@ export const DataTable = ({
                     <tr>
                       <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider"></th>
                       {visibleColumns.state_name && (
-                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">State</th>
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
+                          <div className="flex items-center">
+                            State
+                            <ColumnFilterDropdown
+                              columnKey="state_name"
+                              data={filteredDataForSet}
+                              currentFilters={currentColumnFilters}
+                              onFilterChange={(columnKey, selectedValues) => 
+                                handleColumnFilterChange(filterIndex, columnKey, selectedValues)
+                              }
+                              formatValue={(value) => STATE_ABBREVIATIONS[value?.toUpperCase() || ''] || value || '-'}
+                            />
+                          </div>
+                        </th>
                       )}
                       {visibleColumns.service_category && (
-                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Service Category</th>
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
+                          <div className="flex items-center">
+                            Service Category
+                            <ColumnFilterDropdown
+                              columnKey="service_category"
+                              data={filteredDataForSet}
+                              currentFilters={currentColumnFilters}
+                              onFilterChange={(columnKey, selectedValues) => 
+                                handleColumnFilterChange(filterIndex, columnKey, selectedValues)
+                              }
+                              formatValue={(value) => SERVICE_CATEGORY_ABBREVIATIONS[value?.trim().toUpperCase() || ''] || value || '-'}
+                            />
+                          </div>
+                        </th>
                       )}
                       {visibleColumns.service_code && (
-                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Service Code</th>
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
+                          <div className="flex items-center">
+                            Service Code
+                            <ColumnFilterDropdown
+                              columnKey="service_code"
+                              data={filteredDataForSet}
+                              currentFilters={currentColumnFilters}
+                              onFilterChange={(columnKey, selectedValues) => 
+                                handleColumnFilterChange(filterIndex, columnKey, selectedValues)
+                              }
+                              formatValue={formatText}
+                            />
+                          </div>
+                        </th>
                       )}
                       {visibleColumns.service_description && (
-                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Service Description</th>
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
+                          <div className="flex items-center">
+                            Service Description
+                            <ColumnFilterDropdown
+                              columnKey="service_description"
+                              data={filteredDataForSet}
+                              currentFilters={currentColumnFilters}
+                              onFilterChange={(columnKey, selectedValues) => 
+                                handleColumnFilterChange(filterIndex, columnKey, selectedValues)
+                              }
+                              formatValue={(value) => value || '-'}
+                            />
+                          </div>
+                        </th>
                       )}
                       {visibleColumns.rate && (
-                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Rate</th>
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
+                          <div className="flex items-center">
+                            Rate
+                            <ColumnFilterDropdown
+                              columnKey="rate"
+                              data={filteredDataForSet}
+                              currentFilters={currentColumnFilters}
+                              onFilterChange={(columnKey, selectedValues) => 
+                                handleColumnFilterChange(filterIndex, columnKey, selectedValues)
+                              }
+                              formatValue={(value) => value || '-'}
+                            />
+                          </div>
+                        </th>
                       )}
                       {visibleColumns.duration_unit && (
-                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Duration Unit</th>
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
+                          <div className="flex items-center">
+                            Duration Unit
+                            <ColumnFilterDropdown
+                              columnKey="duration_unit"
+                              data={filteredDataForSet}
+                              currentFilters={currentColumnFilters}
+                              onFilterChange={(columnKey, selectedValues) => 
+                                handleColumnFilterChange(filterIndex, columnKey, selectedValues)
+                              }
+                              formatValue={formatText}
+                            />
+                          </div>
+                        </th>
                       )}
                       {visibleColumns.rate_effective_date && (
-                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Effective Date</th>
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
+                          <div className="flex items-center">
+                            Effective Date
+                            <ColumnFilterDropdown
+                              columnKey="rate_effective_date"
+                              data={filteredDataForSet}
+                              currentFilters={currentColumnFilters}
+                              onFilterChange={(columnKey, selectedValues) => 
+                                handleColumnFilterChange(filterIndex, columnKey, selectedValues)
+                              }
+                              formatValue={(value) => value || '-'}
+                            />
+                          </div>
+                        </th>
                       )}
                       {visibleColumns.provider_type && (
-                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Provider Type</th>
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
+                          <div className="flex items-center">
+                            Provider Type
+                            <ColumnFilterDropdown
+                              columnKey="provider_type"
+                              data={filteredDataForSet}
+                              currentFilters={currentColumnFilters}
+                              onFilterChange={(columnKey, selectedValues) => 
+                                handleColumnFilterChange(filterIndex, columnKey, selectedValues)
+                              }
+                              formatValue={formatText}
+                            />
+                          </div>
+                        </th>
                       )}
                       {visibleColumns.modifier_1 && (
-                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Modifier 1</th>
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
+                          <div className="flex items-center">
+                            Modifier 1
+                            <ColumnFilterDropdown
+                              columnKey="modifier_1"
+                              data={filteredDataForSet}
+                              currentFilters={currentColumnFilters}
+                              onFilterChange={(columnKey, selectedValues) => 
+                                handleColumnFilterChange(filterIndex, columnKey, selectedValues)
+                              }
+                              formatValue={(value) => value || '-'}
+                            />
+                          </div>
+                        </th>
                       )}
                       {visibleColumns.modifier_2 && (
-                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Modifier 2</th>
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
+                          <div className="flex items-center">
+                            Modifier 2
+                            <ColumnFilterDropdown
+                              columnKey="modifier_2"
+                              data={filteredDataForSet}
+                              currentFilters={currentColumnFilters}
+                              onFilterChange={(columnKey, selectedValues) => 
+                                handleColumnFilterChange(filterIndex, columnKey, selectedValues)
+                              }
+                              formatValue={(value) => value || '-'}
+                            />
+                          </div>
+                        </th>
                       )}
                       {visibleColumns.modifier_3 && (
-                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Modifier 3</th>
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
+                          <div className="flex items-center">
+                            Modifier 3
+                            <ColumnFilterDropdown
+                              columnKey="modifier_3"
+                              data={filteredDataForSet}
+                              currentFilters={currentColumnFilters}
+                              onFilterChange={(columnKey, selectedValues) => 
+                                handleColumnFilterChange(filterIndex, columnKey, selectedValues)
+                              }
+                              formatValue={(value) => value || '-'}
+                            />
+                          </div>
+                        </th>
                       )}
                       {visibleColumns.modifier_4 && (
-                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Modifier 4</th>
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
+                          <div className="flex items-center">
+                            Modifier 4
+                            <ColumnFilterDropdown
+                              columnKey="modifier_4"
+                              data={filteredDataForSet}
+                              currentFilters={currentColumnFilters}
+                              onFilterChange={(columnKey, selectedValues) => 
+                                handleColumnFilterChange(filterIndex, columnKey, selectedValues)
+                              }
+                              formatValue={(value) => value || '-'}
+                            />
+                          </div>
+                        </th>
                       )}
                       {visibleColumns.program && (
-                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Program</th>
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
+                          <div className="flex items-center">
+                            Program
+                            <ColumnFilterDropdown
+                              columnKey="program"
+                              data={filteredDataForSet}
+                              currentFilters={currentColumnFilters}
+                              onFilterChange={(columnKey, selectedValues) => 
+                                handleColumnFilterChange(filterIndex, columnKey, selectedValues)
+                              }
+                              formatValue={formatText}
+                            />
+                          </div>
+                        </th>
                       )}
                       {visibleColumns.location_region && (
-                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Region</th>
+                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
+                          <div className="flex items-center">
+                            Region
+                            <ColumnFilterDropdown
+                              columnKey="location_region"
+                              data={filteredDataForSet}
+                              currentFilters={currentColumnFilters}
+                              onFilterChange={(columnKey, selectedValues) => 
+                                handleColumnFilterChange(filterIndex, columnKey, selectedValues)
+                              }
+                              formatValue={formatText}
+                            />
+                          </div>
+                        </th>
                       )}
                     </tr>
                   </thead>
@@ -379,7 +744,7 @@ export const DataTable = ({
         </div>
       );
     });
-  }, [filterSets, latestRates, selectedEntries, currentPages, onRowSelection, formatText, stateColorMap]);
+  }, [filterSets, latestRates, selectedEntries, currentPages, onRowSelection, formatText, stateColorMap, columnFilters]);
 
   return tableContent;
 };
