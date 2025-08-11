@@ -1360,15 +1360,7 @@ export default function HistoricalRates() {
       let value = rateValue;
       let displayValue: string | null = null;
 
-      if (showRatePerHour) {
-        if (durationUnit === '15 MINUTES') {
-          value = rateValue * 4;
-        } else if (durationUnit === '30 MINUTES') {
-          value = rateValue * 2;
-        } else if (durationUnit !== 'PER HOUR') {
-          displayValue = 'N/A';
-        }
-      }
+      // Use actual rate value without any conversion
 
       return {
         value: displayValue ? null : value,

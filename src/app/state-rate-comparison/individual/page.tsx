@@ -1135,15 +1135,6 @@ export default function StatePaymentComparison() {
         filteredDataForSet.forEach(item => {
           const state = item.state_name;
         let rateValue = parseRate(item.rate);
-        const durationUnit = item.duration_unit?.toUpperCase();
-        
-        if (showRatePerHour) {
-            if (durationUnit === '15 MINUTES') {
-              rateValue *= 4;
-            } else if (durationUnit !== 'PER HOUR') {
-              rateValue = 0; // Or handle differently if needed
-            }
-          }
 
           if (!stateRates[state]) {
             stateRates[state] = [];
@@ -1161,19 +1152,7 @@ export default function StatePaymentComparison() {
       } else {
         // Otherwise, process data as usual
         filteredDataForSet.forEach(item => {
-          const rate = showRatePerHour 
-            ? (() => {
-                let rateValue = parseRate(item.rate);
-                const durationUnit = item.duration_unit?.toUpperCase();
-                
-                if (durationUnit === '15 MINUTES') {
-                  rateValue *= 4;
-                } else if (durationUnit !== 'PER HOUR') {
-                  rateValue = 0; // Or handle differently if needed
-                }
-                return Math.round(rateValue * 100) / 100;
-              })()
-            : Math.round(parseRate(item.rate) * 100) / 100;
+          const rate = Math.round(parseRate(item.rate) * 100) / 100;
 
           const currentModifier = [
             item.modifier_1?.trim().toUpperCase() || '',

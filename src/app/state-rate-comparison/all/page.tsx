@@ -359,7 +359,7 @@ export default function StatePaymentComparison() {
   const [authError, setAuthError] = useState<string | null>(null);
 
   // Add refreshData function inside the component - moved here to fix declaration order
-  const refreshData = async (filters: Record<string, string> = {}): Promise<RefreshDataResponse | null> => {
+  const refreshData = async (filters: Record<string, string | string[]> = {}): Promise<RefreshDataResponse | null> => {
     setLoading(true);
     setError(null);
     try {
@@ -368,7 +368,14 @@ export default function StatePaymentComparison() {
       const isAllStates = filterSets[0]?.states && filterSets[0].states.length === filterOptions.states.length;
       Object.entries(filters).forEach(([key, value]) => {
         if (isAllStates && key === 'state_name') return; // skip state_name in All States mode
-        if (value) params.append(key, value);
+        if (value) {
+          // Handle arrays (like multiple duration units)
+          if (Array.isArray(value)) {
+            value.forEach(v => params.append(key, v));
+          } else {
+            params.append(key, value);
+          }
+        }
       });
       const url = `/api/state-payment-comparison?${params.toString()}`;
       
@@ -625,7 +632,7 @@ export default function StatePaymentComparison() {
   const [showApplyToAllPrompt, setShowApplyToAllPrompt] = useState(false);
   const [lastSelectedModifier, setLastSelectedModifier] = useState<string | null>(null);
   const [selectedTableRows, setSelectedTableRows] = useState<{[state: string]: string[]}>({});
-  const [showRatePerHour, setShowRatePerHour] = useState(false);
+  // Removed showRatePerHour - users see actual rates without conversion
   const [isAllStatesSelected, setIsAllStatesSelected] = useState(true); // Default to true since "All States" is default
   const [globalModifierOrder, setGlobalModifierOrder] = useState<Map<string, number>>(new Map());
   const [globalSelectionOrder, setGlobalSelectionOrder] = useState<Map<string, number>>(new Map());
@@ -1338,9 +1345,7 @@ export default function StatePaymentComparison() {
         // Group rates by state
         filteredDataForSet.forEach(item => {
           const state = item.state_name;
-          let rateValue = showRatePerHour 
-            ? convertToHourlyRate(item.rate, item.duration_unit)
-            : parseRate(item.rate);
+          let rateValue = parseRate(item.rate);
 
           if (!stateRates[state]) {
             stateRates[state] = [];
@@ -1360,9 +1365,7 @@ export default function StatePaymentComparison() {
       } else {
         // Otherwise, process data as usual
         filteredDataForSet.forEach(item => {
-          const rate = showRatePerHour 
-            ? Math.round(convertToHourlyRate(item.rate, item.duration_unit) * 100) / 100
-            : Math.round(parseRate(item.rate) * 100) / 100;
+          const rate = Math.round(parseRate(item.rate) * 100) / 100;
 
           const currentModifier = [
             item.modifier_1?.trim().toUpperCase() || '',
@@ -1393,19 +1396,85 @@ export default function StatePaymentComparison() {
     filterSets,
     latestRates,
     selectedTableRows,
-    showRatePerHour,
+
     states.length,
   ]);
 
   // Function to calculate average for a state based on selected entries
   const calculateStateAverage = useCallback((state: string): number => {
-    // For All States mode, use the API-provided state averages directly
+    // For All States mode, check if duration units are filtered
     if (isAllStatesSelected && allStatesAverages) {
-      const stateAverage = allStatesAverages.find(avg => avg.state_name === state);
-      if (stateAverage && typeof stateAverage.avg_rate === 'number' && !isNaN(stateAverage.avg_rate) && stateAverage.avg_rate > 0) {
-        return stateAverage.avg_rate;
+      const filterSet = filterSets[0];
+      const hasDurationFilter = filterSet?.durationUnits && filterSet.durationUnits.length > 0;
+      
+      // If duration units are filtered, use the filtered individual entries instead of API averages
+      // because API averages include ALL duration units while individual entries are filtered
+      if (hasDurationFilter) {
+        // Use filtered individual entries logic instead of API averages
+        const stateEntries = stateAverageEntries[state] || [];
+        const selectedKeys = stateSelectedForAverage[state] || new Set();
+        
+        if (stateEntries.length === 0 || selectedKeys.size === 0) {
+          return 0;
+        }
+        
+        // Apply the same deduplication logic as DataTable
+        const grouped: { [key: string]: ServiceData[] } = {};
+        stateEntries.forEach(item => {
+          const key = JSON.stringify({
+            state_name: item.state_name,
+            service_category: item.service_category,
+            service_code: item.service_code,
+            service_description: item.service_description,
+            program: item.program,
+            location_region: item.location_region,
+            modifier_1: item.modifier_1,
+            modifier_1_details: item.modifier_1_details,
+            modifier_2: item.modifier_2,
+            modifier_2_details: item.modifier_2_details,
+            modifier_3: item.modifier_3,
+            modifier_3_details: item.modifier_3_details,
+            modifier_4: item.modifier_4,
+            modifier_4_details: item.modifier_4_details,
+            duration_unit: item.duration_unit,
+            provider_type: item.provider_type
+          });
+          if (!grouped[key]) grouped[key] = [];
+          grouped[key].push(item);
+        });
+        
+        // Only keep the latest entry for each group (same as DataTable)
+        const deduplicatedEntries = Object.values(grouped).map(entries => {
+          return entries.reduce((latest, current) => {
+            const latestDate = new Date(latest.rate_effective_date);
+            const currentDate = new Date(current.rate_effective_date);
+            return currentDate > latestDate ? current : latest;
+          });
+        });
+        
+        // Filter to only selected entries
+        const selectedEntries = deduplicatedEntries.filter(entry => selectedKeys.has(getRowKey(entry)));
+        
+        if (selectedEntries.length === 0) {
+          return 0;
+        }
+        
+        // Calculate average from filtered entries - use actual rates without conversion
+        const rates = selectedEntries.map(entry => {
+          const rateToUse = entry.rate || entry.rate_per_hour;
+          return parseRate(rateToUse);
+        }).filter(rate => !isNaN(rate) && rate > 0);
+        
+        if (rates.length === 0) return 0;
+        return rates.reduce((sum, rate) => sum + rate, 0) / rates.length;
+      } else {
+        // No duration filter, use API-provided state averages directly
+        const stateAverage = allStatesAverages.find(avg => avg.state_name === state);
+        if (stateAverage && typeof stateAverage.avg_rate === 'number' && !isNaN(stateAverage.avg_rate) && stateAverage.avg_rate > 0) {
+          return stateAverage.avg_rate;
+        }
+        return 0;
       }
-      return 0;
     }
     
     // Use the same deduplication logic as the DataTable for individual state mode
@@ -1472,23 +1541,10 @@ export default function StatePaymentComparison() {
       
       // Rate processing (verbose logging removed)
       
-      if (showRatePerHour) {
-        if (durationUnit === '15 MINUTES') {
-          rateValue *= 4;
-        } else if (durationUnit === '30 MINUTES') {
-          rateValue *= 2;
-        } else if (durationUnit !== 'PER HOUR' && durationUnit !== 'PER SESSION') {
-          // Only set to 0 for duration units we can't handle, but keep PER SESSION rates as-is
-          // Duration unit cannot be converted to hourly rate
-          rateValue = 0;
-        }
-        // For PER SESSION, keep the original rate (don't convert)
-      }
-      
-      // Final rate calculated
+      // Use actual rate value without any conversion
       
       return rateValue;
-    }).filter(rate => rate > 0);
+    }).filter(rate => !isNaN(rate) && rate > 0);
     
     if (rates.length === 0) {
       // No valid rates found for state
@@ -1499,7 +1555,7 @@ export default function StatePaymentComparison() {
     // Average calculated successfully
     
     return average;
-  }, [isAllStatesSelected, allStatesAverages, stateAverageEntries, stateSelectedForAverage, showRatePerHour, latestRates]);
+  }, [isAllStatesSelected, allStatesAverages, stateAverageEntries, stateSelectedForAverage, latestRates, filterSets]);
 
   // Update: getAvailableOptionsForFilter to handle array values for duration_unit
   function getAvailableOptionsForFilter(filterKey: keyof Selections) {
@@ -2165,7 +2221,7 @@ export default function StatePaymentComparison() {
         },
         yAxis: {
           type: 'value',
-          name: showRatePerHour ? 'Rate ($ per hour)' : 'Rate ($ per base unit)',
+          name: 'Rate ($)',
           nameLocation: 'middle',
           nameGap: 30,
           nameTextStyle: {
@@ -2231,7 +2287,7 @@ export default function StatePaymentComparison() {
         legend: { show: false },
         tooltip: { show: false },
         xAxis: { type: 'category', data: [] },
-        yAxis: { type: 'value', name: showRatePerHour ? 'Rate ($ per hour)' : 'Rate ($ per base unit)' },
+        yAxis: { type: 'value', name: 'Rate ($)' },
         series: [],
         grid: { containLabel: true }
       };
@@ -2270,11 +2326,7 @@ export default function StatePaymentComparison() {
         if (!matchingEntry) return 0; // Always return 0 for missing
         let rateValue = parseRate(matchingEntry.rate);
         const durationUnit = matchingEntry.duration_unit?.toUpperCase();
-        if (showRatePerHour) {
-          if (durationUnit === '15 MINUTES') rateValue *= 4;
-          else if (durationUnit === '30 MINUTES') rateValue *= 2;
-          else if (durationUnit !== 'PER HOUR') rateValue = 0;
-        }
+        // Use actual rate value without conversion
         return Math.round(rateValue * 100) / 100;
       });
       return {
@@ -2367,7 +2419,7 @@ export default function StatePaymentComparison() {
       },
       yAxis: {
         type: 'value',
-        name: showRatePerHour ? 'Rate ($ per hour)' : 'Rate ($ per base unit)',
+        name: 'Rate ($)',
         nameLocation: 'middle',
         nameGap: 30
       },
@@ -2429,7 +2481,7 @@ export default function StatePaymentComparison() {
         top: '15%'
       }
     };
-  }, [selectedEntries, showRatePerHour, isAllStatesSelected, filterSets, allStatesAverages, filterOptions.states, allStatesSelectedRows, sortOrder, calculateStateAverage, isChartDataReady, data, stateAverageEntries, stateSelectedForAverage]);
+  }, [selectedEntries, isAllStatesSelected, filterSets, allStatesAverages, filterOptions.states, allStatesSelectedRows, sortOrder, calculateStateAverage, isChartDataReady, data, stateAverageEntries, stateSelectedForAverage]);
 
   const ChartWithErrorBoundary = () => {
     try {
@@ -2540,15 +2592,11 @@ export default function StatePaymentComparison() {
       .map(item => {
         let rateValue = parseRate(item.rate);
         const durationUnit = item.duration_unit?.toUpperCase();
-        if (showRatePerHour) {
-          if (durationUnit === '15 MINUTES') rateValue *= 4;
-          else if (durationUnit === '30 MINUTES') rateValue *= 2;
-          else if (durationUnit !== 'PER HOUR') rateValue = 0;
-        }
+        // Use actual rate value without conversion
         return rateValue;
       })
       .filter(rate => rate > 0);
-  }, [selectedEntries, showRatePerHour, isAllStatesSelected, filterSets, allStatesAverages, filterOptions.states, calculateStateAverage]);
+  }, [selectedEntries, isAllStatesSelected, filterSets, allStatesAverages, filterOptions.states, calculateStateAverage]);
 
   const filteredRates = useMemo(
     () => selectedRates.filter((rate: any): rate is number => typeof rate === 'number' && !isNaN(rate)),
@@ -2570,13 +2618,7 @@ export default function StatePaymentComparison() {
         item.service_category === serviceCategory &&
         item.service_code?.trim() === serviceCode?.trim()
       )
-      .map((item: ServiceData) => 
-        (() => {
-          let rateValue = showRatePerHour 
-            ? convertToHourlyRate(item.rate, item.duration_unit)
-            : parseRate(item.rate);
-          return Math.round(rateValue * 100) / 100;
-        })()
+      .map((item: ServiceData) => Math.round(parseRate(item.rate) * 100) / 100
       )
       .filter((rate: number) => rate > 0);
 
@@ -2584,7 +2626,7 @@ export default function StatePaymentComparison() {
 
     const sum = rates.reduce((sum: number, rate: number) => sum + rate, 0);
     return (sum / rates.length).toFixed(2);
-  }, [data, filterSets, showRatePerHour]);
+  }, [data, filterSets]);
 
   // Add this component to display the calculation details
   const CalculationDetails = () => {
@@ -2638,19 +2680,7 @@ export default function StatePaymentComparison() {
                       {entry.modifier_4 ? `${entry.modifier_4}${entry.modifier_4_details ? ` - ${entry.modifier_4_details}` : ''}` : '-'}
                     </td>
                     <td className="px-4 py-2">
-                      ${showRatePerHour 
-                        ? (() => {
-                            let rateValue = parseRate(entry.rate_per_hour);
-                            const durationUnit = entry.duration_unit?.toUpperCase();
-                            
-                            if (durationUnit === '15 MINUTES') {
-                              rateValue *= 4;
-                            } else if (durationUnit !== 'PER HOUR') {
-                              rateValue = 0; // Or handle differently if needed
-                            }
-                            return Math.round(rateValue * 100) / 100;
-                          })()
-                        : parseRate(entry.rate).toFixed(2)}
+                      ${parseRate(entry.rate).toFixed(2)}
                     </td>
                     <td className="px-4 py-2">
                       {formatDate(entry.rate_effective_date)}
@@ -2932,6 +2962,23 @@ export default function StatePaymentComparison() {
               serviceCode: filterSet.serviceCode,
               itemsPerPage: '2000' // Increase to get more data
             };
+            
+            // Include duration unit filters if selected
+            if (filterSet.durationUnits && filterSet.durationUnits.length > 0) {
+              // Add each duration unit as a separate parameter
+              filterSet.durationUnits.forEach(unit => {
+                if (!refreshParams.durationUnit) {
+                  refreshParams.durationUnit = unit;
+                } else {
+                  // Handle multiple duration units - convert to array format for URL params
+                  if (typeof refreshParams.durationUnit === 'string') {
+                    refreshParams.durationUnit = [refreshParams.durationUnit, unit];
+                  } else {
+                    refreshParams.durationUnit.push(unit);
+                  }
+                }
+              });
+            }
             
             console.log('🔍 Individual entries API params:', refreshParams);
             
