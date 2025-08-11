@@ -114,6 +114,31 @@ interface ServiceData {
   provider_type?: string; // Add this line
 }
 
+// Helper function to safely parse rates and handle conversion
+const parseRate = (rate: string | number | undefined): number => {
+  if (typeof rate === 'number') return rate;
+  if (typeof rate === 'string') {
+    return parseFloat(rate.replace(/[$,]/g, '') || '0');
+  }
+  return 0;
+};
+
+// Helper function to convert rate to hourly based on duration unit
+const convertToHourlyRate = (rate: string | number | undefined, durationUnit: string | undefined): number => {
+  const rateValue = parseRate(rate);
+  const duration = durationUnit?.toUpperCase() || '';
+  
+  // Convert common duration units to hourly rate
+  if (duration.includes('15') && duration.includes('MINUTE')) return rateValue * 4;
+  if (duration.includes('30') && duration.includes('MINUTE')) return rateValue * 2;
+  if (duration.includes('45') && duration.includes('MINUTE')) return rateValue * (4/3);
+  if (duration.includes('60') && duration.includes('MINUTE')) return rateValue;
+  if (duration.includes('HOUR')) return rateValue;
+  
+  // If we can't determine the unit, return the rate as-is
+  return rateValue;
+};
+
 interface FilterSet {
   serviceCategory: string;
   states: string[];
@@ -598,6 +623,7 @@ export default function StatePaymentComparison() {
   const [filterSetData, setFilterSetData] = useState<{ [index: number]: ServiceData[] }>({});
   const [selectedEntries, setSelectedEntries] = useState<{ [state: string]: ServiceData[] }>({});
   const [chartRefreshKey, setChartRefreshKey] = useState(0);
+  const [searchTimestamp, setSearchTimestamp] = useState<number>(Date.now()); // For chart key stability
   // State to hold all states averages for All States mode
   const [allStatesAverages, setAllStatesAverages] = useState<{ state_name: string; avg_rate: number }[] | null>(null);
   // Add state to track per-state pagination and per-state selected entry
@@ -716,20 +742,10 @@ export default function StatePaymentComparison() {
   // Update useEffect to use refreshData
   useEffect(() => {
     if (pendingSearch) return; // Only fetch when not pending
-    const loadData = async () => {
-      try {
-        setFilterLoading(true);
-        const result = await refreshData();
-        if (result) {
-          extractFilters(result.data);
-        }
-      } catch (error) {
-        setFetchError("Failed to load data. Please try again.");
-    } finally {
-        setFilterLoading(false);
-      }
-    };
-    loadData();
+    // For Individual page, we don't need to load data initially
+    // We only load data when the user clicks Search
+    // Just initialize filters from context or empty state
+    setFilterLoading(false);
   }, [pendingSearch]);
 
   // Update extractFilters to use filterOptions from context
@@ -1118,7 +1134,7 @@ export default function StatePaymentComparison() {
         // Group rates by state
         filteredDataForSet.forEach(item => {
           const state = item.state_name;
-        let rateValue = parseFloat(item.rate?.replace('$', '') || '0');
+        let rateValue = parseRate(item.rate);
         const durationUnit = item.duration_unit?.toUpperCase();
         
         if (showRatePerHour) {
@@ -1147,7 +1163,7 @@ export default function StatePaymentComparison() {
         filteredDataForSet.forEach(item => {
           const rate = showRatePerHour 
             ? (() => {
-                let rateValue = parseFloat(item.rate?.replace('$', '') || '0');
+                let rateValue = parseRate(item.rate);
                 const durationUnit = item.duration_unit?.toUpperCase();
                 
                 if (durationUnit === '15 MINUTES') {
@@ -1157,7 +1173,7 @@ export default function StatePaymentComparison() {
                 }
                 return Math.round(rateValue * 100) / 100;
               })()
-            : Math.round(parseFloat(item.rate?.replace("$", "") || "0") * 100) / 100;
+            : Math.round(parseRate(item.rate) * 100) / 100;
 
           const currentModifier = [
             item.modifier_1?.trim().toUpperCase() || '',
@@ -1770,6 +1786,19 @@ export default function StatePaymentComparison() {
     ) : null
   );
 
+  // Add chart data readiness check
+  const isChartDataReady = useMemo(() => {
+    if (isAllStatesSelected) {
+      // For All States mode, ensure all required data is loaded
+      return allStatesAverages && 
+             filterSets[0]?.serviceCode && 
+             Object.keys(selectedEntries).length > 0;
+    } else {
+      // For individual mode, ensure we have selected entries
+      return Object.keys(selectedEntries).length > 0;
+    }
+  }, [isAllStatesSelected, allStatesAverages, filterSets, selectedEntries]);
+
   // Move stateColorMap before echartOptions
   const stateColorMap = useMemo(() => {
     const colorMap: { [state: string]: string } = {};
@@ -1792,6 +1821,9 @@ export default function StatePaymentComparison() {
 
   // ✅ Prepare ECharts Data
   const echartOptions = useMemo(() => {
+    // Only render chart when ALL required data is loaded (prevents double-loading)
+    if (!isChartDataReady) return null;
+    
     if (isAllStatesSelected && filterSets[0]?.serviceCode && allStatesAverages) {
       const code = filterSets[0].serviceCode;
       const statesList = filterOptions.states;
@@ -1804,7 +1836,7 @@ export default function StatePaymentComparison() {
         const stateKey = state.trim().toUpperCase();
         const selected = allStatesSelectedRows[stateKey];
         if (selected && selected.row && selected.row.rate) {
-          const rate = parseFloat((selected.row.rate || '').replace(/[^\d.-]/g, ''));
+          const rate = parseRate(selected.row.rate);
           return !isNaN(rate) && rate > 0;
         }
         const avg = avgMap.get(stateKey);
@@ -1818,7 +1850,7 @@ export default function StatePaymentComparison() {
         if (selected && selected.row && selected.row.rate) {
           return { 
             state: state,
-            value: parseFloat((selected.row.rate || '').replace(/[^\d.-]/g, '')), 
+            value: parseRate(selected.row.rate), 
             color: stateColorMap[state.trim().toUpperCase()] || '#36A2EB' 
           };
         }
@@ -1939,7 +1971,7 @@ export default function StatePaymentComparison() {
     const allSelectedEntries: { label: string; value: number; color: string; entry: ServiceData }[] = [];
     Object.entries(selectedEntries).forEach(([state, entries]) => {
       entries.forEach((item, idx) => {
-        let rateValue = parseFloat(item.rate?.replace('$', '') || '0');
+        let rateValue = parseRate(item.rate);
         const durationUnit = item.duration_unit?.toUpperCase();
         if (showRatePerHour) {
           if (durationUnit === '15 MINUTES') rateValue *= 4;
@@ -2030,13 +2062,26 @@ export default function StatePaymentComparison() {
         top: '15%'
       }
     };
-  }, [selectedEntries, showRatePerHour, isAllStatesSelected, filterSets, allStatesAverages, filterOptions.states, allStatesSelectedRows, sortOrder, stateColorMap]);
+  }, [isChartDataReady, selectedEntries, showRatePerHour, isAllStatesSelected, filterSets, allStatesAverages, filterOptions.states, allStatesSelectedRows, sortOrder, stateColorMap]);
 
   const ChartWithErrorBoundary = () => {
     try {
+      // Show loading state while chart data is being prepared
+      if (!isChartDataReady || loading) {
+        return (
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <FaSpinner className="h-8 w-8 text-blue-500 mx-auto mb-4 animate-spin" />
+              <p className="text-gray-600 font-medium">Loading chart data...</p>
+              <p className="text-sm text-gray-500">Please wait while we fetch and process the data</p>
+            </div>
+          </div>
+        );
+      }
+      
       return (
         <ReactECharts
-          key={JSON.stringify(Object.keys(selectedEntries).sort()) + '-' + chartRefreshKey}
+          key={`individual-${JSON.stringify(Object.keys(selectedEntries).sort())}-${chartRefreshKey}-${searchTimestamp}`}
           option={echartOptions}
           style={{ height: '400px', width: '100%' }}
         />
@@ -2129,7 +2174,7 @@ export default function StatePaymentComparison() {
     return Object.values(selectedEntries)
       .flat()
       .map(item => {
-        let rateValue = parseFloat(item.rate?.replace('$', '') || '0');
+        let rateValue = parseRate(item.rate);
         const durationUnit = item.duration_unit?.toUpperCase();
         if (showRatePerHour) {
           if (durationUnit === '15 MINUTES') rateValue *= 4;
@@ -2163,7 +2208,7 @@ export default function StatePaymentComparison() {
       )
       .map((item: ServiceData) => 
         (() => {
-          let rateValue = parseFloat(item.rate?.replace('$', '') || '0');
+          let rateValue = parseRate(item.rate);
           const durationUnit = item.duration_unit?.toUpperCase();
           
           if (durationUnit === '15 MINUTES') {
@@ -2236,7 +2281,7 @@ export default function StatePaymentComparison() {
                     <td className="px-4 py-2">
                       ${showRatePerHour 
                         ? (() => {
-                            let rateValue = parseFloat(entry.rate_per_hour?.replace('$', '') || '0');
+                            let rateValue = parseRate(entry.rate_per_hour);
                             const durationUnit = entry.duration_unit?.toUpperCase();
                             
                             if (durationUnit === '15 MINUTES') {
@@ -2246,7 +2291,7 @@ export default function StatePaymentComparison() {
                             }
                             return Math.round(rateValue * 100) / 100;
                           })()
-                        : parseFloat(entry.rate?.replace("$", "") || "0").toFixed(2)}
+                        : parseRate(entry.rate).toFixed(2)}
                     </td>
                     <td className="px-4 py-2">
                       {formatDate(entry.rate_effective_date)}
@@ -2460,6 +2505,8 @@ export default function StatePaymentComparison() {
 
   // Only fetch data when Search is clicked
   const handleSearch = async () => {
+    console.log('🔍 Search button clicked - fetching data...');
+    setSearchTimestamp(Date.now()); // Update timestamp for chart key stability
     const requiredFields = ['serviceCategory', 'state', 'serviceCodeOrDescription', 'durationUnits'];
     const newMissing: {[key: string]: boolean} = {};
     const filterSet = filterSets[0]; // Only one filter set for individual
@@ -2484,7 +2531,7 @@ export default function StatePaymentComparison() {
               serviceCategory: filterSet.serviceCategory,
               serviceCode: filterSet.serviceCode,
               ...(filterSet.durationUnits && filterSet.durationUnits.length > 0 && { duration_unit: filterSet.durationUnits.join(',') }),
-              itemsPerPage: '1000'
+              itemsPerPage: '2000'
             });
             if (result) {
               setFilterSetData(prev => ({ ...prev, [index]: result.data }));
@@ -2496,7 +2543,7 @@ export default function StatePaymentComparison() {
               state_name: filterSet.states[0],
               serviceCode: filterSet.serviceCode,
               ...(filterSet.durationUnits && filterSet.durationUnits.length > 0 && { duration_unit: filterSet.durationUnits.join(',') }),
-              itemsPerPage: '1000'
+              itemsPerPage: '2000'
             });
             if (result) {
               setFilterSetData(prev => ({ ...prev, [index]: result.data }));
@@ -3046,7 +3093,7 @@ export default function StatePaymentComparison() {
                         const stateKey = state.trim().toUpperCase();
                         const selected = allStatesSelectedRows[stateKey];
                         if (selected && selected.row && selected.row.rate) {
-                          const rate = parseFloat((selected.row.rate || '').replace(/[^\d.-]/g, ''));
+                          const rate = parseRate(selected.row.rate);
                           return !isNaN(rate) && rate > 0;
                         }
                         const avg = allStatesAverages.find(row => row.state_name.trim().toUpperCase() === stateKey)?.avg_rate;
@@ -3119,7 +3166,7 @@ export default function StatePaymentComparison() {
                     
                     {/* Chart component */}
             <ReactECharts
-                      key={`${isAllStatesSelected ? 'all-states-' : 'selected-'}${JSON.stringify(Object.keys(selectedEntries).sort())}-${chartRefreshKey}-${allStatesAverages ? allStatesAverages.length : 0}-${sortOrder}`}
+                      key={`${isAllStatesSelected ? 'all-states-' : 'selected-'}${JSON.stringify(Object.keys(selectedEntries).sort())}-${chartRefreshKey}-${searchTimestamp}-${sortOrder}`}
                       option={echartOptions}
               style={{ height: '400px', width: '100%' }}
             />
@@ -3179,7 +3226,7 @@ export default function StatePaymentComparison() {
                         
                         {/* Chart component */}
                         <ReactECharts
-                          key={`${isAllStatesSelected ? 'all-states-' : 'selected-'}${JSON.stringify(Object.keys(selectedEntries).sort())}-${chartRefreshKey}-${allStatesAverages ? allStatesAverages.length : 0}-${sortOrder}`}
+                          key={`${isAllStatesSelected ? 'all-states-' : 'selected-'}${JSON.stringify(Object.keys(selectedEntries).sort())}-${chartRefreshKey}-${searchTimestamp}-${sortOrder}`}
                           option={echartOptions}
                           style={{ height: '400px', width: '100%' }}
                         />

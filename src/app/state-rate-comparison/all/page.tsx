@@ -1467,7 +1467,7 @@ export default function StatePaymentComparison() {
     const rates = selectedEntries.map(entry => {
       // Try rate field first, then rate_per_hour as fallback
       const rateToUse = entry.rate || entry.rate_per_hour;
-      let rateValue = parseFloat(rateToUse?.replace('$', '') || '0');
+      let rateValue = parseRate(rateToUse);
       const durationUnit = entry.duration_unit?.toUpperCase();
       
       // Rate processing (verbose logging removed)

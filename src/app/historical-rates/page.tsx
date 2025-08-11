@@ -45,6 +45,31 @@ interface ServiceData {
   provider_type?: string;
 }
 
+// Helper function to safely parse rates and handle conversion
+const parseRate = (rate: string | number | undefined): number => {
+  if (typeof rate === 'number') return rate;
+  if (typeof rate === 'string') {
+    return parseFloat(rate.replace(/[$,]/g, '') || '0');
+  }
+  return 0;
+};
+
+// Helper function to convert rate to hourly based on duration unit
+const convertToHourlyRate = (rate: string | number | undefined, durationUnit: string | undefined): number => {
+  const rateValue = parseRate(rate);
+  const duration = durationUnit?.toUpperCase() || '';
+  
+  // Convert common duration units to hourly rate
+  if (duration.includes('15') && duration.includes('MINUTE')) return rateValue * 4;
+  if (duration.includes('30') && duration.includes('MINUTE')) return rateValue * 2;
+  if (duration.includes('45') && duration.includes('MINUTE')) return rateValue * (4/3);
+  if (duration.includes('60') && duration.includes('MINUTE')) return rateValue;
+  if (duration.includes('HOUR')) return rateValue;
+  
+  // If we can't determine the unit, return the rate as-is
+  return rateValue;
+};
+
 // Register Chart.js components
 ChartJS.register(
   CategoryScale,
@@ -1199,7 +1224,7 @@ export default function HistoricalRates() {
   const formatRate = (rate: string | undefined) => {
     if (!rate) return '-';
     // Remove any existing $ and parse as number
-    const numericRate = parseFloat(rate.replace(/[^0-9.-]/g, ''));
+    const numericRate = parseRate(rate);
     if (isNaN(numericRate)) return rate; // Return original if not a valid number
     return `$${numericRate.toFixed(2)}`;
   };
@@ -1288,8 +1313,8 @@ export default function HistoricalRates() {
         console.log(`⚠️ DUPLICATE DETECTED for date ${date}:`, dateEntries.map(e => `$${e.rate}`).join(', '));
         // Choose the entry with the highest rate
         const highestRateEntry = dateEntries.reduce((highest, current) => {
-          const highestRate = parseFloat(highest.rate.replace('$', ''));
-          const currentRate = parseFloat(current.rate.replace('$', ''));
+          const highestRate = parseRate(highest.rate);
+          const currentRate = parseRate(current.rate);
           return currentRate > highestRate ? current : highest;
         });
         deduplicatedEntries.push(highestRateEntry);
@@ -1330,7 +1355,7 @@ export default function HistoricalRates() {
 
     let xAxis = finalEntries.map(entry => entry.rate_effective_date);
     let series = finalEntries.map(entry => {
-      const rateValue = typeof entry.rate === 'string' ? parseFloat(entry.rate.replace('$', '')) : 0;
+      const rateValue = parseRate(entry.rate);
       const durationUnit = entry.duration_unit?.toUpperCase();
       let value = rateValue;
       let displayValue: string | null = null;
@@ -1977,7 +2002,7 @@ export default function HistoricalRates() {
                           selectedEntry.provider_type === entry.provider_type &&
                           selectedEntry.rate_effective_date === entry.rate_effective_date;
 
-                        const rateValue = typeof entry.rate === 'string' ? parseFloat(entry.rate.replace('$', '')) : 0;
+                        const rateValue = parseRate(entry.rate);
                         const durationUnit = entry.duration_unit?.toUpperCase();
                       const hourlyRate = durationUnit === '15 MINUTES' ? rateValue * 4 : rateValue;
 

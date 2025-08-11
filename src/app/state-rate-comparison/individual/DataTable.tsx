@@ -835,11 +835,19 @@ function getRowKey(item: ServiceData) {
   ].map(x => x ?? '').join('|');
 }
 
+// Helper function to safely parse rates
+const parseRate = (rate: string | number | undefined): number => {
+  if (typeof rate === 'number') return rate;
+  if (typeof rate === 'string') {
+    return parseFloat(rate.replace(/[$,]/g, '') || '0');
+  }
+  return 0;
+};
+
 // Helper function to format rates with 2 decimal points
-const formatRate = (rate: string | undefined) => {
+const formatRate = (rate: string | number | undefined) => {
   if (!rate) return '-';
-  // Remove any existing $ and parse as number
-  const numericRate = parseFloat(rate.replace(/[^0-9.-]/g, ''));
+  const numericRate = parseRate(rate);
   if (isNaN(numericRate)) return rate; // Return original if not a valid number
   return `$${numericRate.toFixed(2)}`;
 };
