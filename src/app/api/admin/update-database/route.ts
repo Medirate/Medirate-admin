@@ -189,8 +189,23 @@ export async function POST(req: NextRequest) {
         const dbRow = dbByUrl.get(entry.url);
         let changed = false;
         const updateObj: any = {};
+        // Service line fields that should NOT be overwritten for existing entries
+        const protectedServiceLineFields = [
+          'service_lines_impacted',
+          'service_lines_impacted_1', 
+          'service_lines_impacted_2',
+          'service_lines_impacted_3'
+        ];
+        
         for (const col of columns) {
           if (col === 'source_sheet') continue;
+          
+          // Skip service line fields - don't overwrite them for existing entries
+          if (protectedServiceLineFields.includes(col)) {
+            log(`Skipping service line field '${col}' for existing entry: ${entry.url}`, 'info', 'update');
+            continue;
+          }
+          
           if ((entry[col] ?? "") !== (dbRow[col] ?? "")) {
             updateObj[col] = entry[col];
             changed = true;
@@ -336,6 +351,8 @@ export async function POST(req: NextRequest) {
       log(`Excel has ${cleanedProviderRows.length} entries, first 10 IDs: ${excelIds.join(', ')}`, 'info', 'debug');
       
       // 4. Insert new entries (BATCHED)
+      // NOTE: Provider alerts currently only does inserts, no updates
+      // Service line fields are preserved since we don't overwrite existing entries
       const today = new Date().toISOString().slice(0, 10);
       // Only process entries that have valid, non-empty IDs
       const validEntries = cleanedProviderRows.filter(r => r.id && r.id.toString().trim() !== '');
