@@ -18,6 +18,17 @@ function parseRate(rateText: string): number {
 
 export async function GET(request: Request) {
   console.log('🚀 API HIT - state-payment-comparison endpoint called!');
+  console.log('🔍 FULL URL:', request.url);
+  
+  // Force debug mode detection
+  const url = new URL(request.url);
+  const mode = url.searchParams.get('mode');
+  console.log('🔍 MODE DETECTED:', mode);
+  
+  if (mode === 'stateAverages') {
+    console.log('🎯 STATE AVERAGES MODE DETECTED - THIS IS THE CRITICAL PATH!');
+  }
+  
   try {
     // Validate authentication
     const { getUser } = getKindeServerSession();
@@ -49,59 +60,117 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: "Service category and service code are required" }, { status: 400 });
       }
 
-      // Build the query for state averages
-      let query = supabase
-        .from('master_data_july_7')
-        .select('state_name, rate, duration_unit, rate_effective_date')
-        .ilike('service_category', serviceCategory.trim());
-      
-      // Handle service code filtering (single or multi-select)
-      if (serviceCode) {
-        if (serviceCode.includes(',')) {
-          // Multi-select service codes are now handled by frontend union approach
-          // This API endpoint will no longer receive multi-select service codes
-          return NextResponse.json({ 
-            error: 'Multi-select service codes should be handled by frontend union approach' 
-          }, { status: 400 });
-        } else {
-          const trimmedCode = serviceCode.trim();
-          console.log(`🔍 API: Single service code: "${serviceCode}" → "${trimmedCode}"`);
-          query = query.ilike('service_code', trimmedCode);
+      // SPECIAL DEBUG: Check for the specific H0004 + BEHAVIORAL HEALTH combination
+      if (serviceCode.trim() === 'H0004' && serviceCategory.includes('BEHAVIORAL HEALTH')) {
+        console.log('🎯 SPECIAL DEBUG - H0004 + BEHAVIORAL HEALTH combination detected!');
+        
+        // Test 1: Check total count for this service code
+        const { data: h0004Data, error: h0004Error } = await supabase
+          .from('master_data_july_7')
+          .select('state_name, service_category, service_code')
+          .eq('service_code', 'H0004');
+        console.log('🎯 H0004 total records:', h0004Data?.length || 0);
+        console.log('🎯 H0004 unique categories:', [...new Set(h0004Data?.map(r => r.service_category) || [])]);
+        
+        // Test 2: Check for exact category match
+        const { data: exactData, error: exactError } = await supabase
+          .from('master_data_july_7')
+          .select('state_name, service_category, service_code')
+          .eq('service_code', 'H0004')
+          .eq('service_category', serviceCategory);
+        console.log('🎯 H0004 + exact category match:', exactData?.length || 0);
+        
+        // Test 3: Check for ILIKE category match
+        const { data: ilikeData, error: ilikeError } = await supabase
+          .from('master_data_july_7')
+          .select('state_name, service_category, service_code')
+          .eq('service_code', 'H0004')
+          .ilike('service_category', serviceCategory.trim());
+        console.log('🎯 H0004 + ilike category match:', ilikeData?.length || 0);
+        
+        // Test 4: Check for partial category match
+        const { data: partialData, error: partialError } = await supabase
+          .from('master_data_july_7')
+          .select('state_name, service_category, service_code')
+          .eq('service_code', 'H0004')
+          .ilike('service_category', '%BEHAVIORAL HEALTH%');
+        console.log('🎯 H0004 + partial category match:', partialData?.length || 0);
+        
+        if (partialData && partialData.length > 0) {
+          const uniqueStates = [...new Set(partialData.map(r => r.state_name))];
+          console.log('🎯 H0004 unique states found:', uniqueStates.length, uniqueStates.slice(0, 10));
         }
       }
 
-      // Apply additional filters with ILIKE to handle trailing spaces
-      if (program && program !== '-') query = query.ilike('program', program.trim());
-      if (locationRegion && locationRegion !== '-') query = query.ilike('location_region', locationRegion.trim());
-      if (providerType && providerType !== '-') query = query.ilike('provider_type', providerType.trim());
-      if (durationUnit && durationUnit !== '-') query = query.ilike('duration_unit', durationUnit.trim());
-      if (serviceDescription && serviceDescription !== '-') query = query.ilike('service_description', serviceDescription.trim());
+      // Build the query for state averages
+      console.log(`🔍 API: Building state averages query for serviceCategory="${serviceCategory}" serviceCode="${serviceCode}"`);
       
-      if (modifier && modifier !== '-') {
-        const trimmedModifier = modifier.trim();
-        query = query.or(`modifier_1.ilike.${trimmedModifier},modifier_2.ilike.${trimmedModifier},modifier_3.ilike.${trimmedModifier},modifier_4.ilike.${trimmedModifier}`);
+      // For state averages, we need ALL records by paginating through Supabase's 1000-record limit
+      console.log(`🔍 API: Fetching ALL records via pagination (Supabase has 1000-record limit)`);
+      
+      let allData: any[] = [];
+      let offset = 0;
+      const batchSize = 1000;
+      let hasMore = true;
+      
+      while (hasMore) {
+        console.log(`🔍 API: Fetching batch ${Math.floor(offset/batchSize) + 1} (offset: ${offset})`);
+        
+        const { data: batchData, error } = await supabase
+          .from('master_data_july_7')
+          .select('state_name, service_category, service_code, rate, duration_unit, rate_effective_date')
+          .ilike('service_category', serviceCategory.trim())
+          .ilike('service_code', serviceCode.trim())
+          .range(offset, offset + batchSize - 1);
+        
+        if (error) {
+          console.error(`🔍 API: Error in batch ${Math.floor(offset/batchSize) + 1}:`, error);
+          return NextResponse.json({ error: error.message }, { status: 500 });
+        }
+        
+        if (batchData && batchData.length > 0) {
+          allData.push(...batchData);
+          console.log(`🔍 API: Batch ${Math.floor(offset/batchSize) + 1} fetched ${batchData.length} records. Total so far: ${allData.length}`);
+          
+          // If we got less than batchSize, we've reached the end
+          if (batchData.length < batchSize) {
+            hasMore = false;
+            console.log(`🔍 API: Reached end of data (batch returned ${batchData.length} < ${batchSize})`);
+          } else {
+            offset += batchSize;
+          }
+        } else {
+          hasMore = false;
+          console.log(`🔍 API: No more data found`);
+        }
       }
-
-      // Apply date filters
-      if (feeScheduleDate) {
-        query = query.eq('rate_effective_date', feeScheduleDate);
-      } else if (startDate && endDate) {
-        query = query.gte('rate_effective_date', startDate).lte('rate_effective_date', endDate);
-      } else if (startDate) {
-        query = query.gte('rate_effective_date', startDate);
-      } else if (endDate) {
-        query = query.lte('rate_effective_date', endDate);
-      }
-
-      // Fetch the data
-      const { data, error } = await query;
-      if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
-      }
+      
+      console.log(`🔍 API: Pagination complete. Total records fetched: ${allData.length}`);
+      const data = allData;
+      
+      // For state averages mode, we only filter by service_category and service_code
+      // We want ALL records across all programs, durations, locations, etc. to get true state averages
+      console.log(`🔍 API: State Averages mode - only filtering by service_category and service_code`);
+      
+      // Note: service_category and service_code are already applied above
+      // Do NOT apply additional filters like program, locationRegion, durationUnit, etc.
+      // as we want to average across ALL variations for each state
 
       // Debug: Check raw data before state averaging
       const uniqueStates = [...new Set(data?.map((item: any) => item.state_name) || [])];
       console.log(`🔍 API: Raw query found ${data?.length || 0} records across ${uniqueStates.length} unique states`);
+      console.log(`🔍 API: Unique states found:`, uniqueStates.sort());
+      
+      // Check if we're getting all the expected data
+      if (data && data.length > 0) {
+        const sampleRecord = data[0];
+        console.log(`🔍 API: Sample record structure:`, {
+          state_name: sampleRecord.state_name,
+          service_category: sampleRecord.service_category,
+          service_code: sampleRecord.service_code,
+          rate: sampleRecord.rate
+        });
+      }
 
       // Group by state and unique combination, then pick latest per combo
       const stateCombos: { [state: string]: { [combo: string]: any } } = {};
@@ -131,11 +200,25 @@ export async function GET(request: Request) {
       const stateAverages = Object.entries(stateCombos).map(([state, combos]) => {
         const rates = Object.values(combos).map((item: any) => parseRate(item.rate)).filter((r: number) => r > 0);
         const avg = rates.length > 0 ? rates.reduce((a, b) => a + b, 0) / rates.length : 0;
+        
+        // Get service_category and service_code from the first combo for this state
+        const firstCombo = Object.values(combos)[0] as any;
+        
         return {
           state_name: state,
+          service_category: firstCombo?.service_category || serviceCategory, // Fallback to request param
+          service_code: firstCombo?.service_code || serviceCode, // Fallback to request param
           avg_rate: avg,
           count: rates.length
         };
+      });
+      
+      // DEBUG: Log what we're actually returning for state averages
+      console.log('🎯 STATE AVERAGES DEBUG - Final response:', {
+        totalStates: stateAverages.length,
+        sampleState: stateAverages[0],
+        serviceCategories: [...new Set(stateAverages.map(s => s.service_category))],
+        serviceCodes: [...new Set(stateAverages.map(s => s.service_code))]
       });
 
       // Debug: Check how many states survived the averaging

@@ -1,6 +1,13 @@
 "use client";
 
 import { useEffect, useState, useMemo, useId, useCallback, useRef } from "react";
+
+// Extend window type for debug flag
+declare global {
+  interface Window {
+    debugLogShown?: boolean;
+  }
+}
 import { Bar } from "react-chartjs-2";
 import Select from "react-select";
 import DatePicker from "react-datepicker";
@@ -113,6 +120,31 @@ interface ServiceData {
   service_description?: string;
   provider_type?: string; // Add this line
 }
+
+// Helper function to safely parse rates and handle conversion
+const parseRate = (rate: string | number | undefined): number => {
+  if (typeof rate === 'number') return rate;
+  if (typeof rate === 'string') {
+    return parseFloat(rate.replace(/[$,]/g, '') || '0');
+  }
+  return 0;
+};
+
+// Helper function to convert rate to hourly based on duration unit
+const convertToHourlyRate = (rate: string | number | undefined, durationUnit: string | undefined): number => {
+  const rateValue = parseRate(rate);
+  const duration = durationUnit?.toUpperCase() || '';
+  
+  // Convert common duration units to hourly rate
+  if (duration.includes('15') && duration.includes('MINUTE')) return rateValue * 4;
+  if (duration.includes('30') && duration.includes('MINUTE')) return rateValue * 2;
+  if (duration.includes('45') && duration.includes('MINUTE')) return rateValue * (4/3);
+  if (duration.includes('60') && duration.includes('MINUTE')) return rateValue;
+  if (duration.includes('HOUR')) return rateValue;
+  
+  // If we can't determine the unit, return the rate as-is
+  return rateValue;
+};
 
 interface FilterSet {
   serviceCategory: string;
@@ -271,6 +303,25 @@ function parseTimezoneNeutralDate(dateString: string): Date {
   return new Date(year, month - 1, day);
 }
 
+// Helper function to match service categories with flexibility for variations
+function isServiceCategoryMatch(dbCategory: string | null | undefined, filterCategory: string | null | undefined): boolean {
+  if (!dbCategory || !filterCategory) return false;
+  
+  const dbCat = dbCategory.trim().toUpperCase();
+  const filterCat = filterCategory.trim().toUpperCase();
+  
+  // If they're exactly the same, return true
+  if (dbCat === filterCat) return true;
+  
+  // Handle BEHAVIORAL HEALTH variations
+  if (dbCat.includes('BEHAVIORAL HEALTH') && filterCat.includes('BEHAVIORAL HEALTH')) {
+    // Both contain "BEHAVIORAL HEALTH", consider them a match
+    return true;
+  }
+  
+  return false;
+}
+
 export default function StatePaymentComparison() {
   const { isAuthenticated, isLoading, user } = useKindeBrowserClient();
   const router = useRouter();
@@ -280,6 +331,7 @@ export default function StatePaymentComparison() {
   const [data, setData] = useState<ServiceData[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchTimestamp, setSearchTimestamp] = useState<number>(Date.now()); // For chart key stability
 
   // Add filter options data state (like dashboard)
   const [filterOptionsData, setFilterOptionsData] = useState<FilterOptionsData | null>(null);
@@ -335,7 +387,10 @@ export default function StatePaymentComparison() {
       });
       
       if (result && Array.isArray(result.data)) {
+        // Don't overwrite unified data in All States mode - it already contains synthetic entries
+        if (!isAllStatesSelected) {
         setData(result.data);
+        }
         return result;
         } else {
         setError('Invalid data format received');
@@ -621,6 +676,15 @@ export default function StatePaymentComparison() {
     [areFiltersComplete, isAllStatesSelected, hasSelectedRows]
   );
 
+  const isChartDataReady = useMemo(() => {
+    if (!isAllStatesSelected) return true; // Individual mode is always ready
+    // For All States mode, ensure all required data is loaded
+    return allStatesAverages && 
+           Object.keys(stateAverageEntries).length > 0 && 
+           Object.keys(stateSelectedForAverage).length > 0 &&
+           data.length > 0; // Wait for individual entries to be loaded into main data state
+  }, [isAllStatesSelected, allStatesAverages, stateAverageEntries, stateSelectedForAverage, data]);
+
   const shouldShowMetrics = useMemo(() => 
     areFiltersComplete,
     [areFiltersComplete]
@@ -719,20 +783,11 @@ export default function StatePaymentComparison() {
   // Update useEffect to use refreshData
   useEffect(() => {
     if (pendingSearch) return; // Only fetch when not pending
-    const loadData = async () => {
-      try {
-        setFilterLoading(true);
-        const result = await refreshData();
-        if (result) {
-          extractFilters(result.data);
-        }
-      } catch (error) {
-        setFetchError("Failed to load data. Please try again.");
-    } finally {
-        setFilterLoading(false);
-      }
-    };
-    loadData();
+    
+    // For All States page, we don't need to load data initially
+    // We only load data when the user clicks Search
+    // Just initialize filters from the context
+    extractFilters([]);
   }, [pendingSearch]);
 
   // Update extractFilters to use filterOptions from context
@@ -981,36 +1036,9 @@ export default function StatePaymentComparison() {
           params.append('serviceCategory', serviceCategory);
           params.append('serviceCode', code); // Single code
       
-                // Add all filter parameters from the first filter set
-          if (filterSets[0]) {
-            const filterSet = filterSets[0];
-            if (filterSet.program) params.append('program', filterSet.program);
-            if (filterSet.locationRegion) params.append('locationRegion', filterSet.locationRegion);
-            if (filterSet.providerType) params.append('providerType', filterSet.providerType);
-            if (filterSet.modifier) params.append('modifier', filterSet.modifier);
-            if (filterSet.serviceDescription) params.append('serviceDescription', filterSet.serviceDescription);
-            if (filterSet.durationUnits && filterSet.durationUnits.length > 0) {
-              filterSet.durationUnits.forEach(unit => params.append('durationUnit', unit));
-            }
-          }
-          
-          // Also check selections state for additional filters
-          if (selections.duration_unit && selections.duration_unit !== '-') {
-            const selectedUnits = selections.duration_unit.split(',').map(unit => unit.trim());
-            selectedUnits.forEach(unit => params.append('durationUnit', unit));
-          }
-          if (selections.program && selections.program !== '-') {
-            params.append('program', selections.program);
-          }
-          if (selections.location_region && selections.location_region !== '-') {
-            params.append('locationRegion', selections.location_region);
-          }
-          if (selections.provider_type && selections.provider_type !== '-') {
-            params.append('providerType', selections.provider_type);
-          }
-          if (selections.modifier_1 && selections.modifier_1 !== '-') {
-            params.append('modifier', selections.modifier_1);
-          }
+                // For state averages, we ONLY want service category and service code
+          // We want the true average across ALL programs, durations, locations, etc.
+          // DO NOT add additional filters like duration, program, location, etc.
           
           console.log(`🌍 API Call 1.${codes.indexOf(code) + 1} - State Averages (${code}):`, `/api/state-payment-comparison?${params.toString()}`);
           
@@ -1031,20 +1059,20 @@ export default function StatePaymentComparison() {
           entriesParams.append('itemsPerPage', '1000');
           
           // Add all filter parameters from the first filter set
-          if (filterSets[0]) {
-            const filterSet = filterSets[0];
-            if (filterSet.program) entriesParams.append('program', filterSet.program);
-            if (filterSet.locationRegion) entriesParams.append('locationRegion', filterSet.locationRegion);
-            if (filterSet.providerType) entriesParams.append('providerType', filterSet.providerType);
-            if (filterSet.modifier) entriesParams.append('modifier', filterSet.modifier);
-            if (filterSet.serviceDescription) entriesParams.append('serviceDescription', filterSet.serviceDescription);
-            if (filterSet.durationUnits && filterSet.durationUnits.length > 0) {
-              filterSet.durationUnits.forEach(unit => entriesParams.append('durationUnit', unit));
+          const entriesFilterSet = filterSets[0];
+          if (entriesFilterSet) {
+            if (entriesFilterSet.program) entriesParams.append('program', entriesFilterSet.program);
+            if (entriesFilterSet.locationRegion) entriesParams.append('locationRegion', entriesFilterSet.locationRegion);
+            if (entriesFilterSet.providerType) entriesParams.append('providerType', entriesFilterSet.providerType);
+            if (entriesFilterSet.modifier) entriesParams.append('modifier', entriesFilterSet.modifier);
+            if (entriesFilterSet.serviceDescription) entriesParams.append('serviceDescription', entriesFilterSet.serviceDescription);
+            if (entriesFilterSet.durationUnits && entriesFilterSet.durationUnits.length > 0) {
+              entriesFilterSet.durationUnits.forEach(unit => entriesParams.append('durationUnit', unit));
             }
           }
           
-          // Also check selections state for additional filters
-          if (selections.duration_unit && selections.duration_unit !== '-') {
+          // Also check selections state for additional filters (only if not already added from filterSet)
+          if (selections.duration_unit && selections.duration_unit !== '-' && (!entriesFilterSet?.durationUnits || entriesFilterSet.durationUnits.length === 0)) {
             const selectedUnits = selections.duration_unit.split(',').map(unit => unit.trim());
             selectedUnits.forEach(unit => entriesParams.append('durationUnit', unit));
           }
@@ -1139,44 +1167,35 @@ export default function StatePaymentComparison() {
       params.append('serviceCategory', serviceCategory);
       params.append('serviceCode', serviceCode);
       
-      // Add all filter parameters from the first filter set
-      if (filterSets[0]) {
-        const filterSet = filterSets[0];
-        if (filterSet.program) params.append('program', filterSet.program);
-        if (filterSet.locationRegion) params.append('locationRegion', filterSet.locationRegion);
-        if (filterSet.providerType) params.append('providerType', filterSet.providerType);
-        if (filterSet.modifier) params.append('modifier', filterSet.modifier);
-        if (filterSet.serviceDescription) params.append('serviceDescription', filterSet.serviceDescription);
-        if (filterSet.durationUnits && filterSet.durationUnits.length > 0) {
-          filterSet.durationUnits.forEach(unit => params.append('durationUnit', unit));
-        }
-      }
+      // For state averages, we ONLY want service category and service code
+      // We want the true average across ALL programs, durations, locations, etc.
+      // DO NOT add additional filters like duration, program, location, etc.
       
-      // Also check selections state for additional filters
-      if (selections.duration_unit && selections.duration_unit !== '-') {
-        const selectedUnits = selections.duration_unit.split(',').map(unit => unit.trim());
-        selectedUnits.forEach(unit => params.append('durationUnit', unit));
-      }
-      if (selections.program && selections.program !== '-') {
-        params.append('program', selections.program);
-      }
-      if (selections.location_region && selections.location_region !== '-') {
-        params.append('locationRegion', selections.location_region);
-      }
-      if (selections.provider_type && selections.provider_type !== '-') {
-        params.append('providerType', selections.provider_type);
-      }
-      if (selections.modifier_1 && selections.modifier_1 !== '-') {
-        params.append('modifier', selections.modifier_1);
-      }
-      
+      // Add timestamp to bust all caches
+      params.append('_t', Date.now().toString());
       console.log('🌍 API Call 1 - State Averages:', `/api/state-payment-comparison?${params.toString()}`);
       
-      const res = await fetch(`/api/state-payment-comparison?${params.toString()}`);
-      if (!res.ok) throw new Error('Failed to fetch state averages');
+      const res = await fetch(`/api/state-payment-comparison?${params.toString()}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+        }
+      });
+      console.log('🔍 State Averages Response Status:', res.status, res.statusText);
+      if (!res.ok) {
+        console.error('❌ State Averages API Error:', res.status, res.statusText);
+        throw new Error(`Failed to fetch state averages: ${res.status} ${res.statusText}`);
+      }
       const data = await res.json();
+      console.log('🔍 State Averages Raw Response:', data);
       
       console.log('✅ API Response 1 - State Averages:', data.stateAverages?.length || 0, 'entries');
+      
+      // DEBUG: Check what service categories are in the state averages data
+      if (data.stateAverages && data.stateAverages.length > 0) {
+        const uniqueCategories = [...new Set(data.stateAverages.map((item: any) => item.service_category))];
+        console.log('🔍 State Averages - Service Categories Found:', uniqueCategories);
+      }
       
       // Check if state averages contain unexpected states for specific service codes
       if (data.stateAverages && serviceCode === 'S5116 U6') {
@@ -1191,142 +1210,34 @@ export default function StatePaymentComparison() {
       
       setAllStatesAverages(data.stateAverages || []);
       
-      // Also fetch the individual entries that contribute to each state's average
-      const entriesParams = new URLSearchParams();
-      entriesParams.append('serviceCategory', serviceCategory);
-      entriesParams.append('serviceCode', serviceCode);
-      entriesParams.append('itemsPerPage', '1000'); // Get all entries
+      // Convert state averages to synthetic entries for unified handling
+      const syntheticEntries: ServiceData[] = (data.stateAverages || []).map((avg: any) => ({
+        state_name: avg.state_name,
+        service_category: serviceCategory,
+        service_code: serviceCode,
+        service_description: 'State Average',
+        rate: `$${avg.avg_rate?.toFixed(2)}` || '$0.00',
+        duration_unit: '15 MINUTES', // Default
+        program: 'All Programs (Average)',
+        location_region: 'All Regions (Average)',
+        provider_type: 'All Provider Types (Average)',
+        modifier_1: '',
+        modifier_2: '',
+        modifier_3: '',
+        modifier_4: '',
+        rate_effective_date: new Date().toISOString(),
+        fee_schedule_date: null
+      }));
       
-      // Add all filter parameters from the first filter set
-      if (filterSets[0]) {
-        const filterSet = filterSets[0];
-        if (filterSet.program) entriesParams.append('program', filterSet.program);
-        if (filterSet.locationRegion) entriesParams.append('locationRegion', filterSet.locationRegion);
-        if (filterSet.providerType) entriesParams.append('providerType', filterSet.providerType);
-        if (filterSet.modifier) entriesParams.append('modifier', filterSet.modifier);
-        if (filterSet.serviceDescription) entriesParams.append('serviceDescription', filterSet.serviceDescription);
-        if (filterSet.durationUnits && filterSet.durationUnits.length > 0) {
-          filterSet.durationUnits.forEach(unit => entriesParams.append('durationUnit', unit));
-        }
-      }
+      // Individual entries will be fetched separately by refreshData() call
+      console.log('✅ State averages fetched - individual entries will be handled separately');
       
-      // Also check selections state for additional filters
-      if (selections.duration_unit && selections.duration_unit !== '-') {
-        const selectedUnits = selections.duration_unit.split(',').map(unit => unit.trim());
-        selectedUnits.forEach(unit => entriesParams.append('durationUnit', unit));
-      }
-      if (selections.program && selections.program !== '-') {
-        entriesParams.append('program', selections.program);
-      }
-      if (selections.location_region && selections.location_region !== '-') {
-        entriesParams.append('locationRegion', selections.location_region);
-      }
-      if (selections.provider_type && selections.provider_type !== '-') {
-        entriesParams.append('providerType', selections.provider_type);
-      }
-      if (selections.modifier_1 && selections.modifier_1 !== '-') {
-        entriesParams.append('modifier', selections.modifier_1);
-      }
-      
-      console.log('🌍 API Call 2 - Individual Entries:', `/api/state-payment-comparison?${entriesParams.toString()}`);
-      
-      const entriesRes = await fetch(`/api/state-payment-comparison?${entriesParams.toString()}`);
-      if (entriesRes.ok) {
-        const entriesData = await entriesRes.json();
-        const entries: ServiceData[] = entriesData.data || [];
-        
-        // Check for potential data contamination - look for specific service codes in unexpected states
-        const s5116Entries = entries.filter(e => e.service_code?.trim() === 'S5116 U6');
-        if (s5116Entries.length > 0) {
-          console.log('🚨 S5116 U6 DATA QUALITY CHECK:', {
-            totalS5116Entries: s5116Entries.length,
-            statesWithS5116: [...new Set(s5116Entries.map(e => e.state_name))],
-            entriesByState: s5116Entries.reduce((acc, e) => {
-              const state = e.state_name || 'UNKNOWN';
-              if (!acc[state]) acc[state] = [];
-              acc[state].push({
-                rate: e.rate,
-                duration_unit: e.duration_unit,
-                program: e.program,
-                rate_effective_date: e.rate_effective_date
-              });
-              return acc;
-            }, {} as Record<string, any[]>)
-          });
-        }
-        
-        console.log('✅ API Response 2 - Individual Entries:', entries.length, 'total entries fetched');
-        
-        // Group entries by state and find the latest entry for each state
-        const stateEntries: { [state: string]: ServiceData[] } = {};
-        const latestEntries: { [state: string]: ServiceData } = {};
-        
-        entries.forEach((entry: ServiceData) => {
-          const state = entry.state_name;
-          if (!stateEntries[state]) {
-            stateEntries[state] = [];
-          }
-          stateEntries[state].push(entry);
-          
-          // Track the latest entry for each state
-          if (!latestEntries[state] || new Date(entry.rate_effective_date) > new Date(latestEntries[state].rate_effective_date)) {
-            latestEntries[state] = entry;
-          }
-        });
-        
-        // Set the entries that contribute to each state's average
-        setStateAverageEntries(stateEntries);
-        
-        const statesWithData = Object.keys(stateEntries).filter(state => stateEntries[state].length > 0);
-        console.log('📊 State Average Entries populated:', statesWithData.length, 'states with data');
-        
-        // Initialize selected entries for average calculation (all entries are selected by default)
-        const initialSelected: { [state: string]: Set<string> } = {};
-        Object.keys(stateEntries).forEach(state => {
-          // Apply the same deduplication logic as DataTable
-          const grouped: { [key: string]: ServiceData[] } = {};
-          stateEntries[state].forEach(item => {
-            const key = JSON.stringify({
-              state_name: item.state_name,
-              service_category: item.service_category,
-              service_code: item.service_code,
-              service_description: item.service_description,
-              program: item.program,
-              location_region: item.location_region,
-              modifier_1: item.modifier_1,
-              modifier_1_details: item.modifier_1_details,
-              modifier_2: item.modifier_2,
-              modifier_2_details: item.modifier_2_details,
-              modifier_3: item.modifier_3,
-              modifier_3_details: item.modifier_3_details,
-              modifier_4: item.modifier_4,
-              modifier_4_details: item.modifier_4_details,
-              duration_unit: item.duration_unit,
-              provider_type: item.provider_type
-            });
-            if (!grouped[key]) grouped[key] = [];
-            grouped[key].push(item);
-          });
-          
-          // Only keep the latest entry for each group (same as DataTable)
-          const deduplicatedEntries = Object.values(grouped).map(entries => {
-            return entries.reduce((latest, current) => {
-              const latestDate = new Date(latest.rate_effective_date);
-              const currentDate = new Date(current.rate_effective_date);
-              return currentDate > latestDate ? current : latest;
-            });
-          });
-          
-          // Select all deduplicated entries by default
-          initialSelected[state] = new Set(deduplicatedEntries.map(entry => getRowKey(entry)));
-        });
-        setStateSelectedForAverage(initialSelected);
-        
-        console.log('✅ Initial selections set for all states (using deduplicated entries)');
-      }
+      return data.stateAverages || [];
+
     } catch (err) {
       setAllStatesAverages([]);
       console.error('Error fetching state averages:', err);
+      return [];
     }
   }, [filterSets, selections]);
 
@@ -1335,7 +1246,7 @@ export default function StatePaymentComparison() {
     return latestRates.filter((item) => {
       return filterSets.some(filterSet => {
         // Core required filters from filterSet
-        if (filterSet.serviceCategory && item.service_category?.trim().toUpperCase() !== filterSet.serviceCategory.trim().toUpperCase()) return false;
+        if (filterSet.serviceCategory && !isServiceCategoryMatch(item.service_category, filterSet.serviceCategory)) return false;
         if (filterSet.states.length && !filterSet.states.includes("ALL_STATES") && !filterSet.states.map(s => s.trim().toUpperCase()).includes(item.state_name?.trim().toUpperCase())) return false;
         if (filterSet.serviceCode && item.service_code?.trim() !== filterSet.serviceCode.trim()) return false;
         if (filterSet.serviceDescription && item.service_description?.trim() !== filterSet.serviceDescription.trim()) return false;
@@ -1398,7 +1309,7 @@ export default function StatePaymentComparison() {
 
     filterSets.forEach(filterSet => {
       const filteredDataForSet = latestRates.filter((item) => (
-        item.service_category === filterSet.serviceCategory &&
+        isServiceCategoryMatch(item.service_category, filterSet.serviceCategory) &&
         (filterSet.states.includes("ALL_STATES") || filterSet.states.some(state => state.trim().toUpperCase() === item.state_name?.trim().toUpperCase())) &&
         // Handle multi-select service codes (OR logic - any one of the codes)
         (filterSet.serviceCode.includes(',') 
@@ -1412,43 +1323,12 @@ export default function StatePaymentComparison() {
         (!filterSet.durationUnits || filterSet.durationUnits.length === 0 || (item.duration_unit && filterSet.durationUnits.includes(item.duration_unit)))
       ));
 
-      // Concise debug logging
-      if (filterSet.serviceCode) {
+      // Debug logging (only on first run to avoid spam)
+      if (filterSet.serviceCode && !window.debugLogShown) {
         const codes = filterSet.serviceCode.includes(',') ? filterSet.serviceCode.split(',').map(code => code.trim()) : [filterSet.serviceCode];
-        console.log(`🔍 ALL: [${codes.join('+')}] → filtering ${latestRates.length} records`);
-        
-        // Check what happens after each filter step
-        const afterServiceCode = latestRates.filter(item => 
-          filterSet.serviceCode.includes(',') 
-            ? filterSet.serviceCode.split(',').map(code => code.trim()).includes(item.service_code?.trim())
-            : item.service_code?.trim() === filterSet.serviceCode?.trim()
-        );
-        
-        const afterCategory = afterServiceCode.filter(item => 
-          !filterSet.serviceCategory || item.service_category === filterSet.serviceCategory
-        );
-        
-        const afterStates = afterCategory.filter(item => 
-          !filterSet.states?.length || filterSet.states.includes("ALL_STATES") || filterSet.states.some(state => state.trim().toUpperCase() === item.state_name?.trim().toUpperCase())
-        );
-        
-        // Debug states filtering
-        console.log(`🔍 States filter debug:`, {
-          statesArrayLength: filterSet.states?.length,
-          firstFewStates: filterSet.states?.slice(0, 3),
-          sampleItemStateName: afterCategory[0]?.state_name,
-          statesFilterShouldBeSkipped: !filterSet.states?.length || filterSet.states.includes("ALL_STATES")
-        });
-        
-        console.log(`🔍 Filter chain: Service(${afterServiceCode.length}) → Category(${afterCategory.length}) → States(${afterStates.length}) → Final(${filteredDataForSet.length})`);
-        console.log(`🔍 Applied filters:`, {
-          serviceCategory: filterSet.serviceCategory,
-          statesCount: filterSet.states?.length,
-          hasOtherFilters: !!filterSet.program || !!filterSet.locationRegion || !!filterSet.providerType || !!filterSet.modifier
-        });
-        
         const uniqueStates = [...new Set(filteredDataForSet.map(item => item.state_name))];
-        console.log(`🎯 ALL: [${codes.join('+')}] → ${uniqueStates.length} states`);
+        console.log(`🎯 ALL: [${codes.join('+')}] → ${uniqueStates.length} states (${filteredDataForSet.length} records)`);
+        window.debugLogShown = true;
       }
 
       // If "All States" is selected, calculate the average rate for each state
@@ -1458,16 +1338,9 @@ export default function StatePaymentComparison() {
         // Group rates by state
         filteredDataForSet.forEach(item => {
           const state = item.state_name;
-        let rateValue = parseFloat(item.rate?.replace('$', '') || '0');
-        const durationUnit = item.duration_unit?.toUpperCase();
-        
-        if (showRatePerHour) {
-            if (durationUnit === '15 MINUTES') {
-              rateValue *= 4;
-            } else if (durationUnit !== 'PER HOUR') {
-              rateValue = 0; // Or handle differently if needed
-            }
-          }
+          let rateValue = showRatePerHour 
+            ? convertToHourlyRate(item.rate, item.duration_unit)
+            : parseRate(item.rate);
 
           if (!stateRates[state]) {
             stateRates[state] = [];
@@ -1488,18 +1361,8 @@ export default function StatePaymentComparison() {
         // Otherwise, process data as usual
         filteredDataForSet.forEach(item => {
           const rate = showRatePerHour 
-            ? (() => {
-                let rateValue = parseFloat(item.rate?.replace('$', '') || '0');
-                const durationUnit = item.duration_unit?.toUpperCase();
-                
-                if (durationUnit === '15 MINUTES') {
-                  rateValue *= 4;
-                } else if (durationUnit !== 'PER HOUR') {
-                  rateValue = 0; // Or handle differently if needed
-                }
-                return Math.round(rateValue * 100) / 100;
-              })()
-            : Math.round(parseFloat(item.rate?.replace("$", "") || "0") * 100) / 100;
+            ? Math.round(convertToHourlyRate(item.rate, item.duration_unit) * 100) / 100
+            : Math.round(parseRate(item.rate) * 100) / 100;
 
           const currentModifier = [
             item.modifier_1?.trim().toUpperCase() || '',
@@ -1536,7 +1399,16 @@ export default function StatePaymentComparison() {
 
   // Function to calculate average for a state based on selected entries
   const calculateStateAverage = useCallback((state: string): number => {
-    // Use the same deduplication logic as the DataTable
+    // For All States mode, use the API-provided state averages directly
+    if (isAllStatesSelected && allStatesAverages) {
+      const stateAverage = allStatesAverages.find(avg => avg.state_name === state);
+      if (stateAverage && typeof stateAverage.avg_rate === 'number' && !isNaN(stateAverage.avg_rate) && stateAverage.avg_rate > 0) {
+        return stateAverage.avg_rate;
+      }
+      return 0;
+    }
+    
+    // Use the same deduplication logic as the DataTable for individual state mode
     const stateEntries = stateAverageEntries[state] || [];
     const selectedKeys = stateSelectedForAverage[state] || new Set();
     
@@ -1627,7 +1499,7 @@ export default function StatePaymentComparison() {
     // Average calculated successfully
     
     return average;
-  }, [stateAverageEntries, stateSelectedForAverage, showRatePerHour, latestRates]);
+  }, [isAllStatesSelected, allStatesAverages, stateAverageEntries, stateSelectedForAverage, showRatePerHour, latestRates]);
 
   // Update: getAvailableOptionsForFilter to handle array values for duration_unit
   function getAvailableOptionsForFilter(filterKey: keyof Selections) {
@@ -2099,12 +1971,25 @@ export default function StatePaymentComparison() {
 
   // ✅ Prepare ECharts Data
   const echartOptions = useMemo(() => {
-    if (isAllStatesSelected && filterSets[0]?.serviceCode && allStatesAverages) {
+    // Only render chart when ALL required data is loaded (prevents double-loading)
+    if (isAllStatesSelected && filterSets[0]?.serviceCode && isChartDataReady) {
       const code = filterSets[0].serviceCode;
-      // Only include states with a value (bar)
-      const statesWithData = filterOptions.states.filter((state: any, idx: number) => {
+      // Only include states with a value (bar) - use states from unified data instead of filterOptions
+      const allDataStates = [...new Set(data.map(item => item.state_name).filter(Boolean))];
+      const statesWithData = allDataStates.filter((state: any) => {
         const avg = calculateStateAverage(state);
-        return typeof avg === 'number' && !isNaN(avg) && avg > 0;
+        
+        // Check if state has any selected entries for average calculation
+        const allEntries = stateAverageEntries[state] || [];
+        const allKeys = allEntries.map(getRowKey);
+        const selectedSet = stateSelectedForAverage[state] || new Set();
+        let selectedCount = 0;
+        for (const key of allKeys) {
+          if (selectedSet.has(key)) selectedCount++;
+        }
+        
+        // Only include states that have a valid average AND at least one selected entry
+        return typeof avg === 'number' && !isNaN(avg) && avg > 0 && selectedCount > 0;
       });
       
           console.log('📊 Chart:', statesWithData.length, 'states with data');
@@ -2184,7 +2069,7 @@ export default function StatePaymentComparison() {
         return {
           name: state, // Unique name for animation
           value: selected && selected.row && selected.row.rate
-            ? parseFloat((selected.row.rate || '').replace(/[^\d.-]/g, ''))
+            ? parseRate(selected.row.rate)
             : (typeof avg === 'number' && !isNaN(avg) ? avg : undefined),
           itemStyle: { color: barColor },
           selectionStatus,
@@ -2383,7 +2268,7 @@ export default function StatePaymentComparison() {
           return itemModifierKey === modifierKey;
         });
         if (!matchingEntry) return 0; // Always return 0 for missing
-        let rateValue = parseFloat(matchingEntry.rate?.replace('$', '') || '0');
+        let rateValue = parseRate(matchingEntry.rate);
         const durationUnit = matchingEntry.duration_unit?.toUpperCase();
         if (showRatePerHour) {
           if (durationUnit === '15 MINUTES') rateValue *= 4;
@@ -2544,7 +2429,7 @@ export default function StatePaymentComparison() {
         top: '15%'
       }
     };
-  }, [selectedEntries, showRatePerHour, isAllStatesSelected, filterSets, allStatesAverages, filterOptions.states, allStatesSelectedRows, sortOrder, calculateStateAverage]);
+  }, [selectedEntries, showRatePerHour, isAllStatesSelected, filterSets, allStatesAverages, filterOptions.states, allStatesSelectedRows, sortOrder, calculateStateAverage, isChartDataReady, data, stateAverageEntries, stateSelectedForAverage]);
 
   const ChartWithErrorBoundary = () => {
     try {
@@ -2653,7 +2538,7 @@ export default function StatePaymentComparison() {
     return Object.values(selectedEntries)
       .flat()
       .map(item => {
-        let rateValue = parseFloat(item.rate?.replace('$', '') || '0');
+        let rateValue = parseRate(item.rate);
         const durationUnit = item.duration_unit?.toUpperCase();
         if (showRatePerHour) {
           if (durationUnit === '15 MINUTES') rateValue *= 4;
@@ -2687,14 +2572,9 @@ export default function StatePaymentComparison() {
       )
       .map((item: ServiceData) => 
         (() => {
-          let rateValue = parseFloat(item.rate?.replace('$', '') || '0');
-          const durationUnit = item.duration_unit?.toUpperCase();
-          
-          if (durationUnit === '15 MINUTES') {
-            rateValue *= 4;
-          } else if (durationUnit !== 'PER HOUR') {
-            rateValue = 0; // Or handle differently if needed
-          }
+          let rateValue = showRatePerHour 
+            ? convertToHourlyRate(item.rate, item.duration_unit)
+            : parseRate(item.rate);
           return Math.round(rateValue * 100) / 100;
         })()
       )
@@ -2760,7 +2640,7 @@ export default function StatePaymentComparison() {
                     <td className="px-4 py-2">
                       ${showRatePerHour 
                         ? (() => {
-                            let rateValue = parseFloat(entry.rate_per_hour?.replace('$', '') || '0');
+                            let rateValue = parseRate(entry.rate_per_hour);
                             const durationUnit = entry.duration_unit?.toUpperCase();
                             
                             if (durationUnit === '15 MINUTES') {
@@ -2770,7 +2650,7 @@ export default function StatePaymentComparison() {
                             }
                             return Math.round(rateValue * 100) / 100;
                           })()
-                        : parseFloat(entry.rate?.replace("$", "") || "0").toFixed(2)}
+                        : parseRate(entry.rate).toFixed(2)}
                     </td>
                     <td className="px-4 py-2">
                       {formatDate(entry.rate_effective_date)}
@@ -3004,6 +2884,12 @@ export default function StatePaymentComparison() {
 
   // Only fetch data when Search is clicked
   const handleSearch = async () => {
+    // Reset debug flag for new search
+    window.debugLogShown = false;
+    // Set new search timestamp for chart key stability
+    setSearchTimestamp(Date.now());
+    // Use global loading state
+    setLoading(true);
     const requiredFields = ['serviceCategory', 'serviceCodeOrDescription', 'durationUnits'];
     const newMissing: {[key: string]: boolean} = {};
     const filterSet = filterSets[0]; // Only one filter set for all states
@@ -3011,7 +2897,11 @@ export default function StatePaymentComparison() {
     newMissing.serviceCodeOrDescription = !(filterSet.serviceCode || filterSet.serviceDescription);
     newMissing.durationUnits = !filterSet.durationUnits || filterSet.durationUnits.length === 0;
     setMissingFields(newMissing);
-    if (Object.values(newMissing).some(Boolean)) return; // Don't search if missing
+    if (Object.values(newMissing).some(Boolean)) {
+      // Stop loading animation if validation fails
+      setLoading(false);
+      return; // Don't search if missing
+    }
     console.log('🔍 Search button clicked - fetching data...');
     setPendingSearch(false);
     // Don't clear clicked states - preserve user's bar selections
@@ -3031,39 +2921,154 @@ export default function StatePaymentComparison() {
         
         if (filterSet.serviceCategory && filterSet.states.length > 0 && filterSet.serviceCode) {
           if (isAllStatesSelected && index === 0) {
-            console.log('🌍 Fetching all states averages...');
-            await fetchAllStatesAverages(filterSet.serviceCategory, filterSet.serviceCode);
-            const refreshParams: Record<string, string> = {
+            console.log('🌍 All States mode - fetching state averages first...');
+            const stateAveragesData = await fetchAllStatesAverages(filterSet.serviceCategory, filterSet.serviceCode);
+            
+            console.log('🌍 All States mode - fetching individual entries...');
+            
+            // Build the refreshData parameters - use minimal filters to match state averages scope
+            const refreshParams: any = {
               serviceCategory: filterSet.serviceCategory,
-              serviceCode: filterSet.serviceCode, // Already comma-separated from multi-select
-              itemsPerPage: '1000'
+              serviceCode: filterSet.serviceCode,
+              itemsPerPage: '2000' // Increase to get more data
             };
             
-            // Add duration unit and other selection filters
-            if (selections.duration_unit && selections.duration_unit !== '-') {
-              refreshParams.durationUnit = selections.duration_unit;
-            }
-            if (selections.program && selections.program !== '-') {
-              refreshParams.program = selections.program;
-            }
-            if (selections.location_region && selections.location_region !== '-') {
-              refreshParams.locationRegion = selections.location_region;
-            }
-            if (selections.provider_type && selections.provider_type !== '-') {
-              refreshParams.providerType = selections.provider_type;
-            }
-            if (selections.modifier_1 && selections.modifier_1 !== '-') {
-              refreshParams.modifier = selections.modifier_1;
-            }
-            
-            console.log('🔍 HandleSearch - All States mode');
+            console.log('🔍 Individual entries API params:', refreshParams);
             
             const result = await refreshData(refreshParams);
+            
             if (result) {
-              console.log(`✅ All states data fetched:`, result.data.length, 'entries');
-              setFilterSetData(prev => ({ ...prev, [index]: result.data }));
+              console.log('✅ All States mode - data fetched via refreshData:', result.data.length, 'entries');
+              
+              // Process individual entries and merge with state averages
+              const individualEntries = result.data;
+              
+              // Create synthetic entries from state averages for states that don't have individual entries
+              const syntheticEntries: ServiceData[] = [];
+              if (stateAveragesData && stateAveragesData.length > 0) {
+                stateAveragesData.forEach((avg: any) => {
+                  const hasIndividualEntries = individualEntries.some((entry: ServiceData) => 
+                    entry.state_name?.trim() === avg.state_name?.trim()
+                  );
+                  
+                  if (!hasIndividualEntries) {
+                    syntheticEntries.push({
+                      state_name: avg.state_name,
+                      service_category: avg.service_category,
+                      service_code: avg.service_code,
+                      service_description: avg.service_description || '',
+                      program: '',
+                      location_region: '',
+                      provider_type: '',
+                      modifier_1: '',
+                      modifier_1_details: '',
+                      modifier_2: '',
+                      modifier_2_details: '',
+                      modifier_3: '',
+                      modifier_3_details: '',
+                      modifier_4: '',
+                      modifier_4_details: '',
+                      duration_unit: '',
+                      rate: `$${(avg.avg_rate || 0).toFixed(2)}`,
+                      rate_effective_date: new Date().toISOString()
+                    });
+                  }
+                });
+              }
+              
+              // Debug: Check unique states in individual entries
+              const uniqueStatesInIndividual = [...new Set(individualEntries.map((entry: ServiceData) => entry.state_name?.trim()))].filter(Boolean) as string[];
+              const uniqueStatesInAverages = [...new Set(stateAveragesData?.map((avg: any) => avg.state_name?.trim()) || [])].filter(Boolean) as string[];
+              
+              console.log('🔍 Debug state analysis:', {
+                statesInIndividualEntries: uniqueStatesInIndividual.length,
+                statesInAverages: uniqueStatesInAverages.length,
+                individualStates: uniqueStatesInIndividual.sort(),
+                averageStates: uniqueStatesInAverages.sort(),
+                missingFromIndividual: uniqueStatesInAverages.filter(state => !uniqueStatesInIndividual.includes(state))
+              });
+              
+              // Merge individual entries with synthetic entries
+              const allEntries = [...individualEntries, ...syntheticEntries];
+              console.log('🔄 Merged entries:', {
+                individualEntries: individualEntries.length,
+                syntheticEntries: syntheticEntries.length,
+                totalEntries: allEntries.length
+              });
+              
+              // Group all entries by state
+              const stateEntries: { [state: string]: ServiceData[] } = {};
+              allEntries.forEach((entry: ServiceData) => {
+                const state = entry.state_name?.trim();
+                if (!state) {
+                  console.log('⚠️ Found entry with missing state_name:', entry);
+                  return;
+                }
+                
+                if (!stateEntries[state]) {
+                  stateEntries[state] = [];
+                }
+                stateEntries[state].push(entry);
+              });
+              
+              console.log('🔍 States after grouping:', {
+                uniqueStatesAfterGrouping: Object.keys(stateEntries).length,
+                stateNames: Object.keys(stateEntries).sort(),
+                entriesPerState: Object.fromEntries(
+                  Object.entries(stateEntries).map(([state, entries]) => [state, entries.length])
+                )
+              });
+              
+              setStateAverageEntries(stateEntries);
+              setData(allEntries); // Update main data state with merged entries
+              console.log('📊 State Average Entries populated from refreshData:', Object.keys(stateEntries).length, 'states with data');
+              
+              // Initialize selected entries for average calculation (all entries are selected by default)
+              const initialSelected: { [state: string]: Set<string> } = {};
+              Object.keys(stateEntries).forEach(state => {
+                // Apply the same deduplication logic as DataTable
+                const grouped: { [key: string]: ServiceData[] } = {};
+                stateEntries[state].forEach(item => {
+                  const key = JSON.stringify({
+                    state_name: item.state_name,
+                    service_category: item.service_category,
+                    service_code: item.service_code,
+                    service_description: item.service_description,
+                    program: item.program,
+                    location_region: item.location_region,
+                    modifier_1: item.modifier_1,
+                    modifier_1_details: item.modifier_1_details,
+                    modifier_2: item.modifier_2,
+                    modifier_2_details: item.modifier_2_details,
+                    modifier_3: item.modifier_3,
+                    modifier_3_details: item.modifier_3_details,
+                    modifier_4: item.modifier_4,
+                    modifier_4_details: item.modifier_4_details,
+                    duration_unit: item.duration_unit,
+                    provider_type: item.provider_type
+                  });
+                  if (!grouped[key]) grouped[key] = [];
+                  grouped[key].push(item);
+                });
+                
+                // Only keep the latest entry for each group (same as DataTable)
+                const deduplicatedEntries = Object.values(grouped).map(entries => {
+                  return entries.reduce((latest, current) => {
+                    const latestDate = new Date(latest.rate_effective_date);
+                    const currentDate = new Date(current.rate_effective_date);
+                    return currentDate > latestDate ? current : latest;
+                  });
+                });
+                
+                // Select all deduplicated entries by default
+                initialSelected[state] = new Set(deduplicatedEntries.map(entry => getRowKey(entry)));
+              });
+              setStateSelectedForAverage(initialSelected);
+              console.log('✅ Initial selections set for all states from refreshData');
+              
               success = true;
             }
+
           } else {
             const result = await refreshData({
               serviceCategory: filterSet.serviceCategory,
@@ -3086,6 +3091,8 @@ export default function StatePaymentComparison() {
       setFetchError("Failed to fetch data. Please try again.");
     } finally {
       setFilterLoading(false);
+      // Always stop loading animation
+      setLoading(false);
     }
   };
 
@@ -3707,11 +3714,22 @@ export default function StatePaymentComparison() {
                         );
                       }
                       
+                      // Show loading state while chart data is being prepared
+                      if (!isChartDataReady) {
+                        return (
+                          <div className="flex items-center justify-center h-64">
+                            <div className="text-center">
+                              <p className="text-gray-600 font-medium">Chart will appear after search...</p>
+                            </div>
+                          </div>
+                        );
+                      }
+                      
                       return (
             <div style={{ overflowX: 'auto', width: '100%' }}>
               <ReactECharts
                 ref={chartRef}
-                key={`all-states-${filterSets[0]?.serviceCategory || ''}-${filterSets[0]?.serviceCode || ''}`}
+                key={`all-states-${filterSets[0]?.serviceCategory || ''}-${filterSets[0]?.serviceCode || ''}-${searchTimestamp}`}
                 option={echartOptions}
                         style={{ height: '400px', width: '100%' }}
                 onEvents={{
@@ -3780,7 +3798,7 @@ export default function StatePaymentComparison() {
                 {isAllStatesSelected && filterSets[0]?.serviceCode && (
                   <div className="mt-8">
 
-                    {filterOptions.states.map(state => {
+                    {[...new Set(data.map(item => item.state_name).filter(Boolean))].map(state => {
                       const stateKey = state.trim().toUpperCase();
                       // Get all entries for this state from data (not filteredData)
                       const stateEntries = data.filter(item => {
@@ -3793,26 +3811,35 @@ export default function StatePaymentComparison() {
                           if (filterServiceCode.includes(',')) {
                             // Handle multiple service codes
                             const selectedCodes = filterServiceCode.split(',').map(code => code.trim());
-                            return selectedCodes.includes(item.service_code?.trim() || '');
+                            if (!selectedCodes.includes(item.service_code?.trim() || '')) return false;
                           } else {
                             // Handle single service code
-                            return item.service_code?.trim() === filterServiceCode.trim();
+                            if (item.service_code?.trim() !== filterServiceCode.trim()) return false;
+                          }
+                        }
+                        
+                        // Check if service category matches
+                        const filterServiceCategory = filterSets[0]?.serviceCategory;
+                        if (filterServiceCategory) {
+                          if (!isServiceCategoryMatch(item.service_category?.trim() || '', filterServiceCategory.trim())) {
+                            return false;
                           }
                         }
                         
                         return true;
                       });
+                      
+                      // Skip if no entries (unified system - all entries are in stateEntries now)
                       if (stateEntries.length === 0) return null;
                       
                       // Only show the table if this state is clicked
                       if (!clickedStates.includes(state)) return null;
                       
-
-                      
-                      // Pagination
+                      // Pagination (same logic for all states now)
                       const currentPage = allStatesTablePages[stateKey] || 1;
                       const totalPages = Math.ceil(stateEntries.length / ITEMS_PER_STATE_PAGE);
                       const paginatedEntries = stateEntries.slice((currentPage - 1) * ITEMS_PER_STATE_PAGE, currentPage * ITEMS_PER_STATE_PAGE);
+                      
                       // Use DataTable for consistency, no extra heading
                       return (
                         <div key={stateKey} className="mb-8 bg-white rounded-lg shadow-lg">

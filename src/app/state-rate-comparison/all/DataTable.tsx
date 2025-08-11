@@ -1,6 +1,25 @@
 import { useMemo, useState, useRef, useEffect } from 'react';
 import { FilterSet, ServiceData } from './types';
 
+// Service category matching helper function
+function isServiceCategoryMatch(dbCategory: string | null | undefined, filterCategory: string | null | undefined): boolean {
+  if (!dbCategory || !filterCategory) return false;
+  
+  const dbCat = dbCategory.trim().toUpperCase();
+  const filterCat = filterCategory.trim().toUpperCase();
+  
+  // If they're exactly the same, return true
+  if (dbCat === filterCat) return true;
+  
+  // Handle BEHAVIORAL HEALTH variations
+  if (dbCat.includes('BEHAVIORAL HEALTH') && filterCat.includes('BEHAVIORAL HEALTH')) {
+    // Both contain "BEHAVIORAL HEALTH", consider them a match
+    return true;
+  }
+  
+  return false;
+}
+
 // Column filter types
 interface ColumnFilter {
   [columnKey: string]: string[];  // Array of selected values for each column
@@ -220,7 +239,7 @@ export const DataTable = ({
       const grouped: { [key: string]: ServiceData[] } = {};
       
       latestRates.forEach(item => {
-        const categoryMatch = item.service_category === filterSet.serviceCategory;
+        const categoryMatch = isServiceCategoryMatch(item.service_category, filterSet.serviceCategory);
         const stateMatch = filterSet.states.includes(item.state_name?.trim().toUpperCase());
         
         // Handle multiple service codes (comma-separated)

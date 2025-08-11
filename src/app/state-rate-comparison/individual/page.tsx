@@ -278,6 +278,25 @@ const getStateColor = (stateName: string, allStates: string[]): string => {
   return colorSequence[stateIndex % colorSequence.length];
 };
 
+// Helper function to match service categories with flexibility for variations
+function isServiceCategoryMatch(dbCategory: string | null | undefined, filterCategory: string | null | undefined): boolean {
+  if (!dbCategory || !filterCategory) return false;
+  
+  const dbCat = dbCategory.trim().toUpperCase();
+  const filterCat = filterCategory.trim().toUpperCase();
+  
+  // If they're exactly the same, return true
+  if (dbCat === filterCat) return true;
+  
+  // Handle BEHAVIORAL HEALTH variations
+  if (dbCat.includes('BEHAVIORAL HEALTH') && filterCat.includes('BEHAVIORAL HEALTH')) {
+    // Both contain "BEHAVIORAL HEALTH", consider them a match
+    return true;
+  }
+  
+  return false;
+}
+
 export default function StatePaymentComparison() {
   const { isAuthenticated, isLoading, user } = useKindeBrowserClient();
   const router = useRouter();
@@ -976,7 +995,7 @@ export default function StatePaymentComparison() {
     return latestRates.filter((item) => {
       return filterSets.some(filterSet => {
         // Core required filters from filterSet
-        if (filterSet.serviceCategory && item.service_category?.trim().toUpperCase() !== filterSet.serviceCategory.trim().toUpperCase()) return false;
+        if (filterSet.serviceCategory && !isServiceCategoryMatch(item.service_category, filterSet.serviceCategory)) return false;
         if (filterSet.states.length && !filterSet.states.map(s => s.trim().toUpperCase()).includes(item.state_name?.trim().toUpperCase())) return false;
         if (filterSet.serviceCode && item.service_code?.trim() !== filterSet.serviceCode.trim()) return false;
         if (filterSet.serviceDescription && item.service_description?.trim() !== filterSet.serviceDescription.trim()) return false;
@@ -1039,7 +1058,7 @@ export default function StatePaymentComparison() {
 
     filterSets.forEach(filterSet => {
       const filteredDataForSet = latestRates.filter((item) => (
-        item.service_category === filterSet.serviceCategory &&
+        isServiceCategoryMatch(item.service_category, filterSet.serviceCategory) &&
         (filterSet.states.includes("ALL_STATES") || filterSet.states.some(state => state.trim().toUpperCase() === item.state_name?.trim().toUpperCase())) &&
         // Handle multi-select service codes (OR logic - any one of the codes)
         (filterSet.serviceCode.includes(',') 
@@ -1066,7 +1085,7 @@ export default function StatePaymentComparison() {
         );
         
         const afterCategory = afterServiceCode.filter(item => 
-          !filterSet.serviceCategory || item.service_category === filterSet.serviceCategory
+          !filterSet.serviceCategory || isServiceCategoryMatch(item.service_category, filterSet.serviceCategory)
         );
         
         const afterStates = afterCategory.filter(item => 
