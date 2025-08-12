@@ -31,6 +31,25 @@ export default function MarketingEmailsAdminPage() {
   } | null>(null);
   const [isPromptMode, setIsPromptMode] = useState<boolean>(false);
 
+  // State for adding new emails
+  const [newTestEmail, setNewTestEmail] = useState({
+    email: "",
+    firstname: "",
+    lastname: ""
+  });
+  const [newMarketingEmail, setNewMarketingEmail] = useState({
+    email: "",
+    firstname: "",
+    lastname: ""
+  });
+
+  // State for editing emails
+  const [editingEmail, setEditingEmail] = useState<{
+    table: "test_email_list" | "marketing_email_list";
+    email: string;
+    data: { email: string; firstname: string; lastname: string };
+  } | null>(null);
+
   // Sample HTML email template for testing
   const sampleHtmlTemplate = `<!DOCTYPE html>
 <html>
@@ -284,6 +303,133 @@ export default function MarketingEmailsAdminPage() {
     }]);
   };
 
+  // Function to add new email
+  const handleAddEmail = async (table: "test_email_list" | "marketing_email_list", emailData: {email: string, firstname: string, lastname: string}) => {
+    if (!emailData.email.trim()) return;
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailData.email)) {
+      alert("Please enter a valid email address");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/admin/marketing-emails/rows", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          table,
+          email: emailData.email.trim(),
+          firstname: emailData.firstname.trim(),
+          lastname: emailData.lastname.trim()
+        }),
+      });
+
+      if (response.ok) {
+        // Refresh the lists
+        await loadEmailLists();
+        
+        // Clear the form
+        if (table === "test_email_list") {
+          setNewTestEmail({ email: "", firstname: "", lastname: "" });
+        } else {
+          setNewMarketingEmail({ email: "", firstname: "", lastname: "" });
+        }
+        
+        console.log(`✅ Added email to ${table}`);
+      } else {
+        const errorData = await response.json();
+        alert(`Failed to add email: ${errorData.error || "Unknown error"}`);
+      }
+    } catch (error) {
+      console.error("❌ Error adding email:", error);
+      alert("Failed to add email. Please try again.");
+    }
+  };
+
+  // Function to delete email
+  const handleDeleteEmail = async (table: "test_email_list" | "marketing_email_list", email: string) => {
+    if (!confirm(`Are you sure you want to delete ${email} from the ${table === "test_email_list" ? "test" : "marketing"} list?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/admin/marketing-emails/rows", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          table,
+          email
+        }),
+      });
+
+      if (response.ok) {
+        // Refresh the lists
+        await loadEmailLists();
+        console.log(`✅ Deleted email from ${table}`);
+      } else {
+        const errorData = await response.json();
+        alert(`Failed to delete email: ${errorData.error || "Unknown error"}`);
+      }
+    } catch (error) {
+      console.error("❌ Error deleting email:", error);
+      alert("Failed to delete email. Please try again.");
+    }
+  };
+
+  // Function to start editing an email
+  const handleEditEmail = (table: "test_email_list" | "marketing_email_list", item: EmailRow) => {
+    setEditingEmail({
+      table,
+      email: item.email,
+      data: { ...item }
+    });
+  };
+
+  // Function to save edited email
+  const handleSaveEdit = async () => {
+    if (!editingEmail) return;
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(editingEmail.data.email)) {
+      alert("Please enter a valid email address");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/admin/marketing-emails/rows", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          table: editingEmail.table,
+          email: editingEmail.data.email.trim(),
+          firstname: editingEmail.data.firstname.trim(),
+          lastname: editingEmail.data.lastname.trim()
+        }),
+      });
+
+      if (response.ok) {
+        // Refresh the lists
+        await loadEmailLists();
+        setEditingEmail(null);
+        console.log(`✅ Updated email in ${editingEmail.table}`);
+      } else {
+        const errorData = await response.json();
+        alert(`Failed to update email: ${errorData.error || "Unknown error"}`);
+      }
+    } catch (error) {
+      console.error("❌ Error updating email:", error);
+      alert("Failed to update email. Please try again.");
+    }
+  };
+
+  // Function to cancel editing
+  const handleCancelEdit = () => {
+    setEditingEmail(null);
+  };
+
   // Load email lists on component mount
   useEffect(() => {
     loadEmailLists();
@@ -325,6 +471,295 @@ export default function MarketingEmailsAdminPage() {
         <p className="text-lg text-gray-600 mb-10">
           Create and manage marketing campaigns separate from rate developments.
         </p>
+
+        {/* Email Lists Management Section */}
+        <div className="bg-white rounded-xl shadow p-6 mb-10">
+          <h3 className="text-xl font-semibold text-[#012C61] mb-4">Manage Email Lists</h3>
+          
+          {/* Test Email List */}
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-lg font-medium text-gray-700">Test Email List ({testEmailList.length} emails)</h4>
+              <div className="text-sm text-gray-500">Click on any field to edit</div>
+            </div>
+            
+            {/* Add New Email Form - Top */}
+            <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4 mb-4">
+              <h5 className="text-sm font-medium text-blue-800 mb-3">➕ Add New Test Email</h5>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <input
+                  type="email"
+                  placeholder="Enter email address"
+                  className="px-3 py-2 border border-blue-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={newTestEmail.email}
+                  onChange={(e) => setNewTestEmail({...newTestEmail, email: e.target.value})}
+                />
+                <input
+                  type="text"
+                  placeholder="First name"
+                  className="px-3 py-2 border border-blue-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={newTestEmail.firstname}
+                  onChange={(e) => setNewTestEmail({...newTestEmail, firstname: e.target.value})}
+                />
+                <input
+                  type="text"
+                  placeholder="Last name"
+                  className="px-3 py-2 border border-blue-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={newTestEmail.lastname}
+                  onChange={(e) => setNewTestEmail({...newTestEmail, lastname: e.target.value})}
+                />
+                <button
+                  onClick={() => handleAddEmail("test_email_list", newTestEmail)}
+                  disabled={!newTestEmail.email}
+                  className={`px-4 py-2 rounded-md text-sm font-medium ${
+                    newTestEmail.email
+                      ? "bg-blue-600 text-white hover:bg-blue-700"
+                      : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                  }`}
+                >
+                  Add Email
+                </button>
+              </div>
+            </div>
+
+            {/* Test Email List Table */}
+            <div className="overflow-x-auto">
+              <table className="min-w-full bg-white border border-gray-200 rounded-lg">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">First Name</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Name</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {testEmailList.map((item, index) => (
+                    <tr key={item.email} className="hover:bg-gray-50">
+                      {editingEmail?.table === "test_email_list" && editingEmail?.email === item.email ? (
+                        // Edit mode
+                        <>
+                          <td className="px-4 py-3">
+                            <input
+                              type="email"
+                              value={editingEmail.data.email}
+                              onChange={(e) => setEditingEmail({...editingEmail, data: {...editingEmail.data, email: e.target.value}})}
+                              className="w-full px-2 py-1 border border-blue-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <input
+                              type="text"
+                              value={editingEmail.data.firstname}
+                              onChange={(e) => setEditingEmail({...editingEmail, data: {...editingEmail.data, firstname: e.target.value}})}
+                              className="w-full px-2 py-1 border border-blue-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <input
+                              type="text"
+                              value={editingEmail.data.lastname}
+                              onChange={(e) => setEditingEmail({...editingEmail, data: {...editingEmail.data, lastname: e.target.value}})}
+                              className="w-full px-2 py-1 border border-blue-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={handleSaveEdit}
+                                className="text-green-600 hover:text-green-800 text-sm font-medium"
+                              >
+                                Save
+                              </button>
+                              <button
+                                onClick={handleCancelEdit}
+                                className="text-gray-600 hover:text-gray-800 text-sm"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </td>
+                        </>
+                      ) : (
+                        // View mode
+                        <>
+                          <td className="px-4 py-3 text-sm text-gray-900 cursor-pointer hover:bg-blue-50" onClick={() => handleEditEmail("test_email_list", item)}>{item.email}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900 cursor-pointer hover:bg-blue-50" onClick={() => handleEditEmail("test_email_list", item)}>{item.firstname}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900 cursor-pointer hover:bg-blue-50" onClick={() => handleEditEmail("test_email_list", item)}>{item.lastname}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900">
+                            <div className="flex gap-3">
+                              <button
+                                onClick={() => handleEditEmail("test_email_list", item)}
+                                className="text-blue-600 hover:text-blue-800 text-sm"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDeleteEmail("test_email_list", item.email)}
+                                className="text-red-600 hover:text-red-800 text-sm"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  ))}
+                  {testEmailList.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                        No test emails yet. Add one using the form above.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Marketing Email List */}
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-lg font-medium text-gray-700">Marketing Email List ({marketingEmailList.length} emails)</h4>
+              <div className="text-sm text-gray-500">Click on any field to edit</div>
+            </div>
+            
+            {/* Add New Email Form - Top */}
+            <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4 mb-4">
+              <h5 className="text-sm font-medium text-green-800 mb-3">➕ Add New Marketing Email</h5>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <input
+                  type="email"
+                  placeholder="Enter email address"
+                  className="px-3 py-2 border border-green-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  value={newMarketingEmail.email}
+                  onChange={(e) => setNewMarketingEmail({...newMarketingEmail, email: e.target.value})}
+                />
+                <input
+                  type="text"
+                  placeholder="First name"
+                  className="px-3 py-2 border border-green-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  value={newMarketingEmail.firstname}
+                  onChange={(e) => setNewMarketingEmail({...newMarketingEmail, firstname: e.target.value})}
+                />
+                <input
+                  type="text"
+                  placeholder="Last name"
+                  className="px-3 py-2 border border-green-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  value={newMarketingEmail.lastname}
+                  onChange={(e) => setNewMarketingEmail({...newMarketingEmail, lastname: e.target.value})}
+                />
+                <button
+                  onClick={() => handleAddEmail("marketing_email_list", newMarketingEmail)}
+                  disabled={!newMarketingEmail.email}
+                  className={`px-4 py-2 rounded-md text-sm font-medium ${
+                    newMarketingEmail.email
+                      ? "bg-green-600 text-white hover:bg-green-700"
+                      : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                  }`}
+                >
+                  Add Email
+                </button>
+              </div>
+            </div>
+
+            {/* Marketing Email List Table */}
+            <div className="overflow-x-auto max-h-96 overflow-y-auto border border-gray-200 rounded-lg">
+              <table className="min-w-full bg-white">
+                <thead className="bg-gray-50 sticky top-0">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">First Name</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Name</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {marketingEmailList.map((item, index) => (
+                    <tr key={item.email} className="hover:bg-gray-50">
+                      {editingEmail?.table === "marketing_email_list" && editingEmail?.email === item.email ? (
+                        // Edit mode
+                        <>
+                          <td className="px-4 py-3">
+                            <input
+                              type="email"
+                              value={editingEmail.data.email}
+                              onChange={(e) => setEditingEmail({...editingEmail, data: {...editingEmail.data, email: e.target.value}})}
+                              className="w-full px-2 py-1 border border-green-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <input
+                              type="text"
+                              value={editingEmail.data.firstname}
+                              onChange={(e) => setEditingEmail({...editingEmail, data: {...editingEmail.data, firstname: e.target.value}})}
+                              className="w-full px-2 py-1 border border-green-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <input
+                              type="text"
+                              value={editingEmail.data.lastname}
+                              onChange={(e) => setEditingEmail({...editingEmail, data: {...editingEmail.data, lastname: e.target.value}})}
+                              className="w-full px-2 py-1 border border-green-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={handleSaveEdit}
+                                className="text-green-600 hover:text-green-800 text-sm font-medium"
+                              >
+                                Save
+                              </button>
+                              <button
+                                onClick={handleCancelEdit}
+                                className="text-gray-600 hover:text-gray-800 text-sm"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </td>
+                        </>
+                      ) : (
+                        // View mode
+                        <>
+                          <td className="px-4 py-3 text-sm text-gray-900 cursor-pointer hover:bg-green-50" onClick={() => handleEditEmail("marketing_email_list", item)}>{item.email}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900 cursor-pointer hover:bg-green-50" onClick={() => handleEditEmail("marketing_email_list", item)}>{item.firstname}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900 cursor-pointer hover:bg-green-50" onClick={() => handleEditEmail("marketing_email_list", item)}>{item.lastname}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900">
+                            <div className="flex gap-3">
+                              <button
+                                onClick={() => handleEditEmail("marketing_email_list", item)}
+                                className="text-blue-600 hover:text-blue-800 text-sm"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDeleteEmail("marketing_email_list", item.email)}
+                                className="text-red-600 hover:text-red-800 text-sm"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  ))}
+                  {marketingEmailList.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                        No marketing emails yet. Add one using the form above.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
 
         {/* Email Template Editor */}
         <div className="bg-white rounded-xl shadow p-6 mb-10">
