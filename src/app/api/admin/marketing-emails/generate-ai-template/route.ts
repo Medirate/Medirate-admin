@@ -139,7 +139,7 @@ TECHNICAL REQUIREMENTS:
 
 **RESPONSE FORMAT - ABSOLUTELY CRITICAL:**
 - Your response MUST contain ONLY the HTML code
-- Do NOT wrap in ```html or ``` or any markdown
+- Do NOT wrap in \`\`\`html or \`\`\` or any markdown
 - Do NOT add any explanatory text before or after the HTML
 - Start immediately with <!DOCTYPE html> and end with </html>
 - The entire response should be pure, valid HTML that can be directly used
