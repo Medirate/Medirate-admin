@@ -364,14 +364,20 @@ export default function StatePaymentComparison() {
     setError(null);
     try {
       const params = new URLSearchParams();
+      console.log('🎯 DURATION UNIT FILTER DEBUG - Step 5: refreshData called with filters =', filters);
+      
       // If All States is selected, do NOT send state_name filter
       const isAllStates = filterSets[0]?.states && filterSets[0].states.length === filterOptions.states.length;
       Object.entries(filters).forEach(([key, value]) => {
         if (isAllStates && key === 'state_name') return; // skip state_name in All States mode
         if (value) {
+          console.log(`🎯 Adding to API params: ${key} =`, value);
           // Handle arrays (like multiple duration units)
           if (Array.isArray(value)) {
-            value.forEach(v => params.append(key, v));
+            value.forEach(v => {
+              console.log(`🎯 Adding array item to API: ${key} = ${v}`);
+              params.append(key, v);
+            });
           } else {
             params.append(key, value);
           }
@@ -380,6 +386,14 @@ export default function StatePaymentComparison() {
       const url = `/api/state-payment-comparison?${params.toString()}`;
       
       console.log('🌐 RefreshData API Call:', url);
+      console.log('🎯 DURATION UNIT FILTER DEBUG - Step 6: Final API URL =', url);
+      
+      // Debug: Show all URL parameters for duration unit debugging
+      const urlParams = new URLSearchParams(params);
+      console.log('🎯 URL PARAMS DEBUG:');
+      for (const [key, value] of urlParams.entries()) {
+        console.log(`🎯   ${key} = ${value}`);
+      }
       
       const response = await fetch(url);
       const result = await response.json();
@@ -390,8 +404,25 @@ export default function StatePaymentComparison() {
         minnesotaInData: result?.data?.filter((item: any) => 
           item.state_name?.toLowerCase().includes('minnesota') || 
           item.state_name?.toLowerCase().includes('mn')
-        ).length || 0
+        ).length || 0,
+        apiDebug: result?.debug
       });
+      
+      // Log duration unit values in returned data
+      console.log('🎯 DURATION UNIT FILTER DEBUG - Step 7: API Response Data Analysis');
+      if (result.data && result.data.length > 0) {
+        const durationUnits = result.data.map((item: any) => item.duration_unit);
+        const uniqueDurationUnits = [...new Set(durationUnits)];
+        console.log('🎯 Duration units in API response:', uniqueDurationUnits);
+        console.log('🎯 Sample entries with duration_unit:', result.data.slice(0, 5).map((item: any) => ({
+          state: item.state_name,
+          duration_unit: item.duration_unit,
+          rate: item.rate,
+          service_code: item.service_code
+        })));
+      } else {
+        console.log('🎯 No data returned from API');
+      }
       
       if (result && Array.isArray(result.data)) {
         // Don't overwrite unified data in All States mode - it already contains synthetic entries
@@ -2708,7 +2739,7 @@ export default function StatePaymentComparison() {
       modifier_2: false,
       modifier_3: false,
       modifier_4: false,
-      duration_unit: false,
+      duration_unit: true, // Always show when duration filters might be applied
       rate: false,
       rate_per_hour: false,
       rate_effective_date: false
@@ -2946,53 +2977,111 @@ export default function StatePaymentComparison() {
           serviceCategory: filterSet.serviceCategory,
           states: filterSet.states,
           serviceCode: filterSet.serviceCode,
+          durationUnits: filterSet.durationUnits,
+          durationUnitsCount: filterSet.durationUnits?.length || 0,
           isAllStatesSelected: isAllStatesSelected
         });
+        console.log('🎯 DURATION UNIT FILTER DEBUG - Step 1: filterSet.durationUnits =', filterSet.durationUnits);
         
         if (filterSet.serviceCategory && filterSet.states.length > 0 && filterSet.serviceCode) {
           if (isAllStatesSelected && index === 0) {
             console.log('🌍 All States mode - fetching state averages first...');
             const stateAveragesData = await fetchAllStatesAverages(filterSet.serviceCategory, filterSet.serviceCode);
             
-            console.log('🌍 All States mode - fetching individual entries...');
+            console.log('🌍 All States mode - fetching individual entries with pagination...');
             
-            // Build the refreshData parameters - use minimal filters to match state averages scope
-            const refreshParams: any = {
-              serviceCategory: filterSet.serviceCategory,
-              serviceCode: filterSet.serviceCode,
-              itemsPerPage: '2000' // Increase to get more data
-            };
+            // Implement pagination similar to state averages to get ALL records
+            let allIndividualEntries: any[] = [];
+            let page = 1;
+            const itemsPerPage = 1000; // Use Supabase's limit
+            let hasMore = true;
             
-            // Include duration unit filters if selected
-            if (filterSet.durationUnits && filterSet.durationUnits.length > 0) {
-              // Add each duration unit as a separate parameter
-              filterSet.durationUnits.forEach(unit => {
-                if (!refreshParams.durationUnit) {
-                  refreshParams.durationUnit = unit;
-                } else {
-                  // Handle multiple duration units - convert to array format for URL params
-                  if (typeof refreshParams.durationUnit === 'string') {
-                    refreshParams.durationUnit = [refreshParams.durationUnit, unit];
-                  } else {
-                    refreshParams.durationUnit.push(unit);
-                  }
+            while (hasMore) {
+              console.log(`🔍 Fetching individual entries page ${page}...`);
+              
+              // Build the refreshData parameters - use minimal filters to match state averages scope
+              const refreshParams: any = {
+                serviceCategory: filterSet.serviceCategory,
+                serviceCode: filterSet.serviceCode,
+                page: page.toString(),
+                itemsPerPage: itemsPerPage.toString()
+              };
+              
+              // Include duration unit filters if selected
+              if (page === 1) {
+                console.log('🎯 DURATION UNIT FILTER DEBUG - Step 2: Checking if duration units exist...');
+                console.log('🎯 filterSet.durationUnits =', filterSet.durationUnits);
+                console.log('🎯 filterSet.durationUnits?.length =', filterSet.durationUnits?.length);
+              }
+              
+              if (filterSet.durationUnits && filterSet.durationUnits.length > 0) {
+                if (page === 1) {
+                  console.log('🎯 DURATION UNIT FILTER DEBUG - Step 3: Adding duration units to refreshParams...');
+                  console.log('🎯 Raw durationUnits array:', filterSet.durationUnits);
+                  console.log('🎯 Duration units array length:', filterSet.durationUnits.length);
+                  filterSet.durationUnits.forEach((unit, idx) => console.log(`🎯 Duration unit [${idx}]:`, unit));
                 }
-              });
+                // Handle multiple duration units correctly - the API expects comma-separated values
+                refreshParams.durationUnit = filterSet.durationUnits.join(',');
+                if (page === 1) {
+                  console.log('🎯 DURATION UNIT FILTER DEBUG - Step 4: Final refreshParams.durationUnit =', refreshParams.durationUnit);
+                  console.log('🎯 DURATION UNIT FILTER DEBUG - Step 4b: Joined string length =', refreshParams.durationUnit.length);
+                }
+              } else if (page === 1) {
+                console.log('🎯 DURATION UNIT FILTER DEBUG - Step 3: NO duration units found in filterSet');
+              }
+              
+              if (page === 1) {
+                console.log('🔍 Individual entries API params:', refreshParams);
+              }
+              
+              const result = await refreshData(refreshParams);
+              
+              if (result && result.data && result.data.length > 0) {
+                allIndividualEntries.push(...result.data);
+                console.log(`✅ Page ${page} fetched ${result.data.length} entries. Total so far: ${allIndividualEntries.length}`);
+                
+                // If we got less than itemsPerPage, we've reached the end
+                if (result.data.length < itemsPerPage) {
+                  hasMore = false;
+                  console.log(`🔍 Reached end of individual entries (page ${page} returned ${result.data.length} < ${itemsPerPage})`);
+                } else {
+                  page++;
+                }
+              } else {
+                hasMore = false;
+                console.log(`🔍 No more individual entries found on page ${page}`);
+              }
             }
             
-            console.log('🔍 Individual entries API params:', refreshParams);
+            console.log(`🔍 Individual entries pagination complete. Total records fetched: ${allIndividualEntries.length}`);
             
-            const result = await refreshData(refreshParams);
+            // Debug: Show duration units in the complete dataset
+            const uniqueDurationUnits = [...new Set(allIndividualEntries.map((item: any) => item.duration_unit))].filter(Boolean);
+            console.log('🎯 DURATION UNITS IN COMPLETE API RESPONSE:', uniqueDurationUnits);
+            console.log('🎯 EXPECTED DURATION UNITS:', filterSet.durationUnits);
             
-            if (result) {
-              console.log('✅ All States mode - data fetched via refreshData:', result.data.length, 'entries');
+            // Create a mock result object with all the data
+            const completeResult = {
+              data: allIndividualEntries,
+              totalCount: allIndividualEntries.length
+            };
+            
+            if (completeResult) {
+              console.log('✅ All States mode - complete data fetched via pagination:', completeResult.data.length, 'entries');
               
               // Process individual entries and merge with state averages
-              const individualEntries = result.data;
+              const individualEntries = completeResult.data;
               
               // Create synthetic entries from state averages for states that don't have individual entries
+              // BUT: Don't create synthetic entries when duration unit filters are applied,
+              // since those states don't actually have data for that specific duration unit
               const syntheticEntries: ServiceData[] = [];
-              if (stateAveragesData && stateAveragesData.length > 0) {
+              const hasDurationUnitFilter = filterSet.durationUnits && filterSet.durationUnits.length > 0;
+              console.log('🎯 Duration unit filter check:', { hasDurationUnitFilter, durationUnits: filterSet.durationUnits });
+              
+              if (stateAveragesData && stateAveragesData.length > 0 && !hasDurationUnitFilter) {
+                console.log('🎯 Creating synthetic entries (no duration filter)');
                 stateAveragesData.forEach((avg: any) => {
                   const hasIndividualEntries = individualEntries.some((entry: ServiceData) => 
                     entry.state_name?.trim() === avg.state_name?.trim()
@@ -3021,6 +3110,8 @@ export default function StatePaymentComparison() {
                     });
                   }
                 });
+              } else if (hasDurationUnitFilter) {
+                console.log('🎯 Skipping synthetic entries creation due to duration unit filter');
               }
               
               // Debug: Check unique states in individual entries
@@ -3556,6 +3647,7 @@ export default function StatePaymentComparison() {
                         value={filterSet.durationUnits.map(unit => ({ value: unit, label: unit }))}
                         onChange={(options) => {
                           const selectedValues = options ? options.map(opt => opt.value) : [];
+                          console.log('🎯 UI: Duration unit selection changed:', selectedValues);
                           wrappedHandleDurationUnitChange(index, selectedValues);
                         }}
                         placeholder="Select Duration Units (Required)"

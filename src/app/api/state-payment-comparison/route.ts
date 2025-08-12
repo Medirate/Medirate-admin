@@ -241,7 +241,18 @@ export async function GET(request: Request) {
     const locationRegion = getParam("location_region") || getParam("locationRegion");
     const providerType = getParam("provider_type") || getParam("providerType");
     const modifier = getParam("modifier_1") || getParam("modifier");
-    const durationUnit = getParam("duration_unit") || getParam("durationUnit");
+    // Handle multiple duration units - get all values and join with comma
+    const durationUnitParams1 = searchParams.getAll("durationUnit");
+    const durationUnitParams2 = searchParams.getAll("duration_unit");
+    const durationUnitParams = durationUnitParams1.length > 0 ? durationUnitParams1 : durationUnitParams2;
+    const durationUnit = durationUnitParams.length > 0 ? durationUnitParams.join(',') : null;
+    console.log('🎯 API: Multiple duration units extracted:', { 
+      durationUnitParams1, 
+      durationUnitParams2, 
+      durationUnitParams, 
+      durationUnit,
+      url: request.url
+    });
     const startDate = getParam("start_date") || getParam("startDate");
     const endDate = getParam("end_date") || getParam("endDate");
     const feeScheduleDate = getParam("fee_schedule_date") || getParam("feeScheduleDate");
@@ -500,15 +511,15 @@ export async function GET(request: Request) {
       if (durationUnit === '-') {
         query = query.or('duration_unit.is.null,duration_unit.eq.');
       } else if (durationUnit.includes(',')) {
-        // Handle multi-select - split by comma and use OR with ILIKE
+        // Handle multi-select - split by comma and use exact matching with .in()
         const units = durationUnit.split(',').map(u => u.trim()).filter(u => u);
         if (units.length > 0) {
-          const orConditions = units.map(u => `duration_unit.ilike.${u}`).join(',');
-          query = query.or(orConditions);
+          console.log('🎯 API: Using .in() for multiple duration units:', units);
+          query = query.in('duration_unit', units);
         }
       } else {
-        // Use ILIKE to handle trailing spaces
-        query = query.ilike('duration_unit', durationUnit.trim());
+        // Use exact matching - fetch exactly what was selected
+        query = query.eq('duration_unit', durationUnit.trim());
       }
     }
     if (feeScheduleDate) {
@@ -566,7 +577,17 @@ export async function GET(request: Request) {
       totalCount: count || 0,
       currentPage: page,
       itemsPerPage,
-      filterOptions: {} // Optionally, you can add filter options here if needed
+      filterOptions: {}, // Optionally, you can add filter options here if needed
+      debug: {
+        durationUnitReceived: durationUnit,
+        durationUnitParams,
+        uniqueDurationUnits: [...new Set((data || []).map((item: any) => item.duration_unit))],
+        sampleEntries: (data || []).slice(0, 3).map((item: any) => ({
+          state: item.state_name,
+          duration_unit: item.duration_unit,
+          rate: item.rate
+        }))
+      }
     });
   } catch (error) {
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

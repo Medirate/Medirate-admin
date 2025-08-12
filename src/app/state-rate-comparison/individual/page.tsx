@@ -929,19 +929,19 @@ export default function StatePaymentComparison() {
     });
   };
 
-  const handleDurationUnitChange = (index: number, durationUnit: string) => {
-    // Update filterSets for UI
+  const handleDurationUnitChange = (index: number, durationUnits: string[]) => {
+    // Update filterSets for UI - now handles multiple duration units
     const newFilters = [...filterSets];
     newFilters[index] = {
       ...newFilters[index],
-      durationUnits: [durationUnit]
+      durationUnits: durationUnits
     };
     setFilterSets(newFilters);
     
-    // Update selections for dynamic filtering
+    // Update selections for dynamic filtering - join multiple units
     setSelections({
       ...selections,
-      duration_unit: durationUnit,
+      duration_unit: durationUnits.length > 0 ? durationUnits.join(',') : null,
       service_code: null,
       service_description: null,
       program: null,
@@ -993,7 +993,8 @@ export default function StatePaymentComparison() {
         if (filterSet.modifier) params.append('modifier', filterSet.modifier);
         if (filterSet.serviceDescription) params.append('serviceDescription', filterSet.serviceDescription);
         if (filterSet.durationUnits && filterSet.durationUnits.length > 0) {
-          filterSet.durationUnits.forEach(unit => params.append('durationUnit', unit));
+          // Handle multiple duration units as comma-separated string for API compatibility
+          params.append('durationUnit', filterSet.durationUnits.join(','));
         }
       }
       
@@ -2509,8 +2510,8 @@ export default function StatePaymentComparison() {
             const result = await refreshData({
               serviceCategory: filterSet.serviceCategory,
               serviceCode: filterSet.serviceCode,
-              ...(filterSet.durationUnits && filterSet.durationUnits.length > 0 && { duration_unit: filterSet.durationUnits.join(',') }),
-              itemsPerPage: '2000'
+              ...(filterSet.durationUnits && filterSet.durationUnits.length > 0 && { durationUnit: filterSet.durationUnits.join(',') }),
+              itemsPerPage: '10000'
             });
             if (result) {
               setFilterSetData(prev => ({ ...prev, [index]: result.data }));
@@ -2521,8 +2522,8 @@ export default function StatePaymentComparison() {
               serviceCategory: filterSet.serviceCategory,
               state_name: filterSet.states[0],
               serviceCode: filterSet.serviceCode,
-              ...(filterSet.durationUnits && filterSet.durationUnits.length > 0 && { duration_unit: filterSet.durationUnits.join(',') }),
-              itemsPerPage: '2000'
+              ...(filterSet.durationUnits && filterSet.durationUnits.length > 0 && { durationUnit: filterSet.durationUnits.join(',') }),
+              itemsPerPage: '10000'
             });
             if (result) {
               setFilterSetData(prev => ({ ...prev, [index]: result.data }));

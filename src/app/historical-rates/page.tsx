@@ -718,7 +718,7 @@ export default function HistoricalRates() {
   // Add pagination state
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [totalCount, setTotalCount] = useState<number>(0);
-  const itemsPerPage: number = 50;
+  const itemsPerPage: number = 1000;
 
   // Keep only the states that are still needed
   const [selectedEntry, setSelectedEntry] = useState<ServiceData | null>(null);
@@ -806,7 +806,11 @@ export default function HistoricalRates() {
         if (item.provider_type !== selections.provider_type) return false;
       }
       if (selections.duration_unit && selections.duration_unit !== "-") {
-        if (item.duration_unit !== selections.duration_unit) return false;
+        // Handle comma-separated duration units
+        const selectedUnits = typeof selections.duration_unit === 'string' 
+          ? selections.duration_unit.split(',').map(unit => unit.trim())
+          : [];
+        if (!selectedUnits.includes(item.duration_unit?.trim() || '')) return false;
       }
 
       // Handle "-" selections (empty/null values)
@@ -1178,7 +1182,7 @@ export default function HistoricalRates() {
       if (selections.program) filters.program = selections.program;
       if (selections.location_region) filters.location_region = selections.location_region;
       if (selections.provider_type) filters.provider_type = selections.provider_type;
-      if (selections.duration_unit) filters.duration_unit = selections.duration_unit;
+      if (selections.duration_unit) filters.durationUnit = selections.duration_unit;
       if (selections.modifier_1) filters.modifier_1 = selections.modifier_1;
       filters.page = String(currentPage);
       filters.itemsPerPage = String(itemsPerPage);
@@ -1743,7 +1747,7 @@ export default function HistoricalRates() {
                           if (selections.program) filters.program = selections.program;
                           if (selections.location_region) filters.location_region = selections.location_region;
                           if (selections.provider_type) filters.provider_type = selections.provider_type;
-                          if (selections.duration_unit) filters.duration_unit = selections.duration_unit;
+                          if (selections.duration_unit) filters.durationUnit = selections.duration_unit;
                           if (selections.modifier_1) filters.modifier_1 = selections.modifier_1;
                           filters.page = String(currentPage);
                           filters.itemsPerPage = String(itemsPerPage);

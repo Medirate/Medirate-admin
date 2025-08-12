@@ -339,7 +339,7 @@ export const DataTable = ({
           modifier_2: false,
           modifier_3: false,
           modifier_4: false,
-          duration_unit: false,
+          duration_unit: true, // Always show when duration filters might be applied
           rate: false,
           rate_effective_date: false,
           provider_type: false,
