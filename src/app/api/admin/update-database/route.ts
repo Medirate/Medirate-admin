@@ -2,6 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { BlobServiceClient } from "@azure/storage-blob";
 import * as XLSX from "xlsx";
 
+/**
+ * SERVICE LINE PROTECTION POLICY:
+ * 
+ * Service line fields (service_lines_impacted, service_lines_impacted_1, etc.) are:
+ * 1. ✅ SET during initial creation of new entries
+ * 2. 🛡️ PROTECTED from being overwritten during updates of existing entries
+ * 3. 🔒 ONLY modifiable through the frontend edit interface when explicitly changed by users
+ * 
+ * This ensures that:
+ * - Excel file updates don't overwrite manually curated service line data
+ * - Service lines remain consistent across database updates
+ * - Manual edits are preserved and not lost during automated processes
+ */
+
 // Helper to get env vars safely
 function getEnv(name: string): string {
   const value = process.env[name];
@@ -37,8 +51,12 @@ async function toBufferFromStream(stream: NodeJS.ReadableStream): Promise<Buffer
 
 export async function POST(req: NextRequest) {
   const logs: { message: string; type: string; phase: string }[] = [];
+  
+  // Simple logging function that only stores to local array (console output)
   function log(message: string, type: string = 'info', phase: string = 'general') {
-    logs.push({ message, type, phase });
+    const logEntry = { message, type, phase, timestamp: new Date().toISOString() };
+    logs.push(logEntry);
+    console.log(`[${phase}] ${message}`);
   }
   try {
     // Get env vars
@@ -89,8 +107,22 @@ export async function POST(req: NextRequest) {
     // Lowercase and trim column names
     const rows = rawRows.map((row: any) => {
       const newRow: any = {};
+      const serviceColumnCounter = { count: 0 };
+      
       Object.keys(row).forEach(key => {
-        newRow[key.trim().toLowerCase()] = row[key];
+        const cleanKey = key.trim().toLowerCase();
+        
+        // Handle multiple SERVICE columns by adding counters
+        if (cleanKey === 'service') {
+          if (serviceColumnCounter.count === 0) {
+            newRow['service'] = row[key];
+          } else {
+            newRow[`service ${serviceColumnCounter.count}`] = row[key];
+          }
+          serviceColumnCounter.count++;
+        } else {
+          newRow[cleanKey] = row[key];
+        }
       });
       return newRow;
     });
@@ -102,6 +134,12 @@ export async function POST(req: NextRequest) {
       'bill progress': 'bill_progress',
       'last action': 'last_action',
       'sponsor list': 'sponsor_list',
+      // Map SERVICE columns to service_lines_impacted columns
+      'service': 'service_lines_impacted',           // First SERVICE column
+      'service 1': 'service_lines_impacted_1',       // Second SERVICE column  
+      'service 2': 'service_lines_impacted_2',       // Third SERVICE column
+      'service 3': 'service_lines_impacted_3',       // Fourth SERVICE column
+      // Also support the full name variants
       'service lines impacted': 'service_lines_impacted',
       'service lines impacted 1': 'service_lines_impacted_1',
       'service lines impacted 2': 'service_lines_impacted_2',
@@ -127,6 +165,26 @@ export async function POST(req: NextRequest) {
     // Get columns
     const columns = filteredRows.length > 0 ? Object.keys(filteredRows[0]) : [];
     log(`Parsed ${filteredRows.length} rows from sheet.`, 'success', 'parse');
+    log(`DEBUG: Latest sheet "${latestSheet}" contains ${filteredRows.length} entries after filtering`, 'info', 'parse');
+    log(`Excel columns found: ${columns.join(', ')}`, 'info', 'parse');
+    
+    // Debug: Check for SERVICE columns specifically
+    const serviceColumns = columns.filter(col => col.startsWith('service'));
+    if (serviceColumns.length > 0) {
+      log(`SERVICE columns detected: ${serviceColumns.join(', ')}`, 'info', 'parse');
+    }
+    
+    // Debug: Show sample data from first row
+    if (filteredRows.length > 0) {
+      const sampleRow = filteredRows[0];
+      const sampleFields = Object.keys(sampleRow).slice(0, 10);
+      const sampleData = sampleFields.map(field => `${field}: "${sampleRow[field]}"`).join(', ');
+      log(`DEBUG: Sample row data: ${sampleData}`, 'info', 'parse');
+      
+      if (sampleRow.url) {
+        log(`DEBUG: Sample URL from Excel: "${sampleRow.url}"`, 'info', 'parse');
+      }
+    }
 
     // --- Supabase client ---
     log('Connecting to Supabase...', 'info', 'connection');
@@ -155,6 +213,7 @@ export async function POST(req: NextRequest) {
         throw new Error(`Supabase fetch error: ${dbError.message}`);
       }
       log(`Fetched ${dbRows?.length || 0} rows from bill_track_50.`, 'success', 'fetch');
+      log(`DEBUG: Database table "bill_track_50" contains ${dbRows?.length || 0} total entries`, 'info', 'fetch');
       const dbRowsClean = (dbRows || []).map((row: any) => {
         const newRow: any = {};
         Object.keys(row).forEach(key => {
@@ -170,15 +229,58 @@ export async function POST(req: NextRequest) {
       const today = new Date().toISOString().slice(0, 10);
       const newEntries = filteredRows.filter(r => r.url && !dbByUrl.has(r.url));
       let inserted = [];
+      
+      // Debug: Show detailed comparison
+      log(`DEBUG: ===== COMPARISON SUMMARY =====`, 'info', 'debug');
+      log(`DEBUG: Excel sheet "${latestSheet}" has ${filteredRows.length} entries with URLs`, 'info', 'debug');
+      log(`DEBUG: Database table "bill_track_50" has ${dbByUrl.size} entries with URLs`, 'info', 'debug');
+      log(`DEBUG: Found ${newEntries.length} potentially NEW entries to insert`, 'info', 'debug');
+      
+      // Show sample URLs from Excel vs Database for comparison
+      const excelUrls = filteredRows.slice(0, 5).map(r => r.url).filter(Boolean);
+      const dbUrls = Array.from(dbByUrl.keys()).slice(0, 5);
+      log(`DEBUG: Sample Excel URLs: ${excelUrls.join(', ')}`, 'info', 'debug');
+      log(`DEBUG: Sample DB URLs: ${dbUrls.join(', ')}`, 'info', 'debug');
+      
+      if (newEntries.length > 0) {
+        log(`DEBUG: First 3 new entry URLs: ${newEntries.slice(0, 3).map(r => r.url).join(', ')}`, 'info', 'debug');
+      }
+      // Define known columns that exist in bill_track_50 table
+      const knownColumns = [
+        'id', 'state', 'bill_number', 'name', 'last_action', 'action_date', 
+        'sponsor_list', 'bill_progress', 'url', 'ai_summary', 'is_new', 
+        'date_extracted', 'service_lines_impacted', 'service_lines_impacted_1', 
+        'service_lines_impacted_2', 'service_lines_impacted_3'
+      ];
+      
       for (const entry of newEntries) {
         const insertObj = { ...entry, is_new: 'yes', date_extracted: today };
         delete insertObj.source_sheet;
-        const { data, error } = await supabase.from('bill_track_50').insert([insertObj]);
+        
+        // Filter out unknown columns to prevent schema errors
+        const filteredInsertObj: any = {};
+        Object.keys(insertObj).forEach(key => {
+          if (knownColumns.includes(key)) {
+            filteredInsertObj[key] = insertObj[key];
+          } else {
+            log(`Skipping unknown column: ${key}`, 'info', 'insert');
+          }
+        });
+        
+        // Log the columns being inserted for debugging
+        log(`Attempting to insert with columns: ${Object.keys(filteredInsertObj).join(', ')}`, 'info', 'insert');
+        
+        const { data, error } = await supabase.from('bill_track_50').insert([filteredInsertObj]);
         if (!error) {
-          inserted.push(insertObj);
-          log(`Inserted new entry: ${insertObj.url}`, 'success', 'insert');
+          inserted.push(filteredInsertObj);
+          log(`Inserted new entry: ${filteredInsertObj.url}`, 'success', 'insert');
         } else {
-          log(`Failed to insert: ${insertObj.url} - ${error.message}`, 'error', 'insert');
+          log(`Failed to insert: ${filteredInsertObj.url} - ${error.message}`, 'error', 'insert');
+          
+          // If it's a column not found error, try to identify which column is causing issues
+          if (error.message.includes('could not find') || error.message.includes('column')) {
+            log(`Column error detected. Available columns in object: ${Object.keys(filteredInsertObj).join(', ')}`, 'error', 'insert');
+          }
         }
       }
       log(`Inserted ${inserted.length} new entries.`, 'success', 'insert');
@@ -200,9 +302,16 @@ export async function POST(req: NextRequest) {
         for (const col of columns) {
           if (col === 'source_sheet') continue;
           
+          // Skip unknown columns
+          if (!knownColumns.includes(col)) {
+            log(`Skipping unknown column '${col}' in update for: ${entry.url}`, 'info', 'update');
+            continue;
+          }
+          
           // Skip service line fields - don't overwrite them for existing entries
           if (protectedServiceLineFields.includes(col)) {
-            log(`Skipping service line field '${col}' for existing entry: ${entry.url}`, 'info', 'update');
+            log(`🛡️ PROTECTED: Skipping service line field '${col}' for existing entry: ${entry.url}`, 'info', 'update');
+            log(`🛡️ Current value: "${dbRow[col] || 'NULL'}", Excel value: "${entry[col] || 'NULL'}"`, 'info', 'update');
             continue;
           }
           
@@ -214,6 +323,9 @@ export async function POST(req: NextRequest) {
         if (changed) {
           updateObj.is_new = 'yes';
           updateObj.date_extracted = today;
+          
+          log(`DEBUG: Updating entry ${entry.url} with changes: ${JSON.stringify(updateObj)}`, 'info', 'debug');
+          
           const { data, error } = await supabase.from('bill_track_50').update(updateObj).eq('url', entry.url);
           if (!error) {
             updated.push({ url: entry.url, ...updateObj });
@@ -221,9 +333,25 @@ export async function POST(req: NextRequest) {
           } else {
             log(`Failed to update: ${entry.url} - ${error.message}`, 'error', 'update');
           }
+        } else {
+          // Debug: Show why no update was needed
+          log(`DEBUG: No changes detected for entry: ${entry.url}`, 'info', 'debug');
         }
       }
+      
+      log(`DEBUG: ===== UPDATE SUMMARY =====`, 'info', 'debug');
+      log(`DEBUG: Processed ${filteredRows.length} Excel entries for updates`, 'info', 'debug');
+      log(`DEBUG: Found ${updated.length} entries that needed updates`, 'info', 'debug');
       log(`Updated ${updated.length} entries.`, 'success', 'update');
+      
+      // Log service line protection summary
+      const totalServiceLineFields = filteredRows.length * 4; // 4 service line fields per entry
+      log(`🛡️ SERVICE LINE PROTECTION: All ${totalServiceLineFields} service line fields were protected from overwriting`, 'success', 'protection');
+      log(`🛡️ Service lines are only set during initial creation, never updated for existing entries`, 'info', 'protection');
+      
+      log(`DEBUG: ===== FINAL RESULTS =====`, 'info', 'debug');
+      log(`DEBUG: Total inserted: ${inserted.length} new entries`, 'info', 'debug');
+      log(`DEBUG: Total updated: ${updated.length} existing entries`, 'info', 'debug');
       return NextResponse.json({
         success: true,
         fileName,

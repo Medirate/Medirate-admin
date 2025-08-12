@@ -235,14 +235,60 @@ const searchInFields = (searchText: string, fields: (string | null | undefined)[
 
 // Add a helper function to get service lines for alerts
 const getAlertServiceLines = (alert: Alert) => {
-  return [
+  const lines = [
     alert.service_lines_impacted,
     alert.service_lines_impacted_1,
     alert.service_lines_impacted_2,
     alert.service_lines_impacted_3
   ]
-    .filter(line => line && line.toUpperCase() !== 'NULL')
-    .join(", ");
+    .filter(line => line && line.toUpperCase() !== 'NULL');
+  
+  if (lines.length === 0) {
+    return <span className="text-gray-400 italic">No service lines</span>;
+  }
+  
+  return (
+    <div className="flex flex-wrap gap-1">
+      {lines.map((line, index) => (
+        <span
+          key={index}
+          className="inline-block px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded-md border border-blue-200"
+          title={line}
+        >
+          {line.length > 20 ? `${line.substring(0, 20)}...` : line}
+        </span>
+      ))}
+    </div>
+  );
+};
+
+// Add a helper function to get service lines for bills
+const getBillServiceLines = (bill: Bill) => {
+  const lines = [
+    bill.service_lines_impacted,
+    bill.service_lines_impacted_1,
+    bill.service_lines_impacted_2,
+    bill.service_lines_impacted_3
+  ]
+    .filter(line => line && line.toUpperCase() !== 'NULL');
+  
+  if (lines.length === 0) {
+    return <span className="text-gray-400 italic">No service lines</span>;
+  }
+  
+  return (
+    <div className="flex flex-wrap gap-1">
+      {lines.map((line, index) => (
+        <span
+          key={index}
+          className="inline-block px-2 py-1 text-xs bg-green-50 text-green-700 rounded-md border border-green-200"
+          title={line}
+        >
+          {line.length > 20 ? `${line.substring(0, 20)}...` : line}
+        </span>
+      ))}
+    </div>
+  );
 };
 
 // Add this new component after the CustomDropdown component
@@ -328,7 +374,7 @@ function ServiceLinesDropdown({
   );
 }
 
-// Add this new component for multi-select service lines
+// Add this new component for multi-select service lines with search functionality
 function MultiServiceLinesDropdown({ 
   values, 
   onChange, 
@@ -341,20 +387,35 @@ function MultiServiceLinesDropdown({
   placeholder: string; 
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
+        setSearchTerm('');
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Focus search input when dropdown opens
+  useEffect(() => {
+    if (isOpen && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [isOpen]);
+
   const selectedOptions = options.filter(opt => values.includes(opt.value));
+  
+  // Filter options based on search term
+  const filteredOptions = options.filter(option =>
+    option.label.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const handleSelect = (value: string) => {
     if (values.includes(value)) {
@@ -364,30 +425,41 @@ function MultiServiceLinesDropdown({
       // Add if less than 3 selected
       onChange([...values, value]);
     }
+    // Keep dropdown open for multiple selections
   };
 
   const handleRemove = (value: string) => {
     onChange(values.filter(v => v !== value));
   };
 
+  const handleToggle = () => {
+    setIsOpen(!isOpen);
+    if (!isOpen) {
+      setSearchTerm('');
+    }
+  };
+
   return (
     <div className="relative" ref={dropdownRef}>
-      <div className="w-full px-4 py-2 bg-white border border-gray-300 rounded-md text-gray-700 focus:outline-none cursor-pointer flex justify-between items-center"
-           onClick={() => setIsOpen(!isOpen)}>
-        <div className="flex flex-wrap gap-1 flex-1">
+      <div 
+        className="w-full px-4 py-2 bg-white border border-gray-300 rounded-md text-gray-700 focus:outline-none cursor-pointer flex justify-between items-center hover:border-blue-400 transition-colors"
+        onClick={handleToggle}
+      >
+        <div className="flex flex-wrap gap-1 flex-1 min-h-[24px]">
           {selectedOptions.length > 0 ? (
             selectedOptions.map((option, index) => (
               <span
                 key={`${option.value}-${index}`}
-                className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800"
+                className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800 max-w-full"
+                title={option.label}
               >
-                {option.label}
+                <span className="truncate max-w-[150px]">{option.label}</span>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     handleRemove(option.value);
                   }}
-                  className="ml-1 hover:text-blue-600"
+                  className="ml-1 hover:text-blue-600 flex-shrink-0"
                 >
                   ×
                 </button>
@@ -397,26 +469,56 @@ function MultiServiceLinesDropdown({
             <span className="text-gray-500">{placeholder}</span>
           )}
         </div>
-        <span>▼</span>
+        <span className={`transition-transform ${isOpen ? 'rotate-180' : ''}`}>▼</span>
       </div>
+      
       {isOpen && (
-        <div className="absolute w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-50">
-          <div className="max-h-[200px] overflow-y-auto">
-            {options.map((option) => (
-              <div
-                key={option.value}
-                className={`px-4 py-2 cursor-pointer hover:bg-gray-100 text-gray-700 ${
-                  values.includes(option.value) ? 'bg-blue-50' : ''
-                }`}
-                onClick={() => handleSelect(option.value)}
-              >
-                {option.label}
-                {values.includes(option.value) && (
-                  <span className="ml-2 text-blue-600">✓</span>
-                )}
-              </div>
-            ))}
+        <div className="absolute w-[400px] min-w-[300px] max-w-[90vw] mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-50 left-0">
+          {/* Search Input */}
+          <div className="sticky top-0 bg-white border-b border-gray-200 p-2">
+            <input
+              ref={searchInputRef}
+              type="text"
+              placeholder="Search service lines..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              onClick={(e) => e.stopPropagation()}
+            />
           </div>
+          
+          {/* Options List */}
+          <div className="max-h-[200px] overflow-y-auto">
+            {filteredOptions.length > 0 ? (
+              filteredOptions.map((option) => (
+                <div
+                  key={option.value}
+                  className={`px-4 py-3 cursor-pointer hover:bg-blue-50 text-gray-700 border-b border-gray-100 last:border-b-0 ${
+                    values.includes(option.value) ? 'bg-blue-100' : ''
+                  }`}
+                  onClick={() => handleSelect(option.value)}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm break-words">{option.label}</span>
+                    {values.includes(option.value) && (
+                      <span className="text-blue-600 text-sm flex-shrink-0 ml-2">✓</span>
+                    )}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="px-4 py-3 text-gray-500 text-sm text-center">
+                No service lines found matching "{searchTerm}"
+              </div>
+            )}
+          </div>
+          
+          {/* Selected Count */}
+          {values.length > 0 && (
+            <div className="px-4 py-2 bg-gray-50 border-t border-gray-200 text-xs text-gray-600">
+              {values.length} of 3 selected
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -428,6 +530,18 @@ const isNew = (val: any) => {
   if (!val) return false;
   const v = String(val).trim().toLowerCase();
   return v === "yes" || v === "true" || v === "1" || v === "y" || v === "new";
+};
+
+// Helper function to check if service lines are blank
+const hasBlankServiceLines = (item: Alert | Bill) => {
+  const serviceLines = [
+    item.service_lines_impacted,
+    item.service_lines_impacted_1,
+    item.service_lines_impacted_2,
+    item.service_lines_impacted_3
+  ].filter(line => line && line.trim() !== '' && line.toUpperCase() !== 'NULL');
+  
+  return serviceLines.length === 0;
 };
 
 // Utility: Convert Excel serial date or string to MM/DD/YYYY
@@ -462,6 +576,32 @@ export default function RateDevelopments() {
   const { isAuthenticated, isLoading, user } = useKindeBrowserClient();
   const router = useRouter();
 
+  // Add CSS for table column widths
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      .service-lines-column {
+        min-width: 200px !important;
+        width: 200px !important;
+      }
+      .service-lines-cell {
+        min-width: 200px !important;
+        width: 200px !important;
+      }
+      .service-lines-dropdown {
+        min-width: 200px !important;
+        width: 200px !important;
+      }
+    `;
+    document.head.appendChild(style);
+    
+    return () => {
+      if (document.head.contains(style)) {
+        document.head.removeChild(style);
+      }
+    };
+  }, []);
+
   // Add authentication check
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -486,8 +626,15 @@ export default function RateDevelopments() {
   const [activeTable, setActiveTable] = useState<"provider" | "legislative">("provider");
 
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null); // For the pop-up modal
+  
+  // New filter states
+  const [showOnlyNew, setShowOnlyNew] = useState(false);
+  const [showOnlyBlankServiceLines, setShowOnlyBlankServiceLines] = useState(false);
+  
+  // Popup state for summaries
   const [showPopup, setShowPopup] = useState(false);
   const [popupContent, setPopupContent] = useState("");
+  const [popupTitle, setPopupTitle] = useState("");
 
   const [sortDirection, setSortDirection] = useState<{ field: string; direction: 'asc' | 'desc' }>({ field: 'announcement_date', direction: 'desc' });
   const [loading, setLoading] = useState(true);
@@ -729,7 +876,10 @@ export default function RateDevelopments() {
         alert.service_lines_impacted_3,
       ].some(line => line?.includes(selectedServiceLine));
 
-    return matchesSearch && matchesState && matchesServiceLine;
+    const matchesNewFilter = !showOnlyNew || isNew(alert.is_new);
+    const matchesBlankServiceLines = !showOnlyBlankServiceLines || hasBlankServiceLines(alert);
+
+    return matchesSearch && matchesState && matchesServiceLine && matchesNewFilter && matchesBlankServiceLines;
   });
 
   // Update the filteredLegislativeUpdates logic to include bill progress filter
@@ -754,24 +904,47 @@ export default function RateDevelopments() {
     const matchesBillProgress = !selectedBillProgress || 
       bill.bill_progress?.includes(selectedBillProgress);
 
-    return matchesSearch && matchesState && matchesServiceLine && matchesBillProgress;
+    const matchesNewFilter = !showOnlyNew || isNew(bill.is_new);
+    const matchesBlankServiceLines = !showOnlyBlankServiceLines || hasBlankServiceLines(bill);
+
+    return matchesSearch && matchesState && matchesServiceLine && matchesBillProgress && matchesNewFilter && matchesBlankServiceLines;
   });
 
   const getServiceLines = (bill: Bill) => {
-    return [
+    const lines = [
       bill.service_lines_impacted,
       bill.service_lines_impacted_1,
       bill.service_lines_impacted_2,
       bill.service_lines_impacted_3
     ]
-      .filter(line => line && line.toUpperCase() !== 'NULL')
-      .join(", ");
+      .filter(line => line && line.toUpperCase() !== 'NULL');
+    
+    if (lines.length === 0) {
+      return <span className="text-gray-400 italic">No service lines</span>;
+    }
+    
+    return (
+      <div className="flex flex-wrap gap-1">
+        {lines.map((line, index) => (
+          <span
+            key={index}
+            className="inline-block px-2 py-1 text-xs bg-green-50 text-green-700 rounded-md border border-green-200"
+            title={line}
+          >
+            {line.length > 20 ? `${line.substring(0, 20)}...` : line}
+          </span>
+        ))}
+      </div>
+    );
   };
 
   // Function to handle click on bill name
   const handleBillClick = (bill: Bill) => {
-    setPopupContent(bill.ai_summary);
-    setShowPopup(true);
+    if (bill.ai_summary) {
+      setPopupContent(bill.ai_summary);
+      setPopupTitle("AI Summary");
+      setShowPopup(true);
+    }
   };
 
   // Add edit state at the top of the component
@@ -781,14 +954,39 @@ export default function RateDevelopments() {
   const [editingBillValues, setEditingBillValues] = useState<Partial<Bill>>({});
   const [sponsorListEdit, setSponsorListEdit] = useState<string>("");
 
-  // Update the save functions to handle multiple service lines
+  // Update the save functions to handle multiple service lines with protection
   const handleSaveProviderEdit = async () => {
-    const serviceLinesData = {
-      service_lines_impacted: editingProviderServiceLines[0] || null,
-      service_lines_impacted_1: editingProviderServiceLines[1] || null,
-      service_lines_impacted_2: editingProviderServiceLines[2] || null,
-    };
     const prevAlert = alerts.find(a => a.id === editingProviderId);
+    
+    // Only update service lines if they were actually changed by the user
+    let serviceLinesData = {};
+    if (prevAlert) {
+      const currentServiceLines = [
+        prevAlert.service_lines_impacted,
+        prevAlert.service_lines_impacted_1,
+        prevAlert.service_lines_impacted_2,
+        prevAlert.service_lines_impacted_3
+      ].filter(line => line && line.toUpperCase() !== 'NULL');
+      
+      const newServiceLines = editingProviderServiceLines.filter(line => line && line.trim() !== '');
+      
+      // Check if service lines actually changed
+      const serviceLinesChanged = 
+        currentServiceLines.length !== newServiceLines.length ||
+        currentServiceLines.some((line, index) => line !== newServiceLines[index]);
+      
+      if (serviceLinesChanged) {
+        serviceLinesData = {
+          service_lines_impacted: editingProviderServiceLines[0] || null,
+          service_lines_impacted_1: editingProviderServiceLines[1] || null,
+          service_lines_impacted_2: editingProviderServiceLines[2] || null,
+        };
+        console.log('Service lines changed, updating:', serviceLinesData);
+      } else {
+        console.log('Service lines unchanged, preserving existing values');
+      }
+    }
+    
     setAlerts(alerts =>
       alerts.map(alert =>
         alert.id === editingProviderId
@@ -796,12 +994,17 @@ export default function RateDevelopments() {
           : alert
       )
     );
+    
     if (editingProviderId) {
+      const updateData = { ...editingProviderValues, ...serviceLinesData };
+      console.log('Updating provider alert with:', updateData);
+      
       await supabase
         .from("provider_alerts")
-        .update({ ...editingProviderValues, ...serviceLinesData })
+        .update(updateData)
         .eq("id", editingProviderId);
     }
+    
     // Highlight changed cells
     if (prevAlert) {
       const changed: string[] = [];
@@ -821,12 +1024,37 @@ export default function RateDevelopments() {
 
   const handleSaveBillEdit = async () => {
     const sponsorListArray = sponsorListEdit.split(",").map(s => s.trim()).filter(Boolean);
-    const serviceLinesData = {
-      service_lines_impacted: editingBillServiceLines[0] || null,
-      service_lines_impacted_1: editingBillServiceLines[1] || null,
-      service_lines_impacted_2: editingBillServiceLines[2] || null,
-    };
     const prevBill = bills.find(b => b.url === editingBillUrl);
+    
+    // Only update service lines if they were actually changed by the user
+    let serviceLinesData = {};
+    if (prevBill) {
+      const currentServiceLines = [
+        prevBill.service_lines_impacted,
+        prevBill.service_lines_impacted_1,
+        prevBill.service_lines_impacted_2,
+        prevBill.service_lines_impacted_3
+      ].filter(line => line && line.toUpperCase() !== 'NULL');
+      
+      const newServiceLines = editingBillServiceLines.filter(line => line && line.trim() !== '');
+      
+      // Check if service lines actually changed
+      const serviceLinesChanged = 
+        currentServiceLines.length !== newServiceLines.length ||
+        currentServiceLines.some((line, index) => line !== newServiceLines[index]);
+      
+      if (serviceLinesChanged) {
+        serviceLinesData = {
+          service_lines_impacted: editingBillServiceLines[0] || null,
+          service_lines_impacted_1: editingBillServiceLines[1] || null,
+          service_lines_impacted_2: editingBillServiceLines[2] || null,
+        };
+        console.log('Service lines changed, updating:', serviceLinesData);
+      } else {
+        console.log('Service lines unchanged, preserving existing values');
+      }
+    }
+    
     setBills(bills =>
       bills.map(bill =>
         bill.url === editingBillUrl
@@ -834,12 +1062,17 @@ export default function RateDevelopments() {
           : bill
       )
     );
+    
     if (editingBillUrl) {
+      const updateData = { ...editingBillValues, sponsor_list: sponsorListArray, ...serviceLinesData };
+      console.log('Updating bill with:', updateData);
+      
       await supabase
         .from("bill_track_50")
-        .update({ ...editingBillValues, sponsor_list: sponsorListArray, ...serviceLinesData })
+        .update(updateData)
         .eq("url", editingBillUrl);
     }
+    
     // Highlight changed cells
     if (prevBill) {
       const changed: string[] = [];
@@ -890,6 +1123,15 @@ export default function RateDevelopments() {
     setServiceCategories(cats => cats.filter(cat => cat.id !== id));
   };
 
+  // Function to handle click on alert subject
+  const handleAlertClick = (alert: Alert) => {
+    if (alert.summary) {
+      setPopupContent(alert.summary);
+      setPopupTitle("Summary");
+      setShowPopup(true);
+    }
+  };
+
   if (isLoading || !isSubscriptionCheckComplete) {
     return (
       <div className="loader-overlay">
@@ -904,165 +1146,253 @@ export default function RateDevelopments() {
 
   return (
     <AppLayout activeTab="rateDevelopments">
-              <h1 className="text-3xl md:text-4xl text-[#012C61] font-lemonMilkRegular uppercase mb-6">
-        Rate Developments
-      </h1>
+      <div className="p-4 sm:p-8 bg-gradient-to-br from-gray-50 to-blue-50 min-h-screen">
+        {/* Header */}
+        <div className="flex items-center mb-6 sm:mb-8">
+          <FaChartLine className="h-8 w-8 text-[#012C61] mr-3" />
+          <h1 className="text-xl sm:text-3xl md:text-4xl text-[#012C61] font-lemonMilkRegular uppercase">
+            Rate Developments - Edit Mode
+          </h1>
+        </div>
 
-      {/* Search Bars and Filters Container */}
-      <div className="p-4 rounded-lg mb-6" style={{ backgroundColor: "#004aad" }}>
-        <div className="flex flex-col gap-4">
-          {/* Search Bars Row - Make it responsive */}
-          <div className="flex flex-col md:flex-row gap-4">
-            {/* Provider Search */}
-            <div className="flex-1 min-w-0">
-              <SearchBar
-                value={providerSearch}
-                onChange={setProviderSearch}
-                placeholder="Search Provider Alerts by subject"
-              />
-            </div>
-
-            {/* Legislative Search */}
-            <div className="flex-1 min-w-0">
-              <SearchBar
-                value={legislativeSearch}
-                onChange={setLegislativeSearch}
-                placeholder="Search Legislative Updates by Bill Name or Bill Number"
-              />
-            </div>
-          </div>
-
-          {/* Filters Row - Make it responsive */}
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1 min-w-0">
-              <CustomDropdown
-                value={selectedState}
-                onChange={setSelectedState}
-                options={[
-                  { value: "", label: "All States" },
-                  ...Object.entries(stateMap).map(([name, code]) => ({
-                    value: code,
-                    label: `${name} [${code}]`
-                  }))
-                ]}
-                placeholder="All States"
-              />
-            </div>
-
-            <div className="flex-1 min-w-0">
-              <CustomDropdown
-                value={selectedServiceLine}
-                onChange={setSelectedServiceLine}
-                options={[
-                  { value: "", label: "All Service Lines" },
-                  ...uniqueServiceLines.map(line => ({ value: line, label: line }))
-                ]}
-                placeholder="All Service Lines"
-              />
-            </div>
-
-            {/* Add this new dropdown for bill progress */}
-            {activeTable === "legislative" && (
+        {/* Search Bars and Filters Container */}
+        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+          <div className="flex flex-col gap-4">
+            {/* Search Bars Row - Make it responsive */}
+            <div className="flex flex-col md:flex-row gap-4">
+              {/* Provider Search */}
               <div className="flex-1 min-w-0">
-                <CustomDropdown
-                  value={selectedBillProgress}
-                  onChange={setSelectedBillProgress}
-                  options={[
-                    { value: "", label: "All Bill Progress" },
-                    { value: "Introduced", label: "Introduced" },
-                    { value: "In Committee", label: "In Committee" },
-                    { value: "Passed", label: "Passed" },
-                    { value: "Failed", label: "Failed" },
-                    { value: "Vetoed", label: "Vetoed" },
-                    { value: "Enacted", label: "Enacted" }
-                  ]}
-                  placeholder="All Bill Progress"
+                <SearchBar
+                  value={providerSearch}
+                  onChange={setProviderSearch}
+                  placeholder="Search Provider Alerts by subject"
                 />
               </div>
-            )}
+
+              {/* Legislative Search */}
+              <div className="flex-1 min-w-0">
+                <SearchBar
+                  value={legislativeSearch}
+                  onChange={setLegislativeSearch}
+                  placeholder="Search Legislative Updates by Bill Name or Bill Number"
+                />
+              </div>
+            </div>
+
+            {/* Filters Row - Make it responsive */}
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex-1 min-w-0">
+                <CustomDropdown
+                  value={selectedState}
+                  onChange={setSelectedState}
+                  options={[
+                    { value: "", label: "All States" },
+                    ...Object.entries(stateMap).map(([name, code]) => ({
+                      value: code,
+                      label: `${name} [${code}]`
+                    }))
+                  ]}
+                  placeholder="All States"
+                />
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <CustomDropdown
+                  value={selectedServiceLine}
+                  onChange={setSelectedServiceLine}
+                  options={[
+                    { value: "", label: "All Service Lines" },
+                    ...uniqueServiceLines.map(line => ({ value: line, label: line }))
+                  ]}
+                  placeholder="All Service Lines"
+                />
+              </div>
+
+              {/* Add this new dropdown for bill progress */}
+              {activeTable === "legislative" && (
+                <div className="flex-1 min-w-0">
+                  <CustomDropdown
+                    value={selectedBillProgress}
+                    onChange={setSelectedBillProgress}
+                    options={[
+                      { value: "", label: "All Bill Progress" },
+                      { value: "Introduced", label: "Introduced" },
+                      { value: "In Committee", label: "In Committee" },
+                      { value: "Passed", label: "Passed" },
+                      { value: "Failed", label: "Failed" },
+                      { value: "Vetoed", label: "Vetoed" },
+                      { value: "Enacted", label: "Enacted" }
+                    ]}
+                    placeholder="All Bill Progress"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Special Filters Row */}
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex items-center space-x-4">
+                <label className="flex items-center space-x-2 text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={showOnlyNew}
+                    onChange={(e) => setShowOnlyNew(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span className="text-sm font-medium">Show Only New Entries</span>
+                </label>
+
+                <label className="flex items-center space-x-2 text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={showOnlyBlankServiceLines}
+                    onChange={(e) => setShowOnlyBlankServiceLines(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span className="text-sm font-medium">Show Only Blank Service Lines</span>
+                </label>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Layout Toggle Buttons, Filters, and Table Switch */}
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex space-x-4">
-          <button
-            onClick={() => setLayout("vertical")}
-            className={`p-2 rounded-md flex items-center ${
-              layout === "vertical" ? "bg-[#004aad] text-white" : "bg-gray-200"
-            }`}
-            style={{ height: "40px" }}
-          >
-            <LayoutGrid size={20} className="mr-2" />
-            <span>Vertical Layout</span>
-          </button>
-          <button
-            onClick={() => setLayout("horizontal")}
-            className={`p-2 rounded-md flex items-center ${
-              layout === "horizontal" ? "bg-[#004aad] text-white" : "bg-gray-200"
-            }`}
-            style={{ height: "40px" }}
-          >
-            <LayoutList size={20} className="mr-2" />
-            <span>Horizontal Layout</span>
-          </button>
-        </div>
-
-        {/* Table Switch */}
-        <div className={`flex items-center space-x-4 ${
-          layout === "horizontal" ? "visible" : "invisible"
-        }`}>
-          <div className="flex bg-gray-200 rounded-lg p-1 shadow-sm">
-          <button
-              onClick={() => setActiveTable("provider")}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-                activeTable === "provider"
-                  ? "bg-white text-blue-600 shadow-sm"
-                  : "text-gray-600 hover:text-gray-800"
-              }`}
-          >
-              Provider Alerts
-            </button>
-            <button
-              onClick={() => setActiveTable("legislative")}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-                activeTable === "legislative"
-                  ? "bg-white text-blue-600 shadow-sm"
-                  : "text-gray-600 hover:text-gray-800"
-              }`}
-            >
-              Legislative Updates
-          </button>
+        {/* Statistics Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="flex items-center">
+              <FaExclamationCircle className="h-8 w-8 text-blue-500 mr-3" />
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Provider Alerts</p>
+                <p className="text-2xl font-bold text-gray-900">{alerts.length}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="flex items-center">
+              <FaChartLine className="h-8 w-8 text-green-500 mr-3" />
+              <div>
+                <p className="text-sm font-medium text-gray-600">Filtered Provider Alerts</p>
+                <p className="text-2xl font-bold text-gray-900">{filteredProviderAlerts.length}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="flex items-center">
+              <FaSpinner className="h-8 w-8 text-purple-500 mr-3" />
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Legislative Bills</p>
+                <p className="text-2xl font-bold text-gray-900">{bills.length}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="flex items-center">
+              <FaSort className="h-8 w-8 text-orange-500 mr-3" />
+              <div>
+                <p className="text-sm font-medium text-gray-600">Filtered Legislative Bills</p>
+                <p className="text-2xl font-bold text-gray-900">{filteredLegislativeUpdates.length}</p>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Update the note about sorting and summaries */}
-      <div className="mb-4 text-sm text-gray-600">
-        <p>
-          <strong>Note:</strong> Click on the column headings (State, Announcement Date, Action Date) to sort the data. 
-          Also, clicking on a bill name in the Legislative Updates table will display an AI-generated summary, 
-          while clicking on a subject in the Provider Alerts table will display a summary of the alert.
-        </p>
-      </div>
+        {/* Layout Toggle Buttons and Table Switch */}
+        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="flex space-x-4">
+              <button
+                onClick={() => setLayout("vertical")}
+                className={`px-4 py-2 rounded-lg flex items-center transition-all duration-200 ${
+                  layout === "vertical" 
+                    ? "bg-[#012C61] text-white shadow-lg" 
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                <LayoutGrid size={20} className="mr-2" />
+                <span>Vertical Layout</span>
+              </button>
+              <button
+                onClick={() => setLayout("horizontal")}
+                className={`px-4 py-2 rounded-lg flex items-center transition-all duration-200 ${
+                  layout === "horizontal" 
+                    ? "bg-[#012C61] text-white shadow-lg" 
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                <LayoutList size={20} className="mr-2" />
+                <span>Horizontal Layout</span>
+              </button>
+            </div>
+
+            {/* Table Switch */}
+            <div className={`flex items-center space-x-4 ${
+              layout === "horizontal" ? "visible" : "invisible"
+            }`}>
+              <div className="flex bg-gray-100 rounded-lg p-1 shadow-sm">
+                <button
+                  onClick={() => setActiveTable("provider")}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                    activeTable === "provider"
+                      ? "bg-white text-[#012C61] shadow-sm"
+                      : "text-gray-600 hover:text-gray-800"
+                  }`}
+                >
+                  Provider Alerts ({filteredProviderAlerts.length})
+                </button>
+                <button
+                  onClick={() => setActiveTable("legislative")}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                    activeTable === "legislative"
+                      ? "bg-white text-[#012C61] shadow-sm"
+                      : "text-gray-600 hover:text-gray-800"
+                  }`}
+                >
+                  Legislative Updates ({filteredLegislativeUpdates.length})
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Information Panel */}
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+          <div className="flex items-start">
+            <FaExclamationCircle className="h-5 w-5 text-blue-600 mr-3 mt-0.5" />
+            <div className="text-sm text-blue-800">
+              <p className="font-semibold mb-1">Edit Mode Instructions:</p>
+              <ul className="list-disc list-inside space-y-1 text-blue-700">
+                <li>Click on column headings (State, Announcement Date, Action Date) to sort data</li>
+                <li>Click the edit button (pencil icon) to modify entries</li>
+                <li>Green highlighted rows indicate new entries</li>
+                <li>Use filters to show only new entries or entries with blank service lines</li>
+                <li>All changes are saved directly to the database</li>
+              </ul>
+            </div>
+          </div>
+        </div>
 
       {/* Tables */}
       {layout === "vertical" ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Provider Alerts Table */}
-          <div>
-            <h2 className="text-xl font-semibold text-[#012C61] mb-2">
-              Provider Alerts
-            </h2>
-            <div className="border rounded-md max-h-[600px] overflow-y-auto bg-gray-50 shadow-lg">
+          <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-blue-100">
+              <h2 className="text-xl font-semibold text-[#012C61] flex items-center">
+                <FaExclamationCircle className="mr-2" />
+                Provider Alerts ({filteredProviderAlerts.length})
+              </h2>
+            </div>
+            <div className="max-h-[600px] overflow-y-auto">
               <table className="min-w-full bg-white border-collapse">
                 <thead className="sticky top-0 bg-white shadow">
                   <tr className="border-b">
                     <th className="p-3 text-left font-semibold text-[#012C61] bg-gray-100 border-b cursor-pointer" onClick={() => toggleSort('state')}>State {sortDirection.field === 'state' && (sortDirection.direction === 'asc' ? <ChevronUp size={16} /> : <ChevronDown size={16} />)}</th>
                     <th className="p-3 text-left font-semibold text-[#012C61] bg-gray-100 border-b cursor-pointer" onClick={() => toggleSort('announcement_date')}>Announcement Date {sortDirection.field === 'announcement_date' && (sortDirection.direction === 'asc' ? <ChevronUp size={16} /> : <ChevronDown size={16} />)}</th>
                     <th className="p-3 text-left font-semibold text-[#012C61] bg-gray-100 border-b">Subject</th>
-                    <th className="p-3 text-left font-semibold text-[#012C61] bg-gray-100 border-b">Service Lines</th>
+                    <th className="p-3 text-left font-semibold text-[#012C61] bg-gray-100 border-b min-w-[200px]">Service Lines</th>
                     <th className="p-3 text-left font-semibold text-[#012C61] bg-gray-100 border-b">Is New</th>
                     <th className="p-3 text-left font-semibold text-[#012C61] bg-gray-100 border-b">Actions</th>
                   </tr>
@@ -1099,7 +1429,30 @@ export default function RateDevelopments() {
                       <tr key={alert.id} className={`${isNew(alert.is_new) ? 'bg-green-100' : (idx % 2 === 0 ? 'bg-white' : 'bg-gray-50')} border-b hover:bg-blue-50 transition-colors`}>
                         <td className="p-3 align-middle">{alert.state}</td>
                         <td className="p-3 align-middle">{formatExcelOrStringDate(alert.announcement_date)}</td>
-                        <td className="p-3 align-middle">{alert.subject}</td>
+                        <td className="p-3 align-middle">
+                          <div className="flex items-center">
+                            <span
+                              className={`${alert.summary ? 'cursor-pointer hover:underline' : ''}`}
+                              onClick={() => {
+                                if (alert.summary) {
+                                  handleAlertClick(alert);
+                                }
+                              }}
+                            >
+                              {alert.subject}
+                            </span>
+                            {alert.link && (
+                              <a
+                                href={alert.link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="ml-2 text-blue-500 hover:underline"
+                              >
+                                [Read More]
+                              </a>
+                            )}
+                          </div>
+                        </td>
                         <td className="p-3 align-middle">{getAlertServiceLines(alert)}</td>
                         <td className="p-3 align-middle text-center">{String(alert.is_new).trim()}</td>
                         <td className="p-3 align-middle">
@@ -1136,11 +1489,14 @@ export default function RateDevelopments() {
           </div>
 
           {/* Legislative Updates Table */}
-          <div>
-            <h2 className="text-xl font-semibold text-[#012C61] mb-2">
-              Legislative Updates
-            </h2>
-            <div className="border rounded-md max-h-[600px] overflow-y-auto bg-gray-50 shadow-lg">
+          <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-green-50 to-green-100">
+              <h2 className="text-xl font-semibold text-[#012C61] flex items-center">
+                <FaChartLine className="mr-2" />
+                Legislative Updates ({filteredLegislativeUpdates.length})
+              </h2>
+            </div>
+            <div className="max-h-[600px] overflow-y-auto">
               <table className="min-w-full bg-white border-collapse">
                 <thead className="sticky top-0 bg-white shadow">
                   <tr className="border-b">
@@ -1259,25 +1615,37 @@ export default function RateDevelopments() {
           </div>
         </div>
       ) : (
-        <div className="relative overflow-hidden">
+        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
           {/* Table Heading */}
-          <h2 className="text-xl font-semibold text-[#012C61] mb-2">
-            {activeTable === "provider" ? "Provider Alerts" : "Legislative Updates"}
-          </h2>
+          <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-green-100">
+            <h2 className="text-xl font-semibold text-[#012C61] flex items-center">
+              {activeTable === "provider" ? (
+                <>
+                  <FaExclamationCircle className="mr-2" />
+                  Provider Alerts ({filteredProviderAlerts.length})
+                </>
+              ) : (
+                <>
+                  <FaChartLine className="mr-2" />
+                  Legislative Updates ({filteredLegislativeUpdates.length})
+                </>
+              )}
+            </h2>
+          </div>
 
           {/* Tables Container with Animation */}
           <div className="flex transition-transform duration-300 ease-in-out" style={{
             transform: `translateX(${activeTable === "provider" ? "0%" : "-100%"})`
           }}>
             {/* Provider Alerts Table */}
-            <div className="min-w-full border rounded-md max-h-[600px] overflow-y-auto bg-gray-50 shadow-lg relative">
+            <div className="min-w-full max-h-[600px] overflow-y-auto relative">
               <table className="min-w-full bg-white border-collapse">
                 <thead className="sticky top-0 bg-white shadow">
                   <tr className="border-b">
                     <th className="p-3 text-left font-semibold text-[#012C61] bg-gray-100 border-b cursor-pointer" onClick={() => toggleSort('state')}>State {sortDirection.field === 'state' && (sortDirection.direction === 'asc' ? <ChevronUp size={16} /> : <ChevronDown size={16} />)}</th>
                     <th className="p-3 text-left font-semibold text-[#012C61] bg-gray-100 border-b cursor-pointer" onClick={() => toggleSort('announcement_date')}>Announcement Date {sortDirection.field === 'announcement_date' && (sortDirection.direction === 'asc' ? <ChevronUp size={16} /> : <ChevronDown size={16} />)}</th>
                     <th className="p-3 text-left font-semibold text-[#012C61] bg-gray-100 border-b">Subject</th>
-                    <th className="p-3 text-left font-semibold text-[#012C61] bg-gray-100 border-b">Service Lines</th>
+                    <th className="p-3 text-left font-semibold text-[#012C61] bg-gray-100 border-b min-w-[200px]">Service Lines</th>
                     <th className="p-3 text-left font-semibold text-[#012C61] bg-gray-100 border-b">Is New</th>
                     <th className="p-3 text-left font-semibold text-[#012C61] bg-gray-100 border-b">Actions</th>
                   </tr>
@@ -1314,7 +1682,30 @@ export default function RateDevelopments() {
                       <tr key={alert.id} className={`${isNew(alert.is_new) ? 'bg-green-100' : (idx % 2 === 0 ? 'bg-white' : 'bg-gray-50')} border-b hover:bg-blue-50 transition-colors`}>
                         <td className="p-3 align-middle">{alert.state}</td>
                         <td className="p-3 align-middle">{formatExcelOrStringDate(alert.announcement_date)}</td>
-                        <td className="p-3 align-middle">{alert.subject}</td>
+                        <td className="p-3 align-middle">
+                          <div className="flex items-center">
+                            <span
+                              className={`${alert.summary ? 'cursor-pointer hover:underline' : ''}`}
+                              onClick={() => {
+                                if (alert.summary) {
+                                  handleAlertClick(alert);
+                                }
+                              }}
+                            >
+                              {alert.subject}
+                            </span>
+                            {alert.link && (
+                              <a
+                                href={alert.link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="ml-2 text-blue-500 hover:underline"
+                              >
+                                [Read More]
+                              </a>
+                            )}
+                          </div>
+                        </td>
                         <td className="p-3 align-middle">{getAlertServiceLines(alert)}</td>
                         <td className="p-3 align-middle text-center">{String(alert.is_new).trim()}</td>
                         <td className="p-3 align-middle">
@@ -1350,7 +1741,7 @@ export default function RateDevelopments() {
             </div>
 
             {/* Legislative Updates Table */}
-            <div className="min-w-full border rounded-md max-h-[600px] overflow-y-auto bg-gray-50 shadow-lg relative">
+            <div className="min-w-full max-h-[600px] overflow-y-auto relative">
               <table className="min-w-full bg-white border-collapse">
                 <thead className="sticky top-0 bg-white shadow">
                   <tr className="border-b">
@@ -1361,7 +1752,7 @@ export default function RateDevelopments() {
                     <th className="p-3 text-left font-semibold text-[#012C61] bg-gray-100 border-b">Last Action</th>
                     <th className="p-3 text-left font-semibold text-[#012C61] bg-gray-100 border-b">Sponsors</th>
                     <th className="p-3 text-left font-semibold text-[#012C61] bg-gray-100 border-b">Progress</th>
-                    <th className="p-3 text-left font-semibold text-[#012C61] bg-gray-100 border-b">Service Lines</th>
+                    <th className="p-3 text-left font-semibold text-[#012C61] bg-gray-100 border-b min-w-[200px]">Service Lines</th>
                     <th className="p-3 text-left font-semibold text-[#012C61] bg-gray-100 border-b">Is New</th>
                     <th className="p-3 text-left font-semibold text-[#012C61] bg-gray-100 border-b">Actions</th>
                   </tr>
@@ -1402,8 +1793,32 @@ export default function RateDevelopments() {
                       <tr key={bill.url} className={`${isNew(bill.is_new) ? 'bg-green-100' : (idx % 2 === 0 ? 'bg-white' : 'bg-gray-50')} border-b hover:bg-blue-50 transition-colors`}>
                         <td className="p-3 align-middle">{reverseStateMap[bill.state] || bill.state}</td>
                         <td className="p-3 align-middle">{formatExcelOrStringDate(bill.action_date)}</td>
-                        <td className="p-3 align-middle">{bill.bill_number}</td>
-                        <td className="p-3 align-middle">{bill.name}</td>
+                        <td className="p-3 align-middle">
+                          {bill.url ? (
+                            <a
+                              href={bill.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-500 hover:underline"
+                            >
+                              {bill.bill_number}
+                            </a>
+                          ) : (
+                            bill.bill_number
+                          )}
+                        </td>
+                        <td className="p-3 align-middle">
+                          <span
+                            className={`${bill.ai_summary ? 'cursor-pointer hover:underline' : ''}`}
+                            onClick={() => {
+                              if (bill.ai_summary) {
+                                handleBillClick(bill);
+                              }
+                            }}
+                          >
+                            {bill.name}
+                          </span>
+                        </td>
                         <td className="p-3 align-middle">{bill.last_action}</td>
                         <td className="p-3 align-middle">{Array.isArray(bill.sponsor_list) ? bill.sponsor_list.join(", ") : bill.sponsor_list}</td>
                         <td className="p-3 align-middle">{bill.bill_progress}</td>
@@ -1450,9 +1865,7 @@ export default function RateDevelopments() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center">
           <div className="bg-white p-4 rounded-lg max-w-lg w-full">
             <h3 className="text-lg font-bold">
-              {popupContent === alerts.find(a => a.summary === popupContent)?.summary 
-                ? "Summary" 
-                : "AI Summary"}
+              {popupTitle || "Summary"}
             </h3>
             <p>{popupContent}</p>
             <button
@@ -1465,24 +1878,33 @@ export default function RateDevelopments() {
         </div>
       )}
 
-      {/* Service Category List Table */}
-      <div className="mt-12">
-        <h2 className="text-2xl font-semibold text-[#012C61] mb-4">Service Category List</h2>
-        <div className="flex gap-2 mb-4">
-          <input
-            className="border rounded px-2 py-1 flex-1"
-            placeholder="Add new category"
-            value={newCategory}
-            onChange={e => setNewCategory(e.target.value)}
-          />
-          <button
-            className="bg-blue-600 text-white px-4 py-1 rounded"
-            onClick={handleAddCategory}
-          >
-            Add
-          </button>
-        </div>
-        <table className="min-w-full bg-white border rounded shadow text-sm">
+        {/* Service Category List Table */}
+        <div className="bg-white rounded-xl shadow-lg overflow-hidden mt-8">
+          <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-purple-100">
+            <h2 className="text-xl font-semibold text-[#012C61] flex items-center">
+              <FaFilter className="mr-2" />
+              Service Category List
+            </h2>
+          </div>
+          
+          <div className="p-6">
+            <div className="flex gap-2 mb-4">
+              <input
+                className="border border-gray-300 rounded-lg px-4 py-2 flex-1 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Add new service category"
+                value={newCategory}
+                onChange={e => setNewCategory(e.target.value)}
+              />
+              <button
+                className="bg-[#012C61] hover:bg-[#004aad] text-white px-6 py-2 rounded-lg transition-colors duration-200"
+                onClick={handleAddCategory}
+              >
+                Add Category
+              </button>
+            </div>
+            
+            <div className="overflow-x-auto">
+              <table className="min-w-full bg-white border border-gray-200 rounded-lg text-sm">
           <thead>
             <tr>
               <th className="p-3 text-left font-semibold text-[#012C61] bg-gray-100 border-b">ID</th>
@@ -1529,9 +1951,14 @@ export default function RateDevelopments() {
                 </td>
               </tr>
             ))}
-          </tbody>
-        </table>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       </div>
+
+
     </AppLayout>
   );
 } 

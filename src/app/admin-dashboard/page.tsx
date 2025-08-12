@@ -162,6 +162,8 @@ export default function AdminDashboard() {
           <h2 className="text-xl font-semibold text-blue-900 mb-2">Rate Developments</h2>
           <p className="text-gray-700">Administer, update, and send alerts for rate developments.</p>
         </div>
+
+
       </div>
     </AppLayout>
   );
