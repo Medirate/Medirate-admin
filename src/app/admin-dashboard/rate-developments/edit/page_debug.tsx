@@ -10,10 +10,10 @@ import { supabase } from "@/lib/supabase";
 
 // Quick test page to debug the issue
 export default function EditPageTest() {
-  const [alerts, setAlerts] = useState([]);
-  const [bills, setBills] = useState([]);
+  const [alerts, setAlerts] = useState<any[]>([]);
+  const [bills, setBills] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
