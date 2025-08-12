@@ -133,13 +133,22 @@ TECHNICAL REQUIREMENTS:
 1. ALWAYS keep the exact header and footer structure above
 2. Customize ONLY the main content section based on the user's description
 3. Use the same styling, colors, and responsive design
-4. Return ONLY the complete HTML code, no explanations or markdown
+4. **CRITICAL**: Return ONLY raw HTML code - NO markdown formatting, NO backticks, NO code blocks, NO explanations
 5. Ensure the template is ready to use immediately
 6. Test all HTML for proper syntax and email client compatibility
 
+**RESPONSE FORMAT - ABSOLUTELY CRITICAL:**
+- Your response MUST contain ONLY the HTML code
+- Do NOT wrap in ```html or ``` or any markdown
+- Do NOT add any explanatory text before or after the HTML
+- Start immediately with <!DOCTYPE html> and end with </html>
+- The entire response should be pure, valid HTML that can be directly used
+
 The user wants: ${prompt}
 
-Create a template that would win awards at email marketing conferences and drive exceptional engagement rates.`;
+Create a template that would win awards at email marketing conferences and drive exceptional engagement rates.
+
+**REMEMBER**: Your entire response must be ONLY the HTML code - nothing else!`;
 
     const response = await fetch(OPENAI_API_URL, {
       method: 'POST',
@@ -152,7 +161,7 @@ Create a template that would win awards at email marketing conferences and drive
         messages: [
           {
             role: "system",
-            content: "You are a world-class email marketing specialist with 15+ years of experience in creating award-winning email campaigns for Fortune 500 companies. Your expertise spans psychology, design theory, conversion optimization, and modern email best practices."
+            content: "You are a world-class email marketing specialist with 15+ years of experience in creating award-winning email campaigns for Fortune 500 companies. Your expertise spans psychology, design theory, conversion optimization, and modern email best practices. CRITICAL: You MUST respond with ONLY raw HTML code - no markdown, no backticks, no explanations, no code blocks. Your entire response should be pure HTML starting with <!DOCTYPE html> and ending with </html>."
           },
           {
             role: "user",
@@ -200,13 +209,34 @@ Create a template that would win awards at email marketing conferences and drive
     console.log('AI Template Generation Response:', {
       status: response.status,
       statusText: response.statusText,
-      data: data
+      hasChoices: !!(data.choices && data.choices.length > 0),
+      firstChoiceContent: data.choices && data.choices[0] && data.choices[0].message ? 
+        data.choices[0].message.content.substring(0, 200) + '...' : 'No content'
     });
+    
+    // Log the raw response for debugging
+    if (data.choices && data.choices[0] && data.choices[0].message) {
+      console.log('Raw AI Response (first 500 chars):', data.choices[0].message.content.substring(0, 500));
+    }
 
     let htmlContent = "";
     if (data.choices && data.choices[0] && data.choices[0].message) {
       htmlContent = data.choices[0].message.content;
-      htmlContent = htmlContent.replace(/```html/g, '').replace(/```/g, '').trim();
+      
+      // Aggressive cleaning to remove any markdown formatting
+      htmlContent = htmlContent
+        .replace(/```html/gi, '')  // Remove opening code blocks
+        .replace(/```/g, '')       // Remove closing code blocks
+        .replace(/^html\s*/i, '')  // Remove standalone "html" at start
+        .replace(/^\s*```\s*/g, '') // Remove any remaining backticks at start
+        .replace(/\s*```\s*$/g, '') // Remove any remaining backticks at end
+        .trim();
+        
+      // Ensure it starts with DOCTYPE if it's valid HTML
+      if (htmlContent && !htmlContent.toLowerCase().startsWith('<!doctype')) {
+        // If it doesn't start with DOCTYPE but contains HTML structure, assume AI followed instructions
+        console.log("Warning: AI response doesn't start with DOCTYPE, but proceeding...");
+      }
     }
 
     if (!htmlContent) {
