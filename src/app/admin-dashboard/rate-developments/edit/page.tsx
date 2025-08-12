@@ -241,7 +241,7 @@ const getAlertServiceLines = (alert: Alert) => {
     alert.service_lines_impacted_2,
     alert.service_lines_impacted_3
   ]
-    .filter(line => line && line.toUpperCase() !== 'NULL');
+    .filter((line): line is string => !!line && line.toUpperCase() !== 'NULL');
   
   if (lines.length === 0) {
     return <span className="text-gray-400 italic">No service lines</span>;
@@ -270,7 +270,7 @@ const getBillServiceLines = (bill: Bill) => {
     bill.service_lines_impacted_2,
     bill.service_lines_impacted_3
   ]
-    .filter(line => line && line.toUpperCase() !== 'NULL');
+    .filter((line): line is string => !!line && line.toUpperCase() !== 'NULL');
   
   if (lines.length === 0) {
     return <span className="text-gray-400 italic">No service lines</span>;
@@ -917,7 +917,7 @@ export default function RateDevelopments() {
       bill.service_lines_impacted_2,
       bill.service_lines_impacted_3
     ]
-      .filter(line => line && line.toUpperCase() !== 'NULL');
+      .filter((line): line is string => !!line && line.toUpperCase() !== 'NULL');
     
     if (lines.length === 0) {
       return <span className="text-gray-400 italic">No service lines</span>;
