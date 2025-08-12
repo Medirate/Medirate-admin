@@ -106,6 +106,7 @@ const Navbar = () => {
     "/admin-dashboard/rate-developments/edit",
     "/admin-dashboard/rate-developments/update-database",
     "/admin-dashboard/rate-developments/send-email-alerts",
+    "/admin-dashboard/marketing-emails",
     "/rate-developments/email-alerts",
     "/support",
   ];

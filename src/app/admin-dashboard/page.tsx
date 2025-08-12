@@ -163,6 +163,15 @@ export default function AdminDashboard() {
           <p className="text-gray-700">Administer, update, and send alerts for rate developments.</p>
         </div>
 
+        {/* Marketing Emails Card */}
+        <div
+          className="bg-pink-50 rounded-xl shadow-lg p-6 mb-8 max-w-xl cursor-pointer hover:bg-pink-100 transition"
+          onClick={() => router.push("/admin-dashboard/marketing-emails")}
+        >
+          <h2 className="text-xl font-semibold text-pink-900 mb-2">Marketing Emails</h2>
+          <p className="text-gray-700">Create and manage marketing campaigns with AI-powered templates.</p>
+        </div>
+
 
       </div>
     </AppLayout>
