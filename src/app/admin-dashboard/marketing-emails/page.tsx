@@ -291,12 +291,29 @@ export default function MarketingEmailsAdminPage() {
 
   const loadEmailLists = async () => {
     try {
+      console.log("🔍 Loading email lists...");
       const response = await fetch("/api/admin/marketing-emails/list");
+      
+      console.log("📡 API Response status:", response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("❌ API Error:", response.status, errorText);
+        return false;
+      }
+      
       const json = await response.json();
+      console.log("📊 API Response data:", json);
+      
       setTestEmailList(json.testEmailList || []);
       setMarketingEmailList(json.marketingEmailList || []);
-    } catch {}
-    return true;
+      
+      console.log("✅ Email lists loaded successfully");
+      return true;
+    } catch (error) {
+      console.error("❌ Failed to load email lists:", error);
+      return false;
+    }
   };
 
   return (
