@@ -72,6 +72,11 @@ export default function MarketingEmailsAdminPage() {
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
   const [analyticsDays, setAnalyticsDays] = useState<number>(30);
 
+  // Bounced emails state
+  const [bouncedEmails, setBouncedEmails] = useState<any[]>([]);
+  const [bouncedLoading, setBouncedLoading] = useState<boolean>(false);
+  const [bouncedError, setBouncedError] = useState<string | null>(null);
+
   // Search state for both lists
   const [testEmailSearch, setTestEmailSearch] = useState<string>("");
   const [marketingEmailSearch, setMarketingEmailSearch] = useState<string>("");
@@ -534,21 +539,22 @@ export default function MarketingEmailsAdminPage() {
   const clearTestEmailSearch = () => setTestEmailSearch("");
   const clearMarketingEmailSearch = () => setMarketingEmailSearch("");
 
-  // Analytics functions
+  // Analytics functions - fetch real data from Brevo
   const fetchAnalytics = async (days: number = 30) => {
     setAnalyticsLoading(true);
     setAnalyticsError(null);
     
     try {
+      console.log('🔍 Fetching real analytics from Brevo...');
+      
+      // Call our backend API route which securely calls Brevo
       const response = await fetch('/api/admin/email-analytics', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          days: days,
-          limit: 100,
-          offset: 0
+          days: days
         })
       });
       
@@ -560,10 +566,12 @@ export default function MarketingEmailsAdminPage() {
       const data = await response.json();
       
       if (data.success) {
+        console.log('📊 Real analytics data received:', data.data);
         setAnalytics(data.data);
       } else {
         throw new Error(data.error || 'Failed to fetch analytics');
       }
+      
     } catch (error) {
       console.error('Analytics error:', error);
       setAnalyticsError(error instanceof Error ? error.message : 'Failed to fetch analytics');
@@ -572,9 +580,48 @@ export default function MarketingEmailsAdminPage() {
     }
   };
 
+  // Bounced emails functions
+  const fetchBouncedEmails = async (days: number = 30) => {
+    setBouncedLoading(true);
+    setBouncedError(null);
+    
+    try {
+      const response = await fetch('/api/admin/marketing-emails/bounced', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          days: days,
+          limit: 300,
+          offset: 0
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to fetch bounced emails: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setBouncedEmails(data.data.bouncedEmails);
+      } else {
+        throw new Error(data.error || 'Failed to fetch bounced emails');
+      }
+    } catch (error) {
+      console.error('Bounced emails error:', error);
+      setBouncedError(error instanceof Error ? error.message : 'Failed to fetch bounced emails');
+    } finally {
+      setBouncedLoading(false);
+    }
+  };
+
   // Load analytics when days change
   useEffect(() => {
     fetchAnalytics(analyticsDays);
+    fetchBouncedEmails(analyticsDays);
   }, [analyticsDays]);
 
   return (
@@ -1283,7 +1330,7 @@ export default function MarketingEmailsAdminPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-blue-600">Total Sent</p>
-                      <p className="text-2xl font-bold text-blue-900">{analytics.summary.totalSent.toLocaleString()}</p>
+                      <p className="text-2xl font-bold text-blue-900">{(analytics.summary.totalSent || 0).toLocaleString()}</p>
                     </div>
                     <div className="text-blue-500">📧</div>
                   </div>
@@ -1293,8 +1340,8 @@ export default function MarketingEmailsAdminPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-green-600">Opened</p>
-                      <p className="text-2xl font-bold text-green-900">{analytics.summary.totalOpened.toLocaleString()}</p>
-                      <p className="text-sm text-green-600">{analytics.summary.openRate.toFixed(1)}% rate</p>
+                      <p className="text-2xl font-bold text-green-900">{(analytics.summary.totalOpened || 0).toLocaleString()}</p>
+                      <p className="text-sm text-green-600">{(analytics.summary.openRate || 0).toFixed(1)}% rate</p>
                     </div>
                     <div className="text-green-500">📖</div>
                   </div>
@@ -1304,8 +1351,8 @@ export default function MarketingEmailsAdminPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-purple-600">Clicked</p>
-                      <p className="text-2xl font-bold text-purple-900">{analytics.summary.totalClicked.toLocaleString()}</p>
-                      <p className="text-sm text-purple-600">{analytics.summary.clickRate.toFixed(1)}% rate</p>
+                      <p className="text-2xl font-bold text-purple-900">{(analytics.summary.totalClicked || 0).toLocaleString()}</p>
+                      <p className="text-sm text-purple-600">{(analytics.summary.clickRate || 0).toFixed(1)}% rate</p>
                     </div>
                     <div className="text-purple-500">🖱️</div>
                   </div>
@@ -1315,8 +1362,8 @@ export default function MarketingEmailsAdminPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-red-600">Bounced</p>
-                      <p className="text-2xl font-bold text-red-900">{analytics.summary.totalBounced.toLocaleString()}</p>
-                      <p className="text-sm text-red-600">{analytics.summary.bounceRate.toFixed(1)}% rate</p>
+                      <p className="text-2xl font-bold text-red-900">{(analytics.summary.totalBounced || 0).toLocaleString()}</p>
+                      <p className="text-sm text-red-600">{(analytics.summary.bounceRate || 0).toFixed(1)}% rate</p>
                     </div>
                     <div className="text-red-500">⚠️</div>
                   </div>
@@ -1332,12 +1379,37 @@ export default function MarketingEmailsAdminPage() {
                 
                 {/* Email Engagement Pie Chart */}
                 {(() => {
-                  const total = analytics.summary.totalSent;
-                  const opened = analytics.summary.totalOpened;
-                  const clicked = analytics.summary.totalClicked;
+                  const total = analytics.summary.totalSent || 0;
+                  const opened = analytics.summary.totalOpened || 0;
+                  const clicked = analytics.summary.totalClicked || 0;
+                  const bounced = analytics.summary.totalBounced || 0;
+                  
+                  // Check if we have any real data to show
+                  if (total === 0 && opened === 0 && clicked === 0 && bounced === 0) {
+                    // No data available - show empty state
+                    return (
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                        <div className="flex flex-col">
+                          <h5 className="text-md font-medium text-gray-700 mb-4">📊 Email Engagement Breakdown</h5>
+                          <div className="bg-white rounded-lg p-8 shadow-sm border-2 border-dashed border-gray-300">
+                            <div className="text-center">
+                              <div className="text-gray-400 text-6xl mb-4">📊</div>
+                              <h6 className="text-lg font-medium text-gray-600 mb-2">No Email Activity</h6>
+                              <p className="text-sm text-gray-500 mb-4">
+                                No emails were sent or tracked in the last {analyticsDays} days.
+                              </p>
+                              <div className="text-xs text-gray-400 bg-gray-50 p-3 rounded-lg">
+                                <strong>Note:</strong> This dashboard shows real-time data from Brevo. 
+                                Send some emails to see analytics here.
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
                   
                   // Calculate all engagement states properly
-                  const bounced = analytics.summary.totalBounced;
                   const delivered = total - bounced; // Actually delivered emails
                   const openedNotClicked = Math.max(0, opened - clicked);
                   const notOpened = delivered - Math.max(opened, clicked); // Delivered but not opened
@@ -1399,7 +1471,7 @@ export default function MarketingEmailsAdminPage() {
                         data: [
                           {
                             value: clicked,
-                            name: `Clicked (${clicked}) - ${analytics.summary.clickRate.toFixed(1)}%`,
+                            name: `Clicked (${clicked}) - ${(analytics.summary.clickRate || 0).toFixed(1)}%`,
                             itemStyle: { 
                               color: '#10b981',
                               borderColor: '#ffffff',
@@ -1408,7 +1480,7 @@ export default function MarketingEmailsAdminPage() {
                           },
                           ...(openedNotClicked > 0 ? [{
                             value: openedNotClicked,
-                            name: `Opened Only (${openedNotClicked}) - ${((openedNotClicked / total) * 100).toFixed(1)}%`,
+                            name: `Opened Only (${openedNotClicked}) - ${total > 0 ? ((openedNotClicked / total) * 100).toFixed(1) : '0.0'}%`,
                             itemStyle: { 
                               color: '#6b7280',
                               borderColor: '#ffffff',
@@ -1417,7 +1489,7 @@ export default function MarketingEmailsAdminPage() {
                           }] : []),
                           {
                             value: notOpened,
-                            name: `Not Opened (${notOpened}) - ${((notOpened / total) * 100).toFixed(1)}%`,
+                            name: `Not Opened (${notOpened}) - ${total > 0 ? ((notOpened / total) * 100).toFixed(1) : '0.0'}%`,
                             itemStyle: { 
                               color: '#f59e0b',
                               borderColor: '#ffffff',
@@ -1426,7 +1498,7 @@ export default function MarketingEmailsAdminPage() {
                           },
                           {
                             value: bounced,
-                            name: `Bounced (${bounced}) - ${analytics.summary.bounceRate.toFixed(1)}%`,
+                            name: `Bounced (${bounced}) - ${(analytics.summary.bounceRate || 0).toFixed(1)}%`,
                             itemStyle: { 
                               color: '#dc2626',
                               borderColor: '#ffffff',
@@ -1460,7 +1532,7 @@ export default function MarketingEmailsAdminPage() {
                                 <span className="text-sm font-medium text-gray-700">Clicked</span>
                               </div>
                               <div className="text-right">
-                                <div className="text-lg font-bold" style={{ color: '#10b981' }}>{analytics.summary.clickRate.toFixed(1)}%</div>
+                                <div className="text-lg font-bold" style={{ color: '#10b981' }}>{clicked > 0 ? (analytics.summary.clickRate || 0).toFixed(1) : '0.0'}%</div>
                                 <div className="text-xs text-gray-500">{clicked} emails</div>
                               </div>
                             </div>
@@ -1472,7 +1544,7 @@ export default function MarketingEmailsAdminPage() {
                                   <span className="text-sm font-medium text-gray-700">Opened Only</span>
                                 </div>
                                 <div className="text-right">
-                                  <div className="text-lg font-bold" style={{ color: '#6b7280' }}>{((openedNotClicked / total) * 100).toFixed(1)}%</div>
+                                  <div className="text-lg font-bold" style={{ color: '#6b7280' }}>{total > 0 ? ((openedNotClicked / total) * 100).toFixed(1) : '0.0'}%</div>
                                   <div className="text-xs text-gray-500">{openedNotClicked} emails</div>
                                 </div>
                               </div>
@@ -1484,7 +1556,7 @@ export default function MarketingEmailsAdminPage() {
                                 <span className="text-sm font-medium text-gray-700">Not Opened</span>
                               </div>
                               <div className="text-right">
-                                <div className="text-lg font-bold" style={{ color: '#f59e0b' }}>{((notOpened / total) * 100).toFixed(1)}%</div>
+                                <div className="text-lg font-bold" style={{ color: '#f59e0b' }}>{total > 0 ? ((notOpened / total) * 100).toFixed(1) : '0.0'}%</div>
                                 <div className="text-xs text-gray-500">{notOpened} emails</div>
                               </div>
                             </div>
@@ -1495,7 +1567,7 @@ export default function MarketingEmailsAdminPage() {
                                 <span className="text-sm font-medium text-gray-700">Bounced</span>
                               </div>
                               <div className="text-right">
-                                <div className="text-lg font-bold" style={{ color: '#dc2626' }}>{analytics.summary.bounceRate.toFixed(1)}%</div>
+                                <div className="text-lg font-bold" style={{ color: '#dc2626' }}>{bounced > 0 ? (analytics.summary.bounceRate || 0).toFixed(1) : '0.0'}%</div>
                                 <div className="text-xs text-gray-500">{bounced} emails</div>
                               </div>
                             </div>
@@ -1507,9 +1579,11 @@ export default function MarketingEmailsAdminPage() {
                               <span className="text-sm font-semibold text-blue-800">Analytics Insight</span>
                             </div>
                             <div className="text-xs text-blue-700 leading-relaxed">
-                              {clicked > opened ? 
+                              {total === 0 ? 
+                                `📊 No email activity detected in the last ${analyticsDays} days. Send some emails to start tracking engagement metrics.` :
+                                clicked > opened ? 
                                 `📈 Exceptional engagement: ${clicked} clicks from ${opened} opens. This indicates high link engagement even when tracking pixels are blocked.` :
-                                `📊 Standard engagement pattern: ${opened} opens generated ${clicked} clicks, resulting in a ${analytics.summary.clickRate.toFixed(1)}% click rate.`
+                                `📊 Standard engagement pattern: ${opened} opens generated ${clicked} clicks, resulting in a ${(analytics.summary.clickRate || 0).toFixed(1)}% click rate.`
                               }
                             </div>
                           </div>
@@ -1635,6 +1709,155 @@ export default function MarketingEmailsAdminPage() {
               >
                 Load Analytics
               </button>
+            </div>
+          )}
+        </div>
+
+        {/* Bounced Emails Section */}
+        <div className="bg-white rounded-xl shadow p-6 mb-10">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-semibold text-[#012C61]">🚫 Bounced Emails</h3>
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={() => fetchBouncedEmails(analyticsDays)}
+                disabled={bouncedLoading}
+                className="px-4 py-2 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 disabled:bg-gray-400 flex items-center space-x-2"
+              >
+                {bouncedLoading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>Loading...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>🔄</span>
+                    <span>Refresh Bounced</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {bouncedError && (
+            <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
+              <div className="flex items-center">
+                <span className="text-red-600 mr-2">❌</span>
+                <span className="text-red-700">{bouncedError}</span>
+              </div>
+              <p className="text-sm text-red-600 mt-2">
+                Failed to fetch bounced emails from Brevo. Check your API configuration.
+              </p>
+            </div>
+          )}
+
+          {bouncedEmails.length > 0 && (
+            <div className="space-y-4">
+              {/* Summary */}
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-lg font-semibold text-red-800 mb-2">⚠️ Bounced Email Summary</h4>
+                    <p className="text-sm text-red-700">
+                      Found <strong>{bouncedEmails.length}</strong> unique email addresses that bounced in the last {analyticsDays} days.
+                      These emails should be removed from your mailing lists to maintain good deliverability.
+                    </p>
+                  </div>
+                  <div className="text-red-500 text-4xl">📧</div>
+                </div>
+              </div>
+
+              {/* Bounced Emails Table */}
+              <div className="overflow-x-auto">
+                <table className="min-w-full bg-white border border-gray-200 rounded-lg">
+                  <thead className="bg-red-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-red-700 uppercase tracking-wider">Email Address</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-red-700 uppercase tracking-wider">Bounce Type</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-red-700 uppercase tracking-wider">Count</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-red-700 uppercase tracking-wider">Latest Bounce</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-red-700 uppercase tracking-wider">Reason</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-red-700 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {bouncedEmails.slice(0, 50).map((bounce: any, index: number) => (
+                      <tr key={index} className="hover:bg-red-50">
+                        <td className="px-4 py-3 text-sm text-gray-900 font-medium">{bounce.email}</td>
+                        <td className="px-4 py-3 text-sm">
+                          <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
+                            bounce.bounceTypes.includes('Hard Bounce') 
+                              ? 'bg-red-100 text-red-800' 
+                              : 'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {bounce.bounceTypes.join(', ')}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-900">{bounce.bounceCount}</td>
+                        <td className="px-4 py-3 text-sm text-gray-500">
+                          {new Date(bounce.latestBounce.date).toLocaleDateString()}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-700 max-w-xs truncate" title={bounce.reasons.join(', ')}>
+                          {bounce.reasons.join(', ')}
+                        </td>
+                        <td className="px-4 py-3 text-sm">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleDeleteEmail("test_email_list", bounce.email)}
+                              className="text-red-600 hover:text-red-800 text-xs bg-red-50 hover:bg-red-100 px-2 py-1 rounded"
+                              title="Remove from test list"
+                            >
+                              Remove from Test
+                            </button>
+                            <button
+                              onClick={() => handleDeleteEmail("marketing_email_list", bounce.email)}
+                              className="text-red-600 hover:text-red-800 text-xs bg-red-50 hover:bg-red-100 px-2 py-1 rounded"
+                              title="Remove from marketing list"
+                            >
+                              Remove from Marketing
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {bouncedEmails.length > 50 && (
+                <div className="text-center py-4 text-gray-500 text-sm">
+                  Showing first 50 of {bouncedEmails.length} bounced emails
+                </div>
+              )}
+
+              {/* Bounce Types Info */}
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mt-6">
+                <h5 className="text-sm font-semibold text-gray-700 mb-2">📋 Bounce Types Explained</h5>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <strong className="text-red-700">Hard Bounce:</strong>
+                    <p className="text-gray-600">Permanent delivery failure. Email address doesn't exist or domain is invalid. Remove immediately.</p>
+                  </div>
+                  <div>
+                    <strong className="text-yellow-700">Soft Bounce:</strong>
+                    <p className="text-gray-600">Temporary delivery failure. Mailbox full, server down, etc. Monitor and remove if it persists.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {bouncedLoading && (
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading bounced emails...</p>
+            </div>
+          )}
+
+          {!bouncedLoading && bouncedEmails.length === 0 && !bouncedError && (
+            <div className="text-center py-12">
+              <div className="text-green-500 text-6xl mb-4">✅</div>
+              <p className="text-gray-600 mb-4">No bounced emails found in the last {analyticsDays} days!</p>
+              <p className="text-sm text-gray-500">This is good - it means your email list is clean and your deliverability is healthy.</p>
             </div>
           )}
         </div>

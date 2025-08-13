@@ -2,65 +2,29 @@ import { NextRequest, NextResponse } from "next/server";
 
 const BREVO_API_KEY = process.env.BREVO_API_KEY;
 
-interface BrevoEmailEvent {
-  event: string;
-  email: string;
-  id: number;
-  date: string;
-  ts: number;
-  'message-id': string;
-  ts_event: number;
-  subject: string;
-  tag?: string;
-  sending_ip?: string;
-  ts_epoch: number;
-  tags?: string[];
-}
-
-interface EmailStatsSummary {
-  totalSent: number;
-  totalOpened: number;
-  totalClicked: number;
-  totalBounced: number;
-  openRate: number;
-  clickRate: number;
-  bounceRate: number;
-}
-
 export async function POST(req: NextRequest) {
   try {
-    // For now, let's skip the admin check to test the Brevo integration
-    // TODO: Re-enable admin check once we confirm the analytics work
-    console.log("📊 Email analytics request received");
-
     if (!BREVO_API_KEY) {
-      return NextResponse.json(
-        { error: "Brevo API key not configured" },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Brevo API key not configured" }, { status: 500 });
     }
-
-    console.log("📊 Starting email analytics fetch...");
 
     // Get parameters from request body
     const body = await req.json();
     const days = parseInt(body.days?.toString() || '30');
-    const limit = parseInt(body.limit?.toString() || '100');
-    const offset = parseInt(body.offset?.toString() || '0');
 
     // Calculate date range
     const endDate = new Date();
     const startDate = new Date();
     startDate.setDate(endDate.getDate() - days);
 
-    console.log(`📅 Date range: ${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`);
+    console.log(`📅 Fetching analytics for date range: ${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`);
 
-    // Get aggregated statistics (this works!)
+    // Call Brevo's aggregated report endpoint for real analytics data
     const aggregatedUrl = new URL('https://api.brevo.com/v3/smtp/statistics/aggregatedReport');
     aggregatedUrl.searchParams.set('startDate', startDate.toISOString().split('T')[0]);
     aggregatedUrl.searchParams.set('endDate', endDate.toISOString().split('T')[0]);
 
-    console.log("📈 Fetching aggregated stats from:", aggregatedUrl.toString());
+    console.log('🔍 Fetching from Brevo aggregated report:', aggregatedUrl.toString());
 
     const aggregatedResponse = await fetch(aggregatedUrl.toString(), {
       method: 'GET',
@@ -70,26 +34,25 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    let aggregatedData = null;
+    let aggregatedError = null;
+
     if (!aggregatedResponse.ok) {
       const errorText = await aggregatedResponse.text();
-      console.error("❌ Aggregated stats error:", aggregatedResponse.status, errorText);
-      return NextResponse.json(
-        { error: `Brevo aggregated stats error: ${aggregatedResponse.status} ${errorText}` },
-        { status: aggregatedResponse.status }
-      );
+      console.error("❌ Brevo aggregated report API error:", aggregatedResponse.status, errorText);
+      aggregatedError = `Brevo API error: ${aggregatedResponse.status} ${errorText}`;
+    } else {
+      aggregatedData = await aggregatedResponse.json();
+      console.log(`✅ Retrieved aggregated data from Brevo:`, aggregatedData);
     }
 
-    const aggregatedData = await aggregatedResponse.json();
-    console.log("✅ Retrieved aggregated stats:", aggregatedData);
-
-    // Get recent events (this also works!)
+    // Also get recent events for daily breakdown
     const eventsUrl = new URL('https://api.brevo.com/v3/smtp/statistics/events');
-    eventsUrl.searchParams.set('limit', Math.min(limit, 50).toString());
-    eventsUrl.searchParams.set('offset', offset.toString());
+    eventsUrl.searchParams.set('limit', '100');
     eventsUrl.searchParams.set('startDate', startDate.toISOString().split('T')[0]);
     eventsUrl.searchParams.set('endDate', endDate.toISOString().split('T')[0]);
 
-    console.log("🔍 Fetching recent events from:", eventsUrl.toString());
+    console.log('🔍 Fetching events from Brevo:', eventsUrl.toString());
 
     const eventsResponse = await fetch(eventsUrl.toString(), {
       method: 'GET',
@@ -99,102 +62,57 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    let events = [];
+    let eventsData = null;
     let eventsError = null;
 
     if (!eventsResponse.ok) {
       const errorText = await eventsResponse.text();
-      console.error("❌ Events API error:", eventsResponse.status, errorText);
-      eventsError = `Events API error: ${eventsResponse.status} ${errorText}`;
+      console.error("❌ Brevo events API error:", eventsResponse.status, errorText);
+      eventsError = `Brevo events API error: ${eventsResponse.status} ${errorText}`;
     } else {
-      const eventsData = await eventsResponse.json();
-      events = eventsData.events || [];
-      console.log(`✅ Retrieved ${events.length} recent events`);
+      eventsData = await eventsResponse.json();
+      console.log(`✅ Retrieved events data from Brevo:`, eventsData);
     }
 
-    // Use aggregated data for summary statistics
-    const summary: EmailStatsSummary = {
-      totalSent: aggregatedData.requests || 0,
-      totalOpened: aggregatedData.opens || 0,
-      totalClicked: aggregatedData.clicks || 0,
-      totalBounced: (aggregatedData.hardBounces || 0) + (aggregatedData.softBounces || 0),
-      openRate: aggregatedData.requests > 0 ? ((aggregatedData.opens || 0) / aggregatedData.requests) * 100 : 0,
-      clickRate: aggregatedData.requests > 0 ? ((aggregatedData.clicks || 0) / aggregatedData.requests) * 100 : 0,
-      bounceRate: aggregatedData.requests > 0 ? (((aggregatedData.hardBounces || 0) + (aggregatedData.softBounces || 0)) / aggregatedData.requests) * 100 : 0,
+    // Process daily stats from events
+    const dailyStats = processDailyStats(eventsData?.events || [], startDate, endDate);
+
+    // Create analytics response
+    const analytics = {
+      summary: {
+        totalSent: aggregatedData?.requests || 0,
+        totalOpened: aggregatedData?.opens || 0,
+        totalClicked: aggregatedData?.clicks || 0,
+        totalBounced: aggregatedData?.bounces || 0,
+        openRate: aggregatedData?.requests > 0 ? ((aggregatedData.opens / aggregatedData.requests) * 100) : 0,
+        clickRate: aggregatedData?.requests > 0 ? ((aggregatedData.clicks / aggregatedData.requests) * 100) : 0,
+        bounceRate: aggregatedData?.requests > 0 ? ((aggregatedData.bounces / aggregatedData.requests) * 100) : 0,
+      },
+      dailyStats: dailyStats,
+      recentEmails: eventsData?.events?.slice(0, 10) || [],
+      dateRange: {
+        startDate: startDate.toISOString().split('T')[0],
+        endDate: endDate.toISOString().split('T')[0],
+        days
+      },
+      debug: {
+        aggregatedError,
+        eventsError,
+        message: aggregatedError || eventsError ? "Some data unavailable" : "All data retrieved successfully"
+      }
     };
 
-    // Process recent events for the activity table
-    const recentEmails = events.slice(0, 20).map((event: any) => ({
-      event: event.event || 'unknown',
-      email: event.email || 'Unknown',
-      subject: event.subject || 'N/A',
-      date: event.date || new Date().toISOString(),
-      ts: new Date(event.date || new Date()).getTime() / 1000
-    }));
-
-    // Since Brevo aggregated data doesn't provide daily breakdowns,
-    // let's create charts based on the real events we have instead
-    const eventsByDate: { [date: string]: { opens: number; clicks: number; other: number } } = {};
-    
-    events.forEach((event: any) => {
-      const eventDate = event.date ? event.date.split('T')[0] : new Date().toISOString().split('T')[0];
-      if (!eventsByDate[eventDate]) {
-        eventsByDate[eventDate] = { opens: 0, clicks: 0, other: 0 };
-      }
-      
-      switch (event.event?.toLowerCase()) {
-        case 'opened':
-        case 'unique_opened':
-          eventsByDate[eventDate].opens++;
-          break;
-        case 'clicked':
-        case 'clicks':
-        case 'unique_clicked':
-          eventsByDate[eventDate].clicks++;
-          break;
-        default:
-          eventsByDate[eventDate].other++;
-          break;
-      }
-    });
-
-    // Convert to chart data - only show days with actual events
-    const chartData = Object.keys(eventsByDate)
-      .sort()
-      .slice(-7) // Last 7 days with activity
-      .map(date => ({
-        date,
-        sent: 0, // We don't have daily send data from aggregated endpoint
-        opened: eventsByDate[date].opens,
-        clicked: eventsByDate[date].clicks,
-        bounced: 0 // We don't have daily bounce data
-      }));
-
     console.log("✅ Analytics processed successfully:", {
-      summary,
-      eventsCount: events.length,
-      aggregatedData
+      summary: analytics.summary,
+      dailyStatsCount: dailyStats.length,
+      recentEmailsCount: analytics.recentEmails.length,
+      aggregatedError,
+      eventsError
     });
 
     return NextResponse.json({
       success: true,
-      data: {
-        summary,
-        dailyStats: chartData,
-        recentEmails: recentEmails,
-        aggregatedStats: aggregatedData,
-        totalEvents: events.length,
-        dateRange: {
-          startDate: startDate.toISOString().split('T')[0],
-          endDate: endDate.toISOString().split('T')[0],
-          days
-        },
-        debug: {
-          aggregatedData,
-          eventsError,
-          message: eventsError ? "Events data not available, using aggregated stats only" : "Using real data from Brevo"
-        }
-      }
+      data: analytics
     });
 
   } catch (error) {
@@ -204,4 +122,46 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+// Helper function to process daily stats from events
+function processDailyStats(events: any[], startDate: Date, endDate: Date) {
+  const dailyStats: { [key: string]: { sent: number; opened: number; clicked: number; bounced: number } } = {};
+  
+  // Initialize all dates in range
+  const currentDate = new Date(startDate);
+  while (currentDate <= endDate) {
+    const dateKey = currentDate.toISOString().split('T')[0];
+    dailyStats[dateKey] = { sent: 0, opened: 0, clicked: 0, bounced: 0 };
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+
+  // Process events
+  events.forEach((event: any) => {
+    const eventDate = event.date?.split('T')[0];
+    if (eventDate && dailyStats[eventDate]) {
+      switch (event.event) {
+        case 'sent':
+        case 'delivered':
+          dailyStats[eventDate].sent++;
+          break;
+        case 'opened':
+          dailyStats[eventDate].opened++;
+          break;
+        case 'clicked':
+          dailyStats[eventDate].clicked++;
+          break;
+        case 'bounce':
+        case 'blocked':
+          dailyStats[eventDate].bounced++;
+          break;
+      }
+    }
+  });
+
+  // Convert to array format
+  return Object.entries(dailyStats).map(([date, stats]) => ({
+    date,
+    ...stats
+  }));
 }
