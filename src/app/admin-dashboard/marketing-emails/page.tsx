@@ -31,6 +31,10 @@ export default function MarketingEmailsAdminPage() {
   } | null>(null);
   const [isPromptMode, setIsPromptMode] = useState<boolean>(false);
 
+  // Search state for both lists
+  const [testEmailSearch, setTestEmailSearch] = useState<string>("");
+  const [marketingEmailSearch, setMarketingEmailSearch] = useState<string>("");
+
   // State for adding new emails
   const [newTestEmail, setNewTestEmail] = useState({
     email: "",
@@ -462,6 +466,33 @@ export default function MarketingEmailsAdminPage() {
     }
   };
 
+  // Search filtering functions
+  const getFilteredTestEmails = () => {
+    if (!testEmailSearch.trim()) return testEmailList;
+    
+    const searchTerm = testEmailSearch.toLowerCase();
+    return testEmailList.filter(item => 
+      item.email.toLowerCase().includes(searchTerm) ||
+      item.firstname.toLowerCase().includes(searchTerm) ||
+      item.lastname.toLowerCase().includes(searchTerm)
+    );
+  };
+
+  const getFilteredMarketingEmails = () => {
+    if (!marketingEmailSearch.trim()) return marketingEmailList;
+    
+    const searchTerm = marketingEmailSearch.toLowerCase();
+    return marketingEmailList.filter(item => 
+      item.email.toLowerCase().includes(searchTerm) ||
+      item.firstname.toLowerCase().includes(searchTerm) ||
+      item.lastname.toLowerCase().includes(searchTerm)
+    );
+  };
+
+  // Clear search functions
+  const clearTestEmailSearch = () => setTestEmailSearch("");
+  const clearMarketingEmailSearch = () => setMarketingEmailSearch("");
+
   return (
     <AppLayout activeTab="adminDashboard">
       <div className="p-8 min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
@@ -474,12 +505,27 @@ export default function MarketingEmailsAdminPage() {
 
         {/* Email Lists Management Section */}
         <div className="bg-white rounded-xl shadow p-6 mb-10">
-          <h3 className="text-xl font-semibold text-[#012C61] mb-4">Manage Email Lists</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-semibold text-[#012C61]">Manage Email Lists</h3>
+            {(testEmailSearch || marketingEmailSearch) && (
+              <button
+                onClick={() => {
+                  clearTestEmailSearch();
+                  clearMarketingEmailSearch();
+                }}
+                className="px-3 py-1 text-sm text-gray-600 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+              >
+                🗑️ Clear All Searches
+              </button>
+            )}
+          </div>
           
           {/* Test Email List */}
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">
-              <h4 className="text-lg font-medium text-gray-700">Test Email List ({testEmailList.length} emails)</h4>
+              <h4 className="text-lg font-medium text-gray-700">
+                Test Email List ({testEmailSearch ? `${getFilteredTestEmails().length}/${testEmailList.length}` : testEmailList.length} emails)
+              </h4>
               <div className="text-sm text-gray-500">Click on any field to edit</div>
             </div>
             
@@ -522,6 +568,39 @@ export default function MarketingEmailsAdminPage() {
               </div>
             </div>
 
+            {/* Search Test Email List */}
+            <div className="mb-4">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="🔍 Search test emails by email, first name, or last name..."
+                  className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  value={testEmailSearch}
+                  onChange={(e) => setTestEmailSearch(e.target.value)}
+                />
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+                {testEmailSearch && (
+                  <button
+                    onClick={clearTestEmailSearch}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                  >
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+              {testEmailSearch && (
+                <div className="mt-2 text-sm text-gray-600">
+                  Showing {getFilteredTestEmails().length} of {testEmailList.length} test emails
+                </div>
+              )}
+            </div>
+
             {/* Test Email List Table */}
             <div className="overflow-x-auto">
               <table className="min-w-full bg-white border border-gray-200 rounded-lg">
@@ -534,7 +613,7 @@ export default function MarketingEmailsAdminPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {testEmailList.map((item, index) => (
+                  {getFilteredTestEmails().map((item, index) => (
                     <tr key={item.email} className="hover:bg-gray-50">
                       {editingEmail?.table === "test_email_list" && editingEmail?.email === item.email ? (
                         // Edit mode
@@ -606,10 +685,10 @@ export default function MarketingEmailsAdminPage() {
                       )}
                     </tr>
                   ))}
-                  {testEmailList.length === 0 && (
+                  {getFilteredTestEmails().length === 0 && (
                     <tr>
                       <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
-                        No test emails yet. Add one using the form above.
+                        {testEmailSearch ? `No test emails found matching "${testEmailSearch}"` : "No test emails yet. Add one using the form above."}
                       </td>
                     </tr>
                   )}
@@ -621,7 +700,9 @@ export default function MarketingEmailsAdminPage() {
           {/* Marketing Email List */}
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">
-              <h4 className="text-lg font-medium text-gray-700">Marketing Email List ({marketingEmailList.length} emails)</h4>
+              <h4 className="text-lg font-medium text-gray-700">
+                Marketing Email List ({marketingEmailSearch ? `${getFilteredMarketingEmails().length}/${marketingEmailList.length}` : marketingEmailList.length} emails)
+              </h4>
               <div className="text-sm text-gray-500">Click on any field to edit</div>
             </div>
             
@@ -664,6 +745,39 @@ export default function MarketingEmailsAdminPage() {
               </div>
             </div>
 
+            {/* Search Marketing Email List */}
+            <div className="mb-4">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="🔍 Search marketing emails by email, first name, or last name..."
+                  className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  value={marketingEmailSearch}
+                  onChange={(e) => setMarketingEmailSearch(e.target.value)}
+                />
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+                {marketingEmailSearch && (
+                  <button
+                    onClick={clearMarketingEmailSearch}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                  >
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+              {marketingEmailSearch && (
+                <div className="mt-2 text-sm text-gray-600">
+                  Showing {getFilteredMarketingEmails().length} of {marketingEmailList.length} marketing emails
+                </div>
+              )}
+            </div>
+
             {/* Marketing Email List Table */}
             <div className="overflow-x-auto max-h-96 overflow-y-auto border border-gray-200 rounded-lg">
               <table className="min-w-full bg-white">
@@ -676,7 +790,7 @@ export default function MarketingEmailsAdminPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {marketingEmailList.map((item, index) => (
+                  {getFilteredMarketingEmails().map((item, index) => (
                     <tr key={item.email} className="hover:bg-gray-50">
                       {editingEmail?.table === "marketing_email_list" && editingEmail?.email === item.email ? (
                         // Edit mode
@@ -748,10 +862,10 @@ export default function MarketingEmailsAdminPage() {
                       )}
                     </tr>
                   ))}
-                  {marketingEmailList.length === 0 && (
+                  {getFilteredMarketingEmails().length === 0 && (
                     <tr>
                       <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
-                        No marketing emails yet. Add one using the form above.
+                        {marketingEmailSearch ? `No marketing emails found matching "${marketingEmailSearch}"` : "No marketing emails yet. Add one using the form above."}
                       </td>
                     </tr>
                   )}
