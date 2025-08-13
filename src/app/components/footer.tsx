@@ -46,6 +46,7 @@ const Footer = () => {
           width={80}
           height={80}
           priority
+          style={{ width: '80px', height: 'auto' }}
         />
       </div>
     </footer>

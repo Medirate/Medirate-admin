@@ -25,14 +25,22 @@ export async function validateAdminAuth(): Promise<{ user: any; error: NextRespo
       .from("admin_users")
       .select("*")
       .eq("email", user.email)
-      .eq("is_active", true)
       .single();
 
     if (adminError || !adminData) {
-      console.warn(`🚨 Admin access denied for user: ${user.email}`);
+      console.warn(`🚨 Admin access denied for user: ${user.email}`, adminError);
       return {
         user: null,
         error: NextResponse.json({ error: "Forbidden - Admin privileges required" }, { status: 403 })
+      };
+    }
+
+    // Check if user is active (if is_active field exists)
+    if (adminData.is_active === false) {
+      console.warn(`🚨 Admin access denied - user is inactive: ${user.email}`);
+      return {
+        user: null,
+        error: NextResponse.json({ error: "Forbidden - Admin account is inactive" }, { status: 403 })
       };
     }
 
