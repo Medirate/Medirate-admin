@@ -401,14 +401,19 @@ export async function GET(request: Request) {
     }
     if (serviceCode) {
       if (serviceCode.includes(',')) {
-        // Multi-select service codes are now handled by frontend union approach
-        // This API endpoint will no longer receive multi-select service codes
-        return NextResponse.json({ 
-          error: 'Multi-select service codes should be handled by frontend union approach' 
-        }, { status: 400 });
+        // Handle multi-select service codes
+        const serviceCodes = serviceCode.split(',').map(code => code.trim()).filter(code => code.length > 0);
+        console.log(`🔍 API Debug - Multi-select service codes: "${serviceCode}" → [${serviceCodes.join(', ')}]`);
+        
+        if (serviceCodes.length > 0) {
+          // Use OR condition for multiple service codes with ILIKE for each
+          const orConditions = serviceCodes.map(code => `service_code.ilike.%${code}%`).join(',');
+          query = query.or(orConditions);
+          console.log(`🔍 API Debug - Using OR condition: ${orConditions}`);
+        }
       } else {
         const trimmedCode = serviceCode.trim();
-        console.log(`🔍 API Debug - Service code filtering: "${serviceCode}" → "${trimmedCode}"`);
+        console.log(`🔍 API Debug - Single service code filtering: "${serviceCode}" → "${trimmedCode}"`);
         
         // Test different approaches to find the service code
         // First try exact match

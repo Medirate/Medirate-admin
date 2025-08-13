@@ -1031,8 +1031,12 @@ export default function Dashboard() {
             if (key === filterKey || key === 'fee_schedule_date') return true;
             if (!value) return true;
             
-            // Handle multi-select values (arrays) vs single values (strings)
-            if (Array.isArray(value)) {
+            // Handle multi-select values (comma-separated strings) vs single values (strings)
+            if (typeof value === 'string' && value.includes(',')) {
+              // Handle comma-separated multi-select values
+              const selectedValues = value.split(',').map(v => v.trim());
+              return selectedValues.includes(combo[key]);
+            } else if (Array.isArray(value)) {
               return value.includes(combo[key]);
             } else {
               return combo[key] === value;
@@ -1494,10 +1498,12 @@ export default function Dashboard() {
                   <Select
                     instanceId="service_code_select"
                     options={availableServiceCodes.map(o => ({ value: o, label: o }))}
-                    value={selections.service_code ? { value: selections.service_code, label: selections.service_code } : null}
-                    onChange={(option) => handleSelectionChange('service_code', option?.value || null)}
-                    placeholder="Select Service Code"
+                    value={selections.service_code ? selections.service_code.split(',').map(code => ({ value: code.trim(), label: code.trim() })) : null}
+                    onChange={(options) => handleSelectionChange('service_code', options ? options.map(opt => opt.value).join(',') : null)}
+                    placeholder="Select Service Code(s)"
+                    isMulti
                     isClearable
+                    isSearchable
                     isDisabled={!selections.service_category || !selections.state_name || availableServiceCodes.length === 0}
                     className={clsx("react-select-container", pendingFilters.has('service_code') ? 'pending-outline' : 'applied-outline')}
                     classNamePrefix="react-select"

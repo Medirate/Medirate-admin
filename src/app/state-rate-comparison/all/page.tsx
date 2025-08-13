@@ -1289,26 +1289,53 @@ export default function StatePaymentComparison() {
         if (filterSet.serviceCode && item.service_code?.trim() !== filterSet.serviceCode.trim()) return false;
         if (filterSet.serviceDescription && item.service_description?.trim() !== filterSet.serviceDescription.trim()) return false;
         
-        // Optional refinement filters from selections object (if set by user)
-        if (selections.program && selections.program !== '-') {
+        // Apply filterSet-specific program filter first (takes priority)
+        if (filterSet.program && filterSet.program !== '-') {
+          if (item.program?.trim() !== filterSet.program.trim()) return false;
+        } else if (filterSet.program === '-') {
+          if (item.program && item.program.trim() !== '') return false;
+        }
+        // Apply global program refinement filter only if no filterSet-specific program is set
+        else if (selections.program && selections.program !== '-') {
           if (item.program?.trim() !== selections.program.trim()) return false;
         } else if (selections.program === '-') {
           if (item.program && item.program.trim() !== '') return false;
         }
         
-        if (selections.location_region && selections.location_region !== '-') {
+        // Apply filterSet-specific location_region filter first (takes priority)
+        if (filterSet.locationRegion && filterSet.locationRegion !== '-') {
+          if (item.location_region?.trim() !== filterSet.locationRegion.trim()) return false;
+        } else if (filterSet.locationRegion === '-') {
+          if (item.location_region && item.location_region.trim() !== '') return false;
+        }
+        // Apply global location_region refinement filter only if no filterSet-specific location_region is set
+        else if (selections.location_region && selections.location_region !== '-') {
           if (item.location_region?.trim() !== selections.location_region.trim()) return false;
         } else if (selections.location_region === '-') {
           if (item.location_region && item.location_region.trim() !== '') return false;
         }
         
-        if (selections.modifier_1 && selections.modifier_1 !== '-') {
+        // Apply filterSet-specific modifier filter first (takes priority)
+        if (filterSet.modifier && filterSet.modifier !== '-') {
+          if (![item.modifier_1, item.modifier_2, item.modifier_3, item.modifier_4].includes(filterSet.modifier)) return false;
+        } else if (filterSet.modifier === '-') {
+          if (item.modifier_1 || item.modifier_2 || item.modifier_3 || item.modifier_4) return false;
+        }
+        // Apply global modifier refinement filter only if no filterSet-specific modifier is set
+        else if (selections.modifier_1 && selections.modifier_1 !== '-') {
           if (![item.modifier_1, item.modifier_2, item.modifier_3, item.modifier_4].includes(selections.modifier_1)) return false;
         } else if (selections.modifier_1 === '-') {
           if (item.modifier_1 || item.modifier_2 || item.modifier_3 || item.modifier_4) return false;
         }
         
-        if (selections.provider_type && selections.provider_type !== '-') {
+        // Apply filterSet-specific provider_type filter first (takes priority)
+        if (filterSet.providerType && filterSet.providerType !== '-') {
+          if (item.provider_type?.trim() !== filterSet.providerType.trim()) return false;
+        } else if (filterSet.providerType === '-') {
+          if (item.provider_type && item.provider_type.trim() !== '') return false;
+        }
+        // Apply global provider_type refinement filter only if no filterSet-specific provider_type is set
+        else if (selections.provider_type && selections.provider_type !== '-') {
           if (item.provider_type?.trim() !== selections.provider_type.trim()) return false;
         } else if (selections.provider_type === '-') {
           if (item.provider_type && item.provider_type.trim() !== '') return false;
@@ -2999,10 +3026,15 @@ export default function StatePaymentComparison() {
             while (hasMore) {
               console.log(`🔍 Fetching individual entries page ${page}...`);
               
-              // Build the refreshData parameters - use minimal filters to match state averages scope
+              // Build the refreshData parameters - include all filterSet filters
               const refreshParams: any = {
                 serviceCategory: filterSet.serviceCategory,
                 serviceCode: filterSet.serviceCode,
+                ...(filterSet.program && { program: filterSet.program }),
+                ...(filterSet.locationRegion && { location_region: filterSet.locationRegion }),
+                ...(filterSet.providerType && { provider_type: filterSet.providerType }),
+                ...(filterSet.modifier && { modifier_1: filterSet.modifier }),
+                ...(filterSet.serviceDescription && { service_description: filterSet.serviceDescription }),
                 page: page.toString(),
                 itemsPerPage: itemsPerPage.toString()
               };
@@ -3212,6 +3244,11 @@ export default function StatePaymentComparison() {
               serviceCategory: filterSet.serviceCategory,
               state_name: filterSet.states[0],
               serviceCode: filterSet.serviceCode, // Already comma-separated from multi-select
+              ...(filterSet.program && { program: filterSet.program }),
+              ...(filterSet.locationRegion && { location_region: filterSet.locationRegion }),
+              ...(filterSet.providerType && { provider_type: filterSet.providerType }),
+              ...(filterSet.modifier && { modifier_1: filterSet.modifier }),
+              ...(filterSet.serviceDescription && { service_description: filterSet.serviceDescription }),
               itemsPerPage: '1000'
             });
             if (result) {
@@ -3762,13 +3799,24 @@ export default function StatePaymentComparison() {
                 {/* Comparison Metrics */}
                 {shouldShowMetrics && (
                   <div className="mb-8 p-6 bg-white rounded-xl shadow-lg">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Highest Rate */}
               <div className="flex items-center space-x-4 p-4 bg-green-100 rounded-lg">
                 <FaArrowUp className="h-8 w-8 text-green-500" />
                 <div>
                           <p className="text-sm text-gray-500">Highest Rate of Selected States</p>
                   <p className="text-xl font-semibold text-gray-800">${maxRate.toFixed(2)}</p>
+                </div>
+              </div>
+
+              {/* States Count */}
+              <div className="flex items-center space-x-4 p-4 bg-blue-50 rounded-lg">
+                <div className="h-8 w-8 bg-blue-500 rounded-full flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">{filteredRates.length}</span>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">States in Chart</p>
+                  <p className="text-xl font-semibold text-gray-800">{filteredRates.length} {filteredRates.length === 1 ? 'State' : 'States'}</p>
                 </div>
               </div>
 
