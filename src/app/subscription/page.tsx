@@ -80,13 +80,21 @@ export default function SubscriptionPage() {
         }
 
         const data = await response.json();
-        const subUsers = data.subUsers || []; // Default to an empty array if subUsers is undefined
+        
+        // Only fetch sub-users if the current user is a primary user (not a sub-user)
+        if (!data.isSubUser) {
+          const subUsers = data.subUsers || []; // Default to an empty array if subUsers is undefined
 
-        // Map sub-users to the addedUsers state
-        setAddedUsers(subUsers.map((email: string, index: number) => ({ email, slot: index })));
+          // Map sub-users to the addedUsers state
+          setAddedUsers(subUsers.map((email: string, index: number) => ({ email, slot: index })));
 
-        // Initialize slotEmails with the fetched sub-users
-        setSlotEmails(subUsers);
+          // Initialize slotEmails with the fetched sub-users
+          setSlotEmails(subUsers);
+        } else {
+          // If user is a sub-user, they can't manage sub-users
+          setAddedUsers([]);
+          setSlotEmails([]);
+        }
       } catch (err) {
         toast.error("Failed to fetch sub-users.");
       }

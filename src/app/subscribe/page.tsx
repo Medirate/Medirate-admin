@@ -222,7 +222,6 @@ const StripePricingTableWithFooter = () => {
       } else {
         setIsSubUser(false);
       }
-      fetchSubscription(userEmail);
     } catch (err) {
       console.error("❌ Error checking sub-user:", err);
     }

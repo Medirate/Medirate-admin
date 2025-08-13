@@ -7,7 +7,7 @@
     "strict": true,
     "esModuleInterop": true,
     "module": "esnext", // Recommended for Next.js
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",
