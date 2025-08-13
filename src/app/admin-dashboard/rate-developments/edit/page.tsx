@@ -6,7 +6,7 @@ import { Search, LayoutGrid, LayoutList, ChevronLeft, ChevronRight, ChevronUp, C
 import { useRouter } from "next/navigation";
 import { FaSpinner, FaExclamationCircle, FaSearch, FaSort, FaSortUp, FaSortDown, FaFilter, FaChartLine } from 'react-icons/fa';
 import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
-import { supabase } from "@/lib/supabase";
+// Removed direct Supabase import - will use API endpoints instead
 
 // Define the type for the datasets
 interface Alert {
@@ -659,9 +659,18 @@ export default function RateDevelopments() {
 
   useEffect(() => {
     const fetchServiceCategories = async () => {
-      const { data, error } = await supabase.from("service_category_list").select("id, categories");
-      if (!error && data) {
-        setServiceCategories(data);
+      try {
+        const response = await fetch('/api/admin/service-categories');
+        if (response.ok) {
+          const result = await response.json();
+          if (result.data) {
+            setServiceCategories(result.data);
+          }
+        } else {
+          console.error('Failed to fetch service categories');
+        }
+      } catch (error) {
+        console.error('Error fetching service categories:', error);
       }
     };
     fetchServiceCategories();
@@ -711,49 +720,52 @@ export default function RateDevelopments() {
       if (subUsers.includes(userEmail)) {
         console.log('✅ User is a sub-user, checking User table...');
         // Check if the user already exists in the User table
-        const { data: existingUser, error: fetchError } = await supabase
-          .from("User")
-          .select("Email")
-          .eq("Email", userEmail)
-          .single();
+        try {
+          const userCheckResponse = await fetch(`/api/admin/user-management?email=${encodeURIComponent(userEmail)}`);
+          if (userCheckResponse.ok) {
+            const userCheckResult = await userCheckResponse.json();
+            const existingUser = userCheckResult.user;
+            
+            console.log('📊 Existing user check result:', { existingUser });
 
-        if (fetchError && fetchError.code !== "PGRST116") { // Ignore "no rows found" error
-          console.error("❌ Error fetching user:", fetchError);
-          return;
-        }
+            if (existingUser) {
+              console.log('🔄 Updating existing user role to sub-user...');
+              // User exists, update their role to "sub-user"
+              const updateResponse = await fetch('/api/admin/user-management', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: userEmail, role: "sub-user" })
+              });
 
-        console.log('📊 Existing user check result:', { existingUser });
+              if (updateResponse.ok) {
+                console.log("✅ User role updated to sub-user:", userEmail);
+              } else {
+                console.error("❌ Error updating user role");
+              }
+            } else {
+              console.log('➕ Inserting new sub-user...');
+              // User does not exist, insert them as a sub-user
+              const insertResponse = await fetch('/api/admin/user-management', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  kindeUserId,
+                  email: userEmail,
+                  role: "sub-user"
+                })
+              });
 
-        if (existingUser) {
-          console.log('🔄 Updating existing user role to sub-user...');
-          // User exists, update their role to "sub-user"
-          const { error: updateError } = await supabase
-            .from("User")
-            .update({ Role: "sub-user", UpdatedAt: new Date().toISOString() })
-            .eq("Email", userEmail);
-
-          if (updateError) {
-            console.error("❌ Error updating user role:", updateError);
+              if (insertResponse.ok) {
+                console.log("✅ Sub-user inserted successfully:", userEmail);
+              } else {
+                console.error("❌ Error inserting sub-user");
+              }
+            }
           } else {
-            console.log("✅ User role updated to sub-user:", userEmail);
+            console.error("❌ Error checking user existence");
           }
-        } else {
-          console.log('➕ Inserting new sub-user...');
-          // User does not exist, insert them as a sub-user
-          const { error: insertError } = await supabase
-            .from("User")
-            .insert({
-              KindeUserID: kindeUserId,
-              Email: userEmail,
-              Role: "sub-user",
-              UpdatedAt: new Date().toISOString(),
-            });
-
-          if (insertError) {
-            console.error("❌ Error inserting sub-user:", insertError);
-          } else {
-            console.log("✅ Sub-user inserted successfully:", userEmail);
-          }
+        } catch (error) {
+          console.error("❌ Error in user management operations:", error);
         }
 
         // Allow sub-user to access the dashboard
@@ -1000,10 +1012,24 @@ export default function RateDevelopments() {
       const updateData = { ...editingProviderValues, ...serviceLinesData };
       console.log('Updating provider alert with:', updateData);
       
-      await supabase
-        .from("provider_alerts")
-        .update(updateData)
-        .eq("id", editingProviderId);
+      try {
+        const response = await fetch('/api/admin/update-provider-alert', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: editingProviderId, ...updateData })
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('Failed to update provider alert:', errorData);
+          alert(`❌ Failed to update provider alert: ${errorData.error || 'Unknown error'}`);
+        } else {
+          console.log('✅ Provider alert updated successfully');
+        }
+      } catch (error) {
+        console.error('Error updating provider alert:', error);
+        alert('❌ Error updating provider alert');
+      }
     }
     
     // Highlight changed cells
@@ -1068,10 +1094,24 @@ export default function RateDevelopments() {
       const updateData = { ...editingBillValues, sponsor_list: sponsorListArray, ...serviceLinesData };
       console.log('Updating bill with:', updateData);
       
-      await supabase
-        .from("bill_track_50")
-        .update(updateData)
-        .eq("url", editingBillUrl);
+      try {
+        const response = await fetch('/api/admin/update-bill', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: editingBillUrl, ...updateData })
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('Failed to update bill:', errorData);
+          alert(`❌ Failed to update bill: ${errorData.error || 'Unknown error'}`);
+        } else {
+          console.log('✅ Bill updated successfully');
+        }
+      } catch (error) {
+        console.error('Error updating bill:', error);
+        alert('❌ Error updating bill');
+      }
     }
     
     // Highlight changed cells
@@ -1094,33 +1134,75 @@ export default function RateDevelopments() {
 
   const handleSaveCategoryEdit = async () => {
     if (!editingCategoryId) return;
-    await supabase
-      .from("service_category_list")
-      .update({ categories: editingCategoryValue })
-      .eq("id", editingCategoryId);
-    setServiceCategories(cats =>
-      cats.map(cat =>
-        cat.id === editingCategoryId ? { ...cat, categories: editingCategoryValue } : cat
-      )
-    );
-    setEditingCategoryId(null);
-    setEditingCategoryValue("");
+    
+    try {
+      const response = await fetch('/api/admin/service-categories', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          id: editingCategoryId, 
+          categories: editingCategoryValue 
+        })
+      });
+      
+      if (response.ok) {
+        setServiceCategories(cats =>
+          cats.map(cat =>
+            cat.id === editingCategoryId ? { ...cat, categories: editingCategoryValue } : cat
+          )
+        );
+        setEditingCategoryId(null);
+        setEditingCategoryValue("");
+      } else {
+        console.error('Failed to update service category');
+        alert('❌ Failed to update service category');
+      }
+    } catch (error) {
+      console.error('Error updating service category:', error);
+      alert('❌ Error updating service category');
+    }
   };
 
   const handleAddCategory = async () => {
     if (!newCategory.trim()) return;
-    const { data, error } = await supabase
-      .from("service_category_list")
-      .insert({ categories: newCategory.trim() })
-      .select();
-    if (!error && data && data.length > 0) {
-      setServiceCategories(cats => [...cats, data[0]]);
-    setNewCategory("");
+    
+    try {
+      const response = await fetch('/api/admin/service-categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ categories: newCategory.trim() })
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        if (result.data) {
+          setServiceCategories(cats => [...cats, result.data]);
+          setNewCategory("");
+        }
+      } else {
+        console.error('Failed to add service category');
+        alert('❌ Failed to add service category');
+      }
+    } catch (error) {
+      console.error('Error adding service category:', error);
+      alert('❌ Error adding service category');
     }
   };
 
   const handleDeleteCategory = async (id: string) => {
-    await supabase.from("service_category_list").delete().eq("id", id);
+          try {
+        const response = await fetch('/api/admin/service-categories', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id })
+        });
+        
+        if (!response.ok) {
+          console.error('Failed to delete service category');
+        }
+      } catch (error) {
+        console.error('Error deleting service category:', error);
+      }
     setServiceCategories(cats => cats.filter(cat => cat.id !== id));
   };
 

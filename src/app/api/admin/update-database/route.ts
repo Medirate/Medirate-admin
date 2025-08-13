@@ -116,29 +116,8 @@ export async function POST(req: NextRequest) {
 
     // Read the latest sheet
     const rawRows = XLSX.utils.sheet_to_json(workbook.Sheets[latestSheet], { defval: "" });
-    // Lowercase and trim column names
-    const rows = rawRows.map((row: any) => {
-      const newRow: any = {};
-      const serviceColumnCounter = { count: 0 };
-      
-      Object.keys(row).forEach(key => {
-        const cleanKey = key.trim().toLowerCase();
-        
-        // Handle multiple SERVICE columns by adding counters
-        if (cleanKey === 'service') {
-          if (serviceColumnCounter.count === 0) {
-            newRow['service'] = row[key];
-          } else {
-            newRow[`service ${serviceColumnCounter.count}`] = row[key];
-          }
-          serviceColumnCounter.count++;
-        } else {
-          newRow[cleanKey] = row[key];
-        }
-      });
-      return newRow;
-    });
-    // Map Excel columns to DB columns
+    
+    // Map Excel columns to DB columns FIRST (before any other processing)
     const columnMap: Record<string, string> = {
       'action date': 'action_date',
       'bill number': 'bill_number',
@@ -157,23 +136,52 @@ export async function POST(req: NextRequest) {
       'service lines impacted 2': 'service_lines_impacted_2',
       'service lines impacted 3': 'service_lines_impacted_3',
     };
+    
     function mapToDbColumns(obj: any) {
       const mapped: any = {};
       for (const key in obj) {
-        if (columnMap[key]) {
-          mapped[columnMap[key]] = obj[key];
+        const cleanKey = key.trim().toLowerCase();
+        if (columnMap[cleanKey]) {
+          mapped[columnMap[cleanKey]] = obj[key];
         } else {
-          mapped[key] = obj[key];
+          mapped[cleanKey] = obj[key];
         }
       }
       return mapped;
     }
+    
+    // Apply column mapping FIRST to get proper database column names
+    const mappedRows = rawRows.map(mapToDbColumns);
+    
+    // Now process the mapped rows for multiple SERVICE columns
+    const rows = mappedRows.map((row: any) => {
+      const newRow: any = {};
+      const serviceColumnCounter = { count: 0 };
+      
+      Object.keys(row).forEach(key => {
+        // Handle multiple SERVICE columns by adding counters
+        if (key === 'service') {
+          if (serviceColumnCounter.count === 0) {
+            newRow['service_lines_impacted'] = row[key];
+          } else {
+            newRow[`service_lines_impacted_${serviceColumnCounter.count}`] = row[key];
+          }
+          serviceColumnCounter.count++;
+        } else {
+          newRow[key] = row[key];
+        }
+      });
+      return newRow;
+    });
+    
     // Add source_sheet column
     rows.forEach(r => (r.source_sheet = latestSheet));
+    
     // Remove rows where url contains '** Data provided by www.BillTrack50.com **'
     const filteredRows = rows.filter(r =>
       !(typeof r.url === "string" && r.url.includes("** Data provided by www.BillTrack50.com **"))
-    ).map(mapToDbColumns);
+    );
+    
     // Get columns
     const columns = filteredRows.length > 0 ? Object.keys(filteredRows[0]) : [];
     log(`Parsed ${filteredRows.length} rows from sheet.`, 'success', 'parse');
@@ -265,9 +273,17 @@ export async function POST(req: NextRequest) {
         'service_lines_impacted_2', 'service_lines_impacted_3'
       ];
       
+      // Debug: Show what columns we're actually working with
+      log(`DEBUG: Known columns for bill_track_50: ${knownColumns.join(', ')}`, 'info', 'debug');
+      log(`DEBUG: Actual columns in filtered data: ${columns.join(', ')}`, 'info', 'debug');
+      
       for (const entry of newEntries) {
         const insertObj = { ...entry, is_new: 'yes', date_extracted: today };
         delete insertObj.source_sheet;
+        
+        // Debug: Show the raw entry data
+        log(`DEBUG: Raw entry data keys: ${Object.keys(entry).join(', ')}`, 'info', 'debug');
+        log(`DEBUG: Entry URL: ${entry.url}`, 'info', 'debug');
         
         // Filter out unknown columns to prevent schema errors
         const filteredInsertObj: any = {};
@@ -327,9 +343,13 @@ export async function POST(req: NextRequest) {
             continue;
           }
           
+          // Debug: Show what we're comparing
+          log(`DEBUG: Comparing column '${col}': Excel="${entry[col] || 'NULL'}" vs DB="${dbRow[col] || 'NULL'}"`, 'info', 'debug');
+          
           if ((entry[col] ?? "") !== (dbRow[col] ?? "")) {
             updateObj[col] = entry[col];
             changed = true;
+            log(`DEBUG: Column '${col}' changed, will update`, 'info', 'debug');
           }
         }
         if (changed) {
