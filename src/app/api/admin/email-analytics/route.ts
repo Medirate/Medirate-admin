@@ -132,20 +132,43 @@ export async function POST(req: NextRequest) {
       ts: new Date(event.date || new Date()).getTime() / 1000
     }));
 
-    // For daily stats, we'll use mock data since we have aggregated data
-    // In a real implementation, you'd need daily breakdowns from Brevo
-    const chartData = [];
-    for (let i = days - 1; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      chartData.push({
-        date: date.toISOString().split('T')[0],
-        sent: Math.floor((summary.totalSent / days) + (Math.random() * 10)),
-        opened: Math.floor((summary.totalOpened / days) + (Math.random() * 5)),
-        clicked: Math.floor((summary.totalClicked / days) + (Math.random() * 3)),
-        bounced: Math.floor((summary.totalBounced / days) + (Math.random() * 1)),
-      });
-    }
+    // Since Brevo aggregated data doesn't provide daily breakdowns,
+    // let's create charts based on the real events we have instead
+    const eventsByDate: { [date: string]: { opens: number; clicks: number; other: number } } = {};
+    
+    events.forEach((event: any) => {
+      const eventDate = event.date ? event.date.split('T')[0] : new Date().toISOString().split('T')[0];
+      if (!eventsByDate[eventDate]) {
+        eventsByDate[eventDate] = { opens: 0, clicks: 0, other: 0 };
+      }
+      
+      switch (event.event?.toLowerCase()) {
+        case 'opened':
+        case 'unique_opened':
+          eventsByDate[eventDate].opens++;
+          break;
+        case 'clicked':
+        case 'clicks':
+        case 'unique_clicked':
+          eventsByDate[eventDate].clicks++;
+          break;
+        default:
+          eventsByDate[eventDate].other++;
+          break;
+      }
+    });
+
+    // Convert to chart data - only show days with actual events
+    const chartData = Object.keys(eventsByDate)
+      .sort()
+      .slice(-7) // Last 7 days with activity
+      .map(date => ({
+        date,
+        sent: 0, // We don't have daily send data from aggregated endpoint
+        opened: eventsByDate[date].opens,
+        clicked: eventsByDate[date].clicks,
+        bounced: 0 // We don't have daily bounce data
+      }));
 
     console.log("✅ Analytics processed successfully:", {
       summary,

@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
 import AppLayout from "@/app/components/applayout";
+import EChartsWrapper from "@/components/EChartsWrapper";
+import type { EChartsOption } from "echarts";
 
 interface EmailRow {
   id: number;
@@ -1321,59 +1323,253 @@ export default function MarketingEmailsAdminPage() {
                 </div>
               </div>
 
-              {/* Daily Stats Chart */}
-              {analytics.dailyStats.length > 0 && (
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
-                  <h4 className="text-lg font-medium text-gray-800 mb-4">📈 Daily Activity ({analytics.dateRange.days} days)</h4>
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Simple Bar Chart */}
-                    <div>
-                      <h5 className="text-sm font-medium text-gray-600 mb-3">Email Sends per Day</h5>
-                      <div className="space-y-2">
-                        {analytics.dailyStats.slice(-7).map((day, index) => (
-                          <div key={day.date} className="flex items-center space-x-3">
-                            <div className="w-20 text-xs text-gray-600 truncate">
-                              {new Date(day.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                            </div>
-                            <div className="flex-1 bg-gray-200 rounded-full h-4 relative overflow-hidden">
-                              <div 
-                                className="bg-blue-500 h-full rounded-full transition-all duration-300"
-                                style={{ 
-                                  width: `${Math.max(5, (day.sent / Math.max(...analytics.dailyStats.map(d => d.sent))) * 100)}%` 
-                                }}
-                              ></div>
-                            </div>
-                            <div className="w-12 text-xs text-gray-600 text-right">{day.sent}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+              {/* Real Engagement Activity */}
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-lg font-medium text-gray-800">📈 Performance Overview</h4>
+                  <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded">Real data from Brevo</span>
+                </div>
+                
+                {/* Email Engagement Pie Chart */}
+                {(() => {
+                  const total = analytics.summary.totalSent;
+                  const opened = analytics.summary.totalOpened;
+                  const clicked = analytics.summary.totalClicked;
+                  
+                  // Calculate all engagement states properly
+                  const bounced = analytics.summary.totalBounced;
+                  const delivered = total - bounced; // Actually delivered emails
+                  const openedNotClicked = Math.max(0, opened - clicked);
+                  const notOpened = delivered - Math.max(opened, clicked); // Delivered but not opened
+                  
+                  const pieOptions: EChartsOption = {
+                    tooltip: {
+                      trigger: 'item',
+                      formatter: '{b}: {c} emails ({d}%)',
+                      backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                      borderColor: 'transparent',
+                      textStyle: {
+                        color: '#ffffff',
+                        fontSize: 13,
+                        fontWeight: 500
+                      },
+                      borderRadius: 8,
+                      padding: [8, 12]
+                    },
+                    legend: {
+                      orient: 'horizontal',
+                      bottom: '0%',
+                      left: 'center',
+                      textStyle: {
+                        fontSize: 12,
+                        color: '#4b5563',
+                        fontWeight: 500
+                      },
+                      itemGap: 20,
+                      itemWidth: 12,
+                      itemHeight: 12
+                    },
+                    series: [
+                      {
+                        name: 'Email Status',
+                        type: 'pie',
+                        radius: ['40%', '70%'],
+                        center: ['50%', '45%'],
+                        avoidLabelOverlap: false,
+                        itemStyle: {
+                          borderRadius: 5,
+                          borderColor: '#fff',
+                          borderWidth: 2
+                        },
+                        label: {
+                          show: false,
+                          position: 'center'
+                        },
+                        emphasis: {
+                          label: {
+                            show: true,
+                            fontSize: 16,
+                            fontWeight: 'bold',
+                            formatter: '{d}%'
+                          }
+                        },
+                        labelLine: {
+                          show: false
+                        },
+                        data: [
+                          {
+                            value: clicked,
+                            name: `Clicked (${clicked}) - ${analytics.summary.clickRate.toFixed(1)}%`,
+                            itemStyle: { 
+                              color: '#10b981',
+                              borderColor: '#ffffff',
+                              borderWidth: 2
+                            }
+                          },
+                          ...(openedNotClicked > 0 ? [{
+                            value: openedNotClicked,
+                            name: `Opened Only (${openedNotClicked}) - ${((openedNotClicked / total) * 100).toFixed(1)}%`,
+                            itemStyle: { 
+                              color: '#6b7280',
+                              borderColor: '#ffffff',
+                              borderWidth: 2
+                            }
+                          }] : []),
+                          {
+                            value: notOpened,
+                            name: `Not Opened (${notOpened}) - ${((notOpened / total) * 100).toFixed(1)}%`,
+                            itemStyle: { 
+                              color: '#f59e0b',
+                              borderColor: '#ffffff',
+                              borderWidth: 2
+                            }
+                          },
+                          {
+                            value: bounced,
+                            name: `Bounced (${bounced}) - ${analytics.summary.bounceRate.toFixed(1)}%`,
+                            itemStyle: { 
+                              color: '#dc2626',
+                              borderColor: '#ffffff',
+                              borderWidth: 2
+                            }
+                          }
+                        ].filter(item => item.value > 0)
+                      }
+                    ]
+                  };
 
-                    {/* Opens Chart */}
-                    <div>
-                      <h5 className="text-sm font-medium text-gray-600 mb-3">Email Opens per Day</h5>
-                      <div className="space-y-2">
-                        {analytics.dailyStats.slice(-7).map((day, index) => (
-                          <div key={day.date} className="flex items-center space-x-3">
-                            <div className="w-20 text-xs text-gray-600 truncate">
-                              {new Date(day.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                  return (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                      {/* ECharts Pie Chart */}
+                      <div className="flex flex-col">
+                        <h5 className="text-md font-medium text-gray-700 mb-4">📊 Email Engagement Breakdown</h5>
+                        <div className="bg-white rounded-lg p-4 shadow-sm">
+                          <EChartsWrapper 
+                            options={pieOptions} 
+                            style={{ height: '300px' }} 
+                          />
+                        </div>
+                        
+                        {/* Professional Summary Cards */}
+                        <div className="mt-6">
+                          <h6 className="text-sm font-semibold text-gray-600 mb-3 uppercase tracking-wide">Engagement Breakdown</h6>
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-emerald-50 to-emerald-100 border-l-4" style={{ borderLeftColor: '#10b981' }}>
+                              <div className="flex items-center space-x-3">
+                                <div className="w-4 h-4 rounded-full" style={{ backgroundColor: '#10b981' }}></div>
+                                <span className="text-sm font-medium text-gray-700">Clicked</span>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-lg font-bold" style={{ color: '#10b981' }}>{analytics.summary.clickRate.toFixed(1)}%</div>
+                                <div className="text-xs text-gray-500">{clicked} emails</div>
+                              </div>
                             </div>
-                            <div className="flex-1 bg-gray-200 rounded-full h-4 relative overflow-hidden">
-                              <div 
-                                className="bg-green-500 h-full rounded-full transition-all duration-300"
-                                style={{ 
-                                  width: `${Math.max(5, (day.opened / Math.max(...analytics.dailyStats.map(d => d.opened))) * 100)}%` 
-                                }}
-                              ></div>
+                            
+                            {openedNotClicked > 0 && (
+                              <div className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-gray-50 to-gray-100 border-l-4" style={{ borderLeftColor: '#6b7280' }}>
+                                <div className="flex items-center space-x-3">
+                                  <div className="w-4 h-4 rounded-full" style={{ backgroundColor: '#6b7280' }}></div>
+                                  <span className="text-sm font-medium text-gray-700">Opened Only</span>
+                                </div>
+                                <div className="text-right">
+                                  <div className="text-lg font-bold" style={{ color: '#6b7280' }}>{((openedNotClicked / total) * 100).toFixed(1)}%</div>
+                                  <div className="text-xs text-gray-500">{openedNotClicked} emails</div>
+                                </div>
+                              </div>
+                            )}
+                            
+                            <div className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-amber-50 to-amber-100 border-l-4" style={{ borderLeftColor: '#f59e0b' }}>
+                              <div className="flex items-center space-x-3">
+                                <div className="w-4 h-4 rounded-full" style={{ backgroundColor: '#f59e0b' }}></div>
+                                <span className="text-sm font-medium text-gray-700">Not Opened</span>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-lg font-bold" style={{ color: '#f59e0b' }}>{((notOpened / total) * 100).toFixed(1)}%</div>
+                                <div className="text-xs text-gray-500">{notOpened} emails</div>
+                              </div>
                             </div>
-                            <div className="w-12 text-xs text-gray-600 text-right">{day.opened}</div>
+                            
+                            <div className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-red-50 to-red-100 border-l-4" style={{ borderLeftColor: '#dc2626' }}>
+                              <div className="flex items-center space-x-3">
+                                <div className="w-4 h-4 rounded-full" style={{ backgroundColor: '#dc2626' }}></div>
+                                <span className="text-sm font-medium text-gray-700">Bounced</span>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-lg font-bold" style={{ color: '#dc2626' }}>{analytics.summary.bounceRate.toFixed(1)}%</div>
+                                <div className="text-xs text-gray-500">{bounced} emails</div>
+                              </div>
+                            </div>
                           </div>
-                        ))}
+                          
+                          <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
+                            <div className="flex items-center space-x-2 mb-2">
+                              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                              <span className="text-sm font-semibold text-blue-800">Analytics Insight</span>
+                            </div>
+                            <div className="text-xs text-blue-700 leading-relaxed">
+                              {clicked > opened ? 
+                                `📈 Exceptional engagement: ${clicked} clicks from ${opened} opens. This indicates high link engagement even when tracking pixels are blocked.` :
+                                `📊 Standard engagement pattern: ${opened} opens generated ${clicked} clicks, resulting in a ${analytics.summary.clickRate.toFixed(1)}% click rate.`
+                              }
+                            </div>
+                          </div>
+                        </div>
                       </div>
+
+                      {/* Engagement Metrics removed per request */}
+                  </div>
+                );
+              })()}
+
+                {/* Real Recent Activity by Date */}
+                {analytics.dailyStats.length > 0 && (
+                  <div>
+                    <h5 className="text-md font-medium text-gray-700 mb-3">📅 Recent Activity (Real Events)</h5>
+                    <div className="space-y-2">
+                      {analytics.dailyStats.filter(day => day.opened > 0 || day.clicked > 0).slice(-5).map((day, index) => (
+                        <div key={day.date} className="flex items-center justify-between bg-white p-3 rounded-lg shadow-sm">
+                          <span className="text-sm font-medium text-gray-700">
+                            {new Date(day.date).toLocaleDateString(undefined, { 
+                              weekday: 'short', 
+                              month: 'short', 
+                              day: 'numeric' 
+                            })}
+                          </span>
+                          <div className="flex space-x-4">
+                            {day.opened > 0 && (
+                              <div className="flex items-center space-x-1">
+                                <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                                <span className="text-xs text-gray-600">{day.opened} opens</span>
+                              </div>
+                            )}
+                            {day.clicked > 0 && (
+                              <div className="flex items-center space-x-1">
+                                <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+                                <span className="text-xs text-gray-600">{day.clicked} clicks</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
                     </div>
+                    
+                    {analytics.dailyStats.filter(day => day.opened > 0 || day.clicked > 0).length === 0 && (
+                      <div className="text-center py-4 text-gray-500 text-sm">
+                        No recent engagement events found in the selected date range
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Data Source Disclaimer */}
+                <div className="mt-6 pt-4 border-t border-gray-300">
+                  <div className="text-xs text-gray-500 text-center">
+                    📊 Summary totals from Brevo aggregated data ({analytics.dateRange.startDate} to {analytics.dateRange.endDate})
+                    <br />
+                    📅 Daily breakdown from individual events (limited to recent activities)
                   </div>
                 </div>
-              )}
+              </div>
 
               {/* Recent Email Activity */}
               {analytics.recentEmails.length > 0 && (

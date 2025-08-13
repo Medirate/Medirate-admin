@@ -20,7 +20,6 @@ import {
   Pencil,
   Database,
   Mail,
-  BarChart3,
 } from "lucide-react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
@@ -400,20 +399,6 @@ const SideNav = ({
                         >
                           <Mail size={18} className="mr-2" />
                           <span className="ml-1">Marketing Emails</span>
-                        </Link>
-                      </li>
-                      <li>
-                        <Link
-                          href="/admin-dashboard/email-analytics"
-                          onClick={() => setActiveTab("adminDashboard")}
-                          className={`flex items-center w-full px-4 py-2 rounded-md transition-all duration-200 focus:outline-none ${
-                            pathname.startsWith("/admin-dashboard/email-analytics")
-                              ? "bg-gradient-to-r from-purple-500 to-blue-500 text-white font-bold shadow"
-                              : "text-blue-100 hover:bg-blue-800/80 hover:text-white"
-                          }`}
-                        >
-                          <BarChart3 size={18} className="mr-2" />
-                          <span className="ml-1">Email Analytics</span>
                         </Link>
                       </li>
                     </ul>
