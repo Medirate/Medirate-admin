@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
 import AppLayout from "@/app/components/applayout";
 
 interface EmailRow {
@@ -10,7 +11,39 @@ interface EmailRow {
   lastname: string;
 }
 
+interface EmailAnalytics {
+  summary: {
+    totalSent: number;
+    totalOpened: number;
+    totalClicked: number;
+    totalBounced: number;
+    openRate: number;
+    clickRate: number;
+    bounceRate: number;
+  };
+  dailyStats: Array<{
+    date: string;
+    sent: number;
+    opened: number;
+    clicked: number;
+    bounced: number;
+  }>;
+  recentEmails: Array<{
+    event: string;
+    email: string;
+    subject: string;
+    date: string;
+    ts: number;
+  }>;
+  dateRange: {
+    startDate: string;
+    endDate: string;
+    days: number;
+  };
+}
+
 export default function MarketingEmailsAdminPage() {
+  const { user } = useKindeBrowserClient();
   const [testEmailList, setTestEmailList] = useState<EmailRow[]>([]);
   const [marketingEmailList, setMarketingEmailList] = useState<EmailRow[]>([]);
   const [emailTemplate, setEmailTemplate] = useState<string>("");
@@ -30,6 +63,12 @@ export default function MarketingEmailsAdminPage() {
     message: string;
   } | null>(null);
   const [isPromptMode, setIsPromptMode] = useState<boolean>(false);
+
+  // Analytics state
+  const [analytics, setAnalytics] = useState<EmailAnalytics | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState<boolean>(false);
+  const [analyticsError, setAnalyticsError] = useState<string | null>(null);
+  const [analyticsDays, setAnalyticsDays] = useState<number>(30);
 
   // Search state for both lists
   const [testEmailSearch, setTestEmailSearch] = useState<string>("");
@@ -492,6 +531,49 @@ export default function MarketingEmailsAdminPage() {
   // Clear search functions
   const clearTestEmailSearch = () => setTestEmailSearch("");
   const clearMarketingEmailSearch = () => setMarketingEmailSearch("");
+
+  // Analytics functions
+  const fetchAnalytics = async (days: number = 30) => {
+    setAnalyticsLoading(true);
+    setAnalyticsError(null);
+    
+    try {
+      const response = await fetch('/api/admin/email-analytics', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          days: days,
+          limit: 100,
+          offset: 0
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to fetch analytics: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setAnalytics(data.data);
+      } else {
+        throw new Error(data.error || 'Failed to fetch analytics');
+      }
+    } catch (error) {
+      console.error('Analytics error:', error);
+      setAnalyticsError(error instanceof Error ? error.message : 'Failed to fetch analytics');
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  };
+
+  // Load analytics when days change
+  useEffect(() => {
+    fetchAnalytics(analyticsDays);
+  }, [analyticsDays]);
 
   return (
     <AppLayout activeTab="adminDashboard">
@@ -1141,6 +1223,222 @@ export default function MarketingEmailsAdminPage() {
                   Sending in progress... {sendingProgress.current}/{sendingProgress.total} emails sent
                 </div>
               )}
+            </div>
+          )}
+        </div>
+
+        {/* Email Analytics Section */}
+        <div className="bg-white rounded-xl shadow p-6 mb-10">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-semibold text-[#012C61]">📊 Email Analytics</h3>
+            <div className="flex items-center space-x-4">
+              <select
+                value={analyticsDays}
+                onChange={(e) => setAnalyticsDays(Number(e.target.value))}
+                className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value={7}>Last 7 days</option>
+                <option value={30}>Last 30 days</option>
+                <option value={90}>Last 90 days</option>
+              </select>
+              <button
+                onClick={() => fetchAnalytics(analyticsDays)}
+                disabled={analyticsLoading}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 disabled:bg-gray-400 flex items-center space-x-2"
+              >
+                {analyticsLoading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>Loading...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>🔄</span>
+                    <span>Refresh</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {analyticsError && (
+            <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
+              <div className="flex items-center">
+                <span className="text-red-600 mr-2">❌</span>
+                <span className="text-red-700">{analyticsError}</span>
+              </div>
+              <p className="text-sm text-red-600 mt-2">
+                Make sure your Brevo API key is configured and your account has access to email statistics.
+              </p>
+            </div>
+          )}
+
+          {analytics && (
+            <div className="space-y-6">
+              {/* Summary Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-blue-600">Total Sent</p>
+                      <p className="text-2xl font-bold text-blue-900">{analytics.summary.totalSent.toLocaleString()}</p>
+                    </div>
+                    <div className="text-blue-500">📧</div>
+                  </div>
+                </div>
+
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-green-600">Opened</p>
+                      <p className="text-2xl font-bold text-green-900">{analytics.summary.totalOpened.toLocaleString()}</p>
+                      <p className="text-sm text-green-600">{analytics.summary.openRate.toFixed(1)}% rate</p>
+                    </div>
+                    <div className="text-green-500">📖</div>
+                  </div>
+                </div>
+
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-purple-600">Clicked</p>
+                      <p className="text-2xl font-bold text-purple-900">{analytics.summary.totalClicked.toLocaleString()}</p>
+                      <p className="text-sm text-purple-600">{analytics.summary.clickRate.toFixed(1)}% rate</p>
+                    </div>
+                    <div className="text-purple-500">🖱️</div>
+                  </div>
+                </div>
+
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-red-600">Bounced</p>
+                      <p className="text-2xl font-bold text-red-900">{analytics.summary.totalBounced.toLocaleString()}</p>
+                      <p className="text-sm text-red-600">{analytics.summary.bounceRate.toFixed(1)}% rate</p>
+                    </div>
+                    <div className="text-red-500">⚠️</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Daily Stats Chart */}
+              {analytics.dailyStats.length > 0 && (
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+                  <h4 className="text-lg font-medium text-gray-800 mb-4">📈 Daily Activity ({analytics.dateRange.days} days)</h4>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Simple Bar Chart */}
+                    <div>
+                      <h5 className="text-sm font-medium text-gray-600 mb-3">Email Sends per Day</h5>
+                      <div className="space-y-2">
+                        {analytics.dailyStats.slice(-7).map((day, index) => (
+                          <div key={day.date} className="flex items-center space-x-3">
+                            <div className="w-20 text-xs text-gray-600 truncate">
+                              {new Date(day.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                            </div>
+                            <div className="flex-1 bg-gray-200 rounded-full h-4 relative overflow-hidden">
+                              <div 
+                                className="bg-blue-500 h-full rounded-full transition-all duration-300"
+                                style={{ 
+                                  width: `${Math.max(5, (day.sent / Math.max(...analytics.dailyStats.map(d => d.sent))) * 100)}%` 
+                                }}
+                              ></div>
+                            </div>
+                            <div className="w-12 text-xs text-gray-600 text-right">{day.sent}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Opens Chart */}
+                    <div>
+                      <h5 className="text-sm font-medium text-gray-600 mb-3">Email Opens per Day</h5>
+                      <div className="space-y-2">
+                        {analytics.dailyStats.slice(-7).map((day, index) => (
+                          <div key={day.date} className="flex items-center space-x-3">
+                            <div className="w-20 text-xs text-gray-600 truncate">
+                              {new Date(day.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                            </div>
+                            <div className="flex-1 bg-gray-200 rounded-full h-4 relative overflow-hidden">
+                              <div 
+                                className="bg-green-500 h-full rounded-full transition-all duration-300"
+                                style={{ 
+                                  width: `${Math.max(5, (day.opened / Math.max(...analytics.dailyStats.map(d => d.opened))) * 100)}%` 
+                                }}
+                              ></div>
+                            </div>
+                            <div className="w-12 text-xs text-gray-600 text-right">{day.opened}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Recent Email Activity */}
+              {analytics.recentEmails.length > 0 && (
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+                  <h4 className="text-lg font-medium text-gray-800 mb-4">🕐 Recent Email Activity</h4>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-300">
+                          <th className="text-left py-2 px-3 font-medium text-gray-700">Event</th>
+                          <th className="text-left py-2 px-3 font-medium text-gray-700">Email</th>
+                          <th className="text-left py-2 px-3 font-medium text-gray-700">Subject</th>
+                          <th className="text-left py-2 px-3 font-medium text-gray-700">Time</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {analytics.recentEmails.slice(0, 10).map((email, index) => (
+                          <tr key={index} className="border-b border-gray-200 hover:bg-white">
+                            <td className="py-2 px-3">
+                              <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
+                                email.event === 'opened' ? 'bg-green-100 text-green-800' :
+                                email.event === 'clicked' ? 'bg-purple-100 text-purple-800' :
+                                email.event === 'sent' ? 'bg-blue-100 text-blue-800' :
+                                email.event === 'delivered' ? 'bg-teal-100 text-teal-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {email.event}
+                              </span>
+                            </td>
+                            <td className="py-2 px-3 text-gray-700 truncate max-w-48">{email.email}</td>
+                            <td className="py-2 px-3 text-gray-700 truncate max-w-64">{email.subject || 'N/A'}</td>
+                            <td className="py-2 px-3 text-gray-500">
+                              {new Date(email.ts * 1000).toLocaleString()}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Date Range Info */}
+              <div className="text-center text-sm text-gray-500">
+                Showing data from {new Date(analytics.dateRange.startDate).toLocaleDateString()} to {new Date(analytics.dateRange.endDate).toLocaleDateString()}
+              </div>
+            </div>
+          )}
+
+          {analyticsLoading && !analytics && (
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading email analytics...</p>
+            </div>
+          )}
+
+          {!analyticsLoading && !analytics && !analyticsError && (
+            <div className="text-center py-12">
+              <p className="text-gray-600 mb-4">No analytics data available</p>
+              <button
+                onClick={() => fetchAnalytics(analyticsDays)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700"
+              >
+                Load Analytics
+              </button>
             </div>
           )}
         </div>

@@ -55,6 +55,11 @@ export async function POST(req: NextRequest) {
             to: [{ email }],
             subject,
             htmlContent,
+            tags: ["marketing-email", target || "general"],
+            // Enable tracking
+            headers: {
+              "X-Mailin-custom": "campaign_id:marketing_blast",
+            },
           }),
         });
 
