@@ -3066,13 +3066,24 @@ export default function StatePaymentComparison() {
                 {/* Comparison Metrics */}
                 {shouldShowMetrics && (
                   <div className="mb-8 p-6 bg-white rounded-xl shadow-lg">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Highest Rate */}
               <div className="flex items-center space-x-4 p-4 bg-green-100 rounded-lg">
                 <FaArrowUp className="h-8 w-8 text-green-500" />
                 <div>
                           <p className="text-sm text-gray-500">Highest Rate of Selected States</p>
                   <p className="text-xl font-semibold text-gray-800">${maxRate.toFixed(2)}</p>
+                </div>
+              </div>
+
+              {/* States Count */}
+              <div className="flex items-center space-x-4 p-4 bg-blue-50 rounded-lg">
+                <div className="h-8 w-8 bg-blue-500 rounded-full flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">{filteredRates.length}</span>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">States in Chart</p>
+                  <p className="text-xl font-semibold text-gray-800">{filteredRates.length} {filteredRates.length === 1 ? 'State' : 'States'}</p>
                 </div>
               </div>
 
