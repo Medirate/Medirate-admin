@@ -13,6 +13,10 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true, // Ignore ESLint errors during builds
   },
+  // Force remove console logs in production
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production',
+  },
 };
 
 export default nextConfig;
