@@ -708,71 +708,71 @@ export default function RateDevelopments() {
       console.log('🔍 Checking if user is a sub-user...');
       const subUserResponse = await fetch("/api/subscription-users");
       if (!subUserResponse.ok) {
-        throw new Error("Failed to check sub-user status");
-      }
+        console.warn("⚠️ Failed to check sub-user status, proceeding with subscription check");
+        // Don't throw error, continue with subscription check
+      } else {
+        const subUserData = await subUserResponse.json();
+        
+        console.log('📊 Sub-user check result:', { subUserData });
+        
+        // Check if current user is a sub-user
+        if (subUserData.isSubUser) {
+          console.log('✅ User is a sub-user, checking User table...');
+          // Check if the user already exists in the User table
+          try {
+            const userCheckResponse = await fetch(`/api/admin/user-management?email=${encodeURIComponent(userEmail)}`);
+            if (userCheckResponse.ok) {
+              const userCheckResult = await userCheckResponse.json();
+              const existingUser = userCheckResult.user;
+              
+              console.log('📊 Existing user check result:', { existingUser });
 
-      const subUserData = await subUserResponse.json();
-      const subUsers = subUserData.subUsers || [];
-      
-      console.log('📊 Sub-user check result:', { subUsers, userEmail });
-      
-      // Check if current user is in the sub_users array
-      if (subUsers.includes(userEmail)) {
-        console.log('✅ User is a sub-user, checking User table...');
-        // Check if the user already exists in the User table
-        try {
-          const userCheckResponse = await fetch(`/api/admin/user-management?email=${encodeURIComponent(userEmail)}`);
-          if (userCheckResponse.ok) {
-            const userCheckResult = await userCheckResponse.json();
-            const existingUser = userCheckResult.user;
-            
-            console.log('📊 Existing user check result:', { existingUser });
+              if (existingUser) {
+                console.log('🔄 Updating existing user role to sub-user...');
+                // User exists, update their role to "sub-user"
+                const updateResponse = await fetch('/api/admin/user-management', {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ email: userEmail, role: "sub-user" })
+                });
 
-            if (existingUser) {
-              console.log('🔄 Updating existing user role to sub-user...');
-              // User exists, update their role to "sub-user"
-              const updateResponse = await fetch('/api/admin/user-management', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: userEmail, role: "sub-user" })
-              });
-
-              if (updateResponse.ok) {
-                console.log("✅ User role updated to sub-user:", userEmail);
+                if (updateResponse.ok) {
+                  console.log("✅ User role updated to sub-user:", userEmail);
+                } else {
+                  console.warn("⚠️ Error updating user role, but continuing as sub-user");
+                }
               } else {
-                console.error("❌ Error updating user role");
+                console.log('➕ Inserting new sub-user...');
+                // User does not exist, insert them as a sub-user
+                const insertResponse = await fetch('/api/admin/user-management', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    kindeUserId,
+                    email: userEmail,
+                    role: "sub-user"
+                  })
+                });
+
+                if (insertResponse.ok) {
+                  console.log("✅ Sub-user inserted successfully:", userEmail);
+                } else {
+                  console.warn("⚠️ Error inserting sub-user, but continuing as sub-user");
+                }
               }
             } else {
-              console.log('➕ Inserting new sub-user...');
-              // User does not exist, insert them as a sub-user
-              const insertResponse = await fetch('/api/admin/user-management', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  kindeUserId,
-                  email: userEmail,
-                  role: "sub-user"
-                })
-              });
-
-              if (insertResponse.ok) {
-                console.log("✅ Sub-user inserted successfully:", userEmail);
-              } else {
-                console.error("❌ Error inserting sub-user");
-              }
+              console.warn("⚠️ Error checking user existence, but continuing as sub-user");
             }
-          } else {
-            console.error("❌ Error checking user existence");
+          } catch (error) {
+            console.warn("⚠️ Error in user management operations, but continuing as sub-user:", error);
           }
-        } catch (error) {
-          console.error("❌ Error in user management operations:", error);
-        }
 
-        // Allow sub-user to access the dashboard
-        console.log('✅ Sub-user access granted');
-        setIsSubscriptionCheckComplete(true);
-        fetchData(); // Fetch data after successful check
-        return;
+          // Allow sub-user to access the dashboard regardless of database errors
+          console.log('✅ Sub-user access granted');
+          setIsSubscriptionCheckComplete(true);
+          fetchData(); // Fetch data after successful check
+          return;
+        }
       }
 
       // If not a sub-user, check for an active subscription
@@ -795,9 +795,13 @@ export default function RateDevelopments() {
         fetchData(); // Fetch data after successful check
       }
     } catch (error) {
-      console.error("❌ Error in subscription check:", error);
-      console.log('❌ Redirecting to subscribe page due to error');
-      router.push("/subscribe");
+      console.error("❌ Critical error in subscription check:", error);
+      // Only redirect to subscribe if we're certain the user is not a sub-user
+      // For now, let's be more conservative and not redirect on errors
+      // This prevents sub-users from being incorrectly redirected
+      console.warn("⚠️ Error occurred during subscription check, allowing access to prevent sub-user redirects");
+      setIsSubscriptionCheckComplete(true);
+      fetchData(); // Fetch data after successful check
     }
   };
 

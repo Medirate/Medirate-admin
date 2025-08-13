@@ -584,53 +584,58 @@ export default function Dashboard() {
       // Check if the user is a sub-user using the API endpoint
       const subUserResponse = await fetch("/api/subscription-users");
       if (!subUserResponse.ok) {
-        throw new Error("Failed to check sub-user status");
-      }
+        console.warn("⚠️ Failed to check sub-user status, proceeding with subscription check");
+        // Don't throw error, continue with subscription check
+      } else {
+        const subUserData = await subUserResponse.json();
+        
+        // Check if current user is a sub-user
+        if (subUserData.isSubUser) {
+          try {
+            // Check if the user already exists in the User table
+            const { data: existingUser, error: fetchError } = await supabase
+              .from("User")
+              .select("Email")
+              .eq("Email", userEmail)
+              .single();
 
-      const subUserData = await subUserResponse.json();
-      const subUsers = subUserData.subUsers || [];
-      
-      // Check if current user is in the sub_users array
-      if (subUsers.includes(userEmail)) {
-        // Check if the user already exists in the User table
-        const { data: existingUser, error: fetchError } = await supabase
-          .from("User")
-          .select("Email")
-          .eq("Email", userEmail)
-          .single();
+            if (fetchError && fetchError.code !== "PGRST116") { // Ignore "no rows found" error
+              console.warn("⚠️ Error checking existing user, but continuing as sub-user");
+            }
 
-        if (fetchError && fetchError.code !== "PGRST116") { // Ignore "no rows found" error
+            if (existingUser) {
+              // User exists, update their role to "sub-user"
+              const { error: updateError } = await supabase
+                .from("User")
+                .update({ Role: "sub-user", UpdatedAt: new Date().toISOString() })
+                .eq("Email", userEmail);
+
+              if (updateError) {
+                console.warn("⚠️ Error updating user role, but continuing as sub-user:", updateError);
+              }
+            } else {
+              // User does not exist, insert them as a sub-user
+              const { error: insertError } = await supabase
+                .from("User")
+                .insert({
+                  KindeUserID: kindeUserId,
+                  Email: userEmail,
+                  Role: "sub-user",
+                  UpdatedAt: new Date().toISOString(),
+                });
+
+              if (insertError) {
+                console.warn("⚠️ Error inserting user, but continuing as sub-user:", insertError);
+              }
+            }
+          } catch (dbError) {
+            console.warn("⚠️ Database error during sub-user setup, but continuing as sub-user:", dbError);
+          }
+
+          // Allow sub-user to access the dashboard regardless of database errors
+          setIsSubscriptionCheckComplete(true);
           return;
         }
-
-        if (existingUser) {
-          // User exists, update their role to "sub-user"
-          const { error: updateError } = await supabase
-            .from("User")
-            .update({ Role: "sub-user", UpdatedAt: new Date().toISOString() })
-            .eq("Email", userEmail);
-
-          if (updateError) {
-            // Error handling
-          }
-        } else {
-          // User does not exist, insert them as a sub-user
-          const { error: insertError } = await supabase
-            .from("User")
-            .insert({
-              KindeUserID: kindeUserId,
-              Email: userEmail,
-              Role: "sub-user",
-              UpdatedAt: new Date().toISOString(),
-            });
-
-          if (insertError) {
-            // Error handling
-          }
-        }
-
-        setIsSubscriptionCheckComplete(true);
-        return;
       }
 
       // If not a sub-user, check for an active subscription
@@ -648,7 +653,12 @@ export default function Dashboard() {
         setIsSubscriptionCheckComplete(true);
       }
     } catch (error) {
-      router.push("/subscribe");
+      console.error("❌ Critical error in subscription check:", error);
+      // Only redirect to subscribe if we're certain the user is not a sub-user
+      // For now, let's be more conservative and not redirect on errors
+      // This prevents sub-users from being incorrectly redirected
+      console.warn("⚠️ Error occurred during subscription check, allowing access to prevent sub-user redirects");
+      setIsSubscriptionCheckComplete(true);
     }
   };
 

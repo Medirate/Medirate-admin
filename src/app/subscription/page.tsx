@@ -46,14 +46,12 @@ export default function SubscriptionPage() {
         }
 
         const data = await response.json();
-        const subUsers = data.subUsers || [];
         
-        // Check if current user is in the sub_users array
-        if (subUsers.includes(userEmail)) {
+        // Check if current user is a sub-user
+        if (data.isSubUser) {
           setIsSubUser(true);
           // For sub-users, we need to find their primary user
-          // This will be handled by the API endpoint
-          setPrimaryEmail(userEmail); // Placeholder - you might need to adjust this logic
+          setPrimaryEmail(data.primaryUser || userEmail);
         } else {
           setIsSubUser(false);
           fetchSubscription(userEmail);
