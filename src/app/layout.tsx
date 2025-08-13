@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Navbar from "./components/Navbar";
+import RightClickProtection from "./components/RightClickProtection";
 import "./globals.css";
 import { cn } from "./lib/utils";
 
@@ -11,6 +12,8 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'development') {
     console[method] = () => {};
   }
 }
+
+
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -43,10 +46,11 @@ export default function RootLayout({
     <html lang="en" className="light">
       <body
         className={cn(
-          "min-h-screen font-sans antialiased",
+          "min-h-screen font-sans antialiased no-right-click",
           geistMono.variable
         )}
       >
+        <RightClickProtection />
         <Navbar />
         {children}
       </body>
