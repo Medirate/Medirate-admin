@@ -583,17 +583,17 @@ export default function StatePaymentComparison() {
     }
 
     try {
-      // Check if the user is a sub-user
-      const { data: subUserData, error: subUserError } = await supabase
-        .from("subscription_users")
-        .select("sub_users")
-        .contains("sub_users", JSON.stringify([userEmail]));
-
-      if (subUserError) {
-        return;
+      // Check if the user is a sub-user using the API endpoint
+      const subUserResponse = await fetch("/api/subscription-users");
+      if (!subUserResponse.ok) {
+        throw new Error("Failed to check sub-user status");
       }
 
-      if (subUserData && subUserData.length > 0) {
+      const subUserData = await subUserResponse.json();
+      const subUsers = subUserData.subUsers || [];
+      
+      // Check if current user is in the sub_users array
+      if (subUsers.includes(userEmail)) {
         // Check if the user already exists in the User table
         const { data: existingUser, error: fetchError } = await supabase
           .from("User")

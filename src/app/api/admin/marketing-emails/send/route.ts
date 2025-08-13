@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
   try {
+    // SECURITY: Validate admin authentication and authorization
+    const { validateAdminAuth } = await import("@/lib/admin-auth");
+    const { user: adminUser, error: authError } = await validateAdminAuth();
+    
+    if (authError) {
+      return authError;
+    }
+    
     const { emails, subject, htmlContent, target } = await req.json();
     
     if (!emails || !Array.isArray(emails) || emails.length === 0) {

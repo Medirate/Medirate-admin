@@ -66,7 +66,7 @@ export async function GET(request: Request) {
         
         // Test 1: Check total count for this service code
         const { data: h0004Data, error: h0004Error } = await supabase
-          .from('master_data_july_7')
+          .from('master_data')
           .select('state_name, service_category, service_code')
           .eq('service_code', 'H0004');
         console.log('🎯 H0004 total records:', h0004Data?.length || 0);
@@ -74,7 +74,7 @@ export async function GET(request: Request) {
         
         // Test 2: Check for exact category match
         const { data: exactData, error: exactError } = await supabase
-          .from('master_data_july_7')
+          .from('master_data')
           .select('state_name, service_category, service_code')
           .eq('service_code', 'H0004')
           .eq('service_category', serviceCategory);
@@ -82,7 +82,7 @@ export async function GET(request: Request) {
         
         // Test 3: Check for ILIKE category match
         const { data: ilikeData, error: ilikeError } = await supabase
-          .from('master_data_july_7')
+          .from('master_data')
           .select('state_name, service_category, service_code')
           .eq('service_code', 'H0004')
           .ilike('service_category', serviceCategory.trim());
@@ -90,7 +90,7 @@ export async function GET(request: Request) {
         
         // Test 4: Check for partial category match
         const { data: partialData, error: partialError } = await supabase
-          .from('master_data_july_7')
+          .from('master_data')
           .select('state_name, service_category, service_code')
           .eq('service_code', 'H0004')
           .ilike('service_category', '%BEHAVIORAL HEALTH%');
@@ -117,7 +117,7 @@ export async function GET(request: Request) {
         console.log(`🔍 API: Fetching batch ${Math.floor(offset/batchSize) + 1} (offset: ${offset})`);
         
         const { data: batchData, error } = await supabase
-          .from('master_data_july_7')
+          .from('master_data')
           .select('state_name, service_category, service_code, rate, duration_unit, rate_effective_date')
           .ilike('service_category', serviceCategory.trim())
           .ilike('service_code', serviceCode.trim())
@@ -261,7 +261,7 @@ export async function GET(request: Request) {
     const sortParam = getParam("sort");
 
     // Build Supabase query
-    let query = supabase.from('master_data_july_7').select('*', { count: 'exact' });
+    let query = supabase.from('master_data').select('*', { count: 'exact' });
     
     // DEBUG: Log the parameters being used
     console.log('🔍 API Debug - Parameters received:', {
@@ -280,7 +280,7 @@ export async function GET(request: Request) {
     });
     
     // DEBUG: Test query to see if we can get any data at all
-    const testQuery = supabase.from('master_data_july_7').select('service_category, state_name, service_code').limit(5);
+    const testQuery = supabase.from('master_data').select('service_category, state_name, service_code').limit(5);
     const { data: testData, error: testError } = await testQuery;
     console.log('🔍 API Debug - Test query results:', {
       testDataLength: testData?.length || 0,
@@ -289,7 +289,7 @@ export async function GET(request: Request) {
     });
     
     // DEBUG: Check what service categories exist for HCBS
-    const hcbsQuery = supabase.from('master_data_july_7')
+    const hcbsQuery = supabase.from('master_data')
       .select('service_category')
       .ilike('service_category', '%HOME AND COMMUNITY%')
       .limit(10);
@@ -304,7 +304,7 @@ export async function GET(request: Request) {
     console.log('🔍 API Debug - Testing filters individually...');
     
     // Test 1: Just service category
-    const test1 = supabase.from('master_data_july_7')
+    const test1 = supabase.from('master_data')
       .select('service_category, state_name, service_code')
       .eq('service_category', serviceCategory);
     const { data: test1Data, error: test1Error } = await test1;
@@ -315,7 +315,7 @@ export async function GET(request: Request) {
     });
     
     // Test 2: Service category + state
-    const test2 = supabase.from('master_data_july_7')
+    const test2 = supabase.from('master_data')
       .select('service_category, state_name, service_code')
       .eq('service_category', serviceCategory)
       .ilike('state_name', (state || '').trim() + '%'); // Use ILIKE to handle trailing spaces
@@ -327,7 +327,7 @@ export async function GET(request: Request) {
     });
     
     // Test 3: Service category + state + service code
-    const test3 = supabase.from('master_data_july_7')
+    const test3 = supabase.from('master_data')
       .select('service_category, state_name, service_code')
       .eq('service_category', serviceCategory)
       .ilike('state_name', (state || '').trim() + '%') // Use ILIKE to handle trailing spaces
@@ -340,7 +340,7 @@ export async function GET(request: Request) {
     });
     
     // DEBUG: Check what state names exist for HCBS
-    const stateQuery = supabase.from('master_data_july_7')
+    const stateQuery = supabase.from('master_data')
       .select('state_name')
       .eq('service_category', serviceCategory)
       .ilike('state_name', '%NEBRASKA%');
@@ -357,14 +357,14 @@ export async function GET(request: Request) {
       console.log(`🔍 API Debug - Service category filtering: "${serviceCategory}" → "${trimmedCategory}"`);
       
       // Test different service category approaches
-      const exactCatTest = supabase.from('master_data_july_7')
+      const exactCatTest = supabase.from('master_data')
         .select('service_category')
         .eq('service_category', trimmedCategory)
         .limit(5);
       const { data: exactCatData } = await exactCatTest;
       console.log(`🔍 API Debug - Exact category match for "${trimmedCategory}":`, exactCatData?.length || 0);
       
-      const spaceCatTest = supabase.from('master_data_july_7')
+      const spaceCatTest = supabase.from('master_data')
         .select('service_category')
         .eq('service_category', trimmedCategory + ' ')
         .limit(5);
@@ -381,14 +381,14 @@ export async function GET(request: Request) {
       console.log(`🔍 API Debug - State filtering: "${state}" → "${trimmedState}"`);
       
       // Test different state name approaches
-      const exactStateTest = supabase.from('master_data_july_7')
+      const exactStateTest = supabase.from('master_data')
         .select('state_name')
         .eq('state_name', trimmedState)
         .limit(5);
       const { data: exactStateData } = await exactStateTest;
       console.log(`🔍 API Debug - Exact state match for "${trimmedState}":`, exactStateData?.length || 0);
       
-      const spaceStateTest = supabase.from('master_data_july_7')
+      const spaceStateTest = supabase.from('master_data')
         .select('state_name')
         .eq('state_name', trimmedState + ' ')
         .limit(5);
@@ -417,7 +417,7 @@ export async function GET(request: Request) {
         
         // Test different approaches to find the service code
         // First try exact match
-        const exactTest = supabase.from('master_data_july_7')
+        const exactTest = supabase.from('master_data')
           .select('service_code, state_name, service_category')
           .eq('service_code', trimmedCode)
           .limit(5);
@@ -425,7 +425,7 @@ export async function GET(request: Request) {
         console.log(`🔍 API Debug - Exact match for "${trimmedCode}":`, exactData?.length || 0);
         
         // Try with trailing space
-        const spaceTest = supabase.from('master_data_july_7')
+        const spaceTest = supabase.from('master_data')
           .select('service_code, state_name, service_category')
           .eq('service_code', trimmedCode + ' ')
           .limit(5);
@@ -433,7 +433,7 @@ export async function GET(request: Request) {
         console.log(`🔍 API Debug - With trailing space "${trimmedCode} ":`, spaceData?.length || 0);
         
         // Try ILIKE with wildcards
-        const ilikeTest = supabase.from('master_data_july_7')
+        const ilikeTest = supabase.from('master_data')
           .select('service_code, state_name, service_category')
           .ilike('service_code', `%${trimmedCode}%`)
           .limit(5);

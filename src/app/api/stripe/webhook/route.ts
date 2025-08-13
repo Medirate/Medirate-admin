@@ -84,58 +84,27 @@ async function handleSubscription(subscription: Stripe.Subscription) {
     return;
   }
 
+  // Get plan ID from Stripe price
   const planID = subscription.items.data[0]?.price.id;
   if (!planID) {
     console.error("❌ Error fetching subscription or missing PlanID");
     return;
   }
 
-  // Check if the subscription already exists
-  const { data: existingSubscription, error: fetchError } = await supabase
-    .from("Subscription")
-    .select("SubscriptionID")
-    .eq("SubscriptionID", subscription.id)
-    .single();
+  // Update the user's subscription status and plan
+  const { error: updateError } = await supabase
+    .from("User")
+    .update({
+      subscriptionStatus: subscription.status,
+      planId: parseInt(planID), // Convert to integer if needed
+      UpdatedAt: new Date().toISOString(),
+    })
+    .eq("UserID", user.UserID);
 
-  if (fetchError && fetchError.code !== "PGRST116") {
-    console.error("⚠️ Error checking existing subscription:", fetchError);
-    return;
-  }
-
-  if (existingSubscription) {
-    console.log(`🔄 Updating Subscription: ${subscription.id}`);
-    const { error: updateError } = await supabase
-      .from("Subscription")
-      .update({
-        PlanID: planID,
-        Status: subscription.status,
-        UpdatedAt: new Date().toISOString(),
-      })
-      .eq("SubscriptionID", subscription.id);
-
-    if (updateError) {
-      console.error("❌ Error updating subscription:", updateError);
-    }
+  if (updateError) {
+    console.error("❌ Error updating user subscription:", updateError);
   } else {
-    console.log(`➕ Creating new Subscription: ${subscription.id}`);
-    const { error: insertError } = await supabase
-      .from("Subscription")
-      .insert([
-        {
-          SubscriptionID: subscription.id,
-          UserID: user.UserID,
-          PlanID: planID,
-          Status: subscription.status,
-          CreatedAt: new Date().toISOString(),
-          UpdatedAt: new Date().toISOString(),
-        },
-      ]);
-
-    if (insertError) {
-      console.error("❌ Error inserting subscription:", insertError);
-    } else {
-      console.log("✅ Subscription successfully synced.");
-    }
+    console.log(`✅ User subscription updated: ${subscription.status}`);
   }
 }
 
@@ -157,27 +126,29 @@ async function handlePayment(invoice: Stripe.Invoice) {
     return;
   }
 
-  // Get Subscription ID
-  const { data: subscription, error: subscriptionError } = await supabase
-    .from("Subscription")
-    .select("SubscriptionID, PlanID")
+  // Get plan ID from the user's current subscription
+  const { data: userData, error: userError } = await supabase
+    .from("User")
+    .select("planId")
     .eq("UserID", user.UserID)
     .single();
 
-  if (subscriptionError || !subscription?.PlanID) {
-    console.error("❌ Error fetching subscription or missing PlanID:", subscriptionError);
+  if (userError || !userData?.planId) {
+    console.error("❌ Error fetching user plan or missing PlanID:", userError);
     return;
   }
 
-  console.log(`➕ Creating new Payment for Subscription: ${subscription.SubscriptionID}`);
+  console.log(`➕ Creating new Payment for User: ${user.UserID}`);
 
   const { error: insertError } = await supabase
     .from("Payment")
     .insert([
       {
-        UserID: user.UserID,
-        SubscriptionID: subscription.SubscriptionID,
-        PlanID: subscription.PlanID,
+        UserId: user.UserID,
+        PlanId: userData.planId,
+        // Store the complete webhook data for flexibility
+        webhookData: invoice,
+        // Keep essential fields for easy querying
         Amount: invoice.amount_paid / 100,
         PaymentStatus: invoice.status,
         CreatedAt: new Date().toISOString(),

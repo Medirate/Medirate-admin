@@ -21,40 +21,49 @@ const Navbar = () => {
     picture: undefined,
   });
 
-  // ✅ Fetch user info from Supabase
-  useEffect(() => {
-    if (user && user.email) {
-      fetchUserFromSupabase(user.email);
-    }
-  }, [user]);
-
-  // ✅ Sync user to Supabase after login
+  // ✅ Sync user to Supabase after login and fetch user data
   useEffect(() => {
     if (isAuthenticated && user?.email) {
       syncUserToSupabase(user.email, user.given_name || "", user.family_name || "", user.id);
+      // fetchUserFromSupabase is now called after sync completes
     }
   }, [isAuthenticated, user]);
 
   const fetchUserFromSupabase = async (email: string) => {
-    const { data, error } = await supabase
-      .from("User")
-      .select("FirstName, LastName, Email, Picture")
-      .eq("Email", email)
-      .single();
+    try {
+      console.log("🔍 Fetching user data for email:", email);
+      
+      const { data, error } = await supabase
+        .from("User")
+        .select("FirstName, LastName, Email, Picture")
+        .eq("Email", email)
+        .maybeSingle(); // Use maybeSingle instead of single to avoid errors
 
-    if (error) {
-      // Error handling
-    } else {
+      if (error) {
+        console.log("❌ Error fetching user data:", error.message);
+        return;
+      }
+
+      if (!data) {
+        console.log("⚠️ No user data found for email:", email);
+        return;
+      }
+
+      console.log("✅ User data found:", data);
       setUserInfo({
         name: data.FirstName || data.LastName || "User",
         email: data.Email,
         picture: data.Picture || undefined,
       });
+    } catch (err) {
+      console.log("💥 Exception in fetchUserFromSupabase:", err);
     }
   };
 
   const syncUserToSupabase = async (email: string, firstName: string, lastName: string, kindeId: string) => {
     try {
+      console.log("🔄 Syncing user to Supabase:", { email, firstName, lastName });
+      
       const response = await fetch("/api/sync-kinde-user", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -62,11 +71,31 @@ const Navbar = () => {
       });
 
       const data = await response.json();
+      console.log("🔄 Sync API response:", data);
+      
       if (data.error) {
-        // Error handling
+        console.log("❌ Error syncing user to Supabase:", data.error);
+      } else {
+        console.log("✅ User synced to Supabase successfully");
+        
+        // Use the user data from the sync response instead of fetching separately
+        if (data.user) {
+          console.log("✅ User data from sync:", data.user);
+          setUserInfo({
+            name: data.user.FirstName || data.user.LastName || "User",
+            email: data.user.Email,
+            picture: data.user.Picture || undefined,
+          });
+        } else {
+          console.log("⚠️ No user data in sync response, trying to fetch...");
+          // Fallback: try to fetch user data
+          setTimeout(() => {
+            fetchUserFromSupabase(email);
+          }, 1000);
+        }
       }
     } catch (err) {
-      // Error handling
+      console.log("💥 Exception in syncUserToSupabase:", err);
     }
   };
 

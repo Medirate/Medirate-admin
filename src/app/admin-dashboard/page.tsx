@@ -5,7 +5,6 @@ import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
 import { useRouter } from "next/navigation";
 import AppLayout from "@/app/components/applayout";
 import { FaShieldAlt } from 'react-icons/fa';
-import { supabase } from "@/lib/supabase";
 
 interface AdminUser {
   id: number;
@@ -34,24 +33,25 @@ export default function AdminDashboard() {
       setLoading(true);
       setError(null);
 
-      // Check if user exists in admin_users table
-      const { data: adminData, error: adminError } = await supabase
-        .from("admin_users")
-        .select("*")
-        .eq("email", userEmail)
-        .single();
+      // Use admin API endpoint to bypass RLS
+      const response = await fetch('/api/admin/check-access', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: userEmail })
+      });
 
-      if (adminError) {
-        if (adminError.code === "PGRST116") {
-          setIsAdmin(false);
-          setAdminUser(null);
-        } else {
-          setError("Failed to check admin access");
-          setIsAdmin(false);
-        }
-      } else if (adminData) {
-        setIsAdmin(true);
-        setAdminUser(adminData);
+      if (!response.ok) {
+        throw new Error('Failed to check admin access');
+      }
+
+      const data = await response.json();
+      
+      if (data.error) {
+        setError(data.error);
+        setIsAdmin(false);
+      } else {
+        setIsAdmin(data.isAdmin);
+        setAdminUser(data.adminUser);
       }
 
       setIsAdminCheckComplete(true);

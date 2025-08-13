@@ -15,6 +15,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
+    console.log("🔄 Starting user sync for:", { email, firstName, lastName, kindeId });
+
     // ✅ Check if the user already exists in the User table
     const { data: user, error: userError } = await supabase
       .from("User")
@@ -30,6 +32,8 @@ export async function POST(req: Request) {
     // ✅ If the user does not exist, create a new user
     let userData = user;
     if (!userData) {
+      console.log("➕ Creating new user...");
+      
       const { data: newUser, error: insertUserError } = await supabase
         .from("User")
         .insert([
@@ -38,6 +42,7 @@ export async function POST(req: Request) {
             FirstName: firstName, 
             LastName: lastName, 
             KindeUserID: kindeId,
+            CreatedAt: new Date().toISOString(),
             UpdatedAt: new Date().toISOString()
           }
         ])
@@ -50,6 +55,9 @@ export async function POST(req: Request) {
       }
 
       userData = newUser;
+      console.log("✅ New user created:", userData);
+    } else {
+      console.log("✅ User already exists:", userData);
     }
 
     // ✅ If primaryUserEmail exists, link the user as a sub-user
@@ -76,12 +84,12 @@ export async function POST(req: Request) {
       }
     }
 
-    console.log("Syncing user with email:", email);
-    console.log("First Name:", firstName);
-    console.log("Last Name:", lastName);
-    console.log("Kinde ID:", kindeId);
-
-    return NextResponse.json({ message: "User synced successfully." }, { status: 200 });
+    console.log("✅ User sync completed successfully for:", email);
+    return NextResponse.json({ 
+      message: "User synced successfully.",
+      user: userData 
+    }, { status: 200 });
+    
   } catch (error) {
     console.error("❌ Sync error:", error);
     return NextResponse.json({ error: "Unexpected error occurred." }, { status: 500 });

@@ -8,39 +8,13 @@ export async function GET() {
     // Create service client for server-side operations
     const supabase = createServiceClient();
     
-    // Fetch ALL data from code_definitions table using pagination to bypass limits
-    let allData: any[] = [];
-    let from = 0;
-    const pageSize = 1000;
-    let hasMore = true;
+    // Simple fetch without pagination to debug the issue
+    const { data, error } = await supabase
+      .from('code_definitions')
+      .select('hcpcs_code_cpt_code, service_code, service_description')
+      .order('service_code')
+      .limit(1000); // Limit to first 1000 records for now
     
-    while (hasMore) {
-      const { data: pageData, error: pageError } = await supabase
-        .from('code_definitions')
-        .select('hcpcs_code_cpt_code, service_code, service_description')
-        .order('service_code')
-        .range(from, from + pageSize - 1);
-      
-      if (pageError) {
-        console.error(`Supabase error fetching page ${from}-${from + pageSize - 1}:`, pageError);
-        return NextResponse.json(
-          { error: "Failed to fetch code definitions" },
-          { status: 500 }
-        );
-      }
-      
-      if (pageData && pageData.length > 0) {
-        allData = allData.concat(pageData);
-        from += pageSize;
-        hasMore = pageData.length === pageSize; // Continue if we got a full page
-      } else {
-        hasMore = false;
-      }
-    }
-    
-    const data = allData;
-    const error = null;
-
     if (error) {
       console.error("Supabase error fetching code definitions:", error);
       return NextResponse.json(

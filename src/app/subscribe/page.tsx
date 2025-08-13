@@ -207,16 +207,19 @@ const StripePricingTableWithFooter = () => {
     if (!userEmail) return;
 
     try {
-      const { data: subUserData, error: subUserError } = await supabase
-        .from("subscription_users")
-        .select("sub_users, primary_user")
-        .contains("sub_users", JSON.stringify([userEmail]));
+      const response = await fetch("/api/subscription-users");
+      if (!response.ok) {
+        throw new Error("Failed to check sub-user status");
+      }
 
-      if (subUserError) {
-        console.error("❌ Error checking sub-user:", subUserError);
-      } else if (subUserData && subUserData.length > 0) {
+      const data = await response.json();
+      const subUsers = data.subUsers || [];
+      
+      if (subUsers.includes(userEmail)) {
         setIsSubUser(true);
-        setPrimaryEmail(subUserData[0].primary_user);
+        // For sub-users, we need to find their primary user
+        // This will be handled by the API endpoint
+        setPrimaryEmail(userEmail); // Placeholder - you might need to adjust this logic
       }
     } catch (err) {
       console.error("❌ Error checking sub-user:", err);

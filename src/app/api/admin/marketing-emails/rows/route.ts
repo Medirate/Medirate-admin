@@ -3,6 +3,14 @@ import { createServiceClient } from "@/lib/supabase";
 
 export async function POST(req: NextRequest) {
   try {
+    // SECURITY: Validate admin authentication and authorization
+    const { validateAdminAuth } = await import("@/lib/admin-auth");
+    const { user: adminUser, error: authError } = await validateAdminAuth();
+    
+    if (authError) {
+      return authError;
+    }
+    
     const { table, email, firstname, lastname } = await req.json();
     
     if (!table || !email) {
@@ -51,6 +59,14 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
+    // SECURITY: Validate admin authentication and authorization
+    const { validateAdminAuth } = await import("@/lib/admin-auth");
+    const { user: adminUser, error: authError } = await validateAdminAuth();
+    
+    if (authError) {
+      return authError;
+    }
+    
     const { table, email } = await req.json();
     
     if (!table || !email) {

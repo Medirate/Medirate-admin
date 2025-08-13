@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
 import { motion } from "framer-motion";
 import { MoonLoader } from "react-spinners";
-import { supabase } from "@/lib/supabase";
 
 // ✅ Full list of U.S. states
 const STATES = [
@@ -31,9 +30,14 @@ export default function EmailPreferences() {
 
   useEffect(() => {
     const fetchCategories = async () => {
-      const { data, error } = await supabase.from("service_category_list").select("categories");
-      if (!error && data) {
-        setCategories(data.map((cat: { categories: string }) => cat.categories));
+      try {
+        const response = await fetch('/api/service-categories');
+        if (response.ok) {
+          const data = await response.json();
+          setCategories(data.categories || []);
+        }
+      } catch (error) {
+        console.error("Error fetching categories:", error);
       }
     };
     fetchCategories();
@@ -48,26 +52,34 @@ export default function EmailPreferences() {
   const fetchPreferences = async (email: string) => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("user_email_preferences")
-        .select("id, preferences")
-        .eq("user_email", email)
-        .single();
+      const response = await fetch(`/api/user/email-preferences?email=${encodeURIComponent(email)}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch preferences');
+      }
 
-      if (error && error.code !== "PGRST116") {
-        console.error("❌ Error fetching preferences:", error);
-      } else if (data) {
+      const data = await response.json();
+      
+      if (data.id) {
         setPreferenceId(data.id);
         setSelectedStates(data.preferences?.states || []);
         setSelectedCategories(data.preferences?.categories || []);
       } else {
-        const { data: newRecord, error: insertError } = await supabase
-          .from("user_email_preferences")
-          .insert({ user_email: email, preferences: { states: [], categories: [] } })
-          .select("id")
-          .single();
+        // No preferences found, create new ones
+        const createResponse = await fetch('/api/user/email-preferences', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            user_email: email, 
+            preferences: { states: [], categories: [] } 
+          })
+        });
 
-        if (!insertError) setPreferenceId(newRecord.id);
+        if (createResponse.ok) {
+          const createData = await createResponse.json();
+          setPreferenceId(createData.id);
+        } else {
+          throw new Error('Failed to create preferences');
+        }
       }
     } catch (err) {
       console.error("❌ Unexpected error fetching preferences:", err);
@@ -82,17 +94,20 @@ export default function EmailPreferences() {
     setLoading(true);
     try {
       const updatedPreferences = { states: selectedStates, categories: selectedCategories };
-      const { error } = await supabase
-        .from("user_email_preferences")
-        .update({ preferences: updatedPreferences })
-        .eq("id", preferenceId);
+      const response = await fetch('/api/user/email-preferences', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: preferenceId,
+          preferences: updatedPreferences
+        })
+      });
 
-      if (error) {
-        console.error("❌ Error saving preferences:", error);
-        alert("Failed to save preferences.");
-      } else {
-        alert("✅ Preferences saved successfully!");
+      if (!response.ok) {
+        throw new Error('Failed to save preferences');
       }
+
+      alert("✅ Preferences saved successfully!");
     } catch (err) {
       console.error("❌ Unexpected error saving preferences:", err);
       alert("Failed to save preferences. Please try again.");

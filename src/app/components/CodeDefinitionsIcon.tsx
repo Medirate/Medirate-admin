@@ -185,6 +185,7 @@ const CodeDefinitionsIcon = () => {
   // Add useEffect for initial data fetch
   useEffect(() => {
     if (!hasAttemptedFetch && isOpen) {
+      console.log('🔍 CodeDefinitionsIcon - Opening modal, fetching data...');
       fetchData();
       setHasAttemptedFetch(true);
     }
@@ -213,15 +214,19 @@ const CodeDefinitionsIcon = () => {
 
   const fetchData = async () => {
     try {
+      console.log('🚀 CodeDefinitionsIcon - Starting data fetch...');
       setLoading(true);
       setError(null);
       
       const response = await fetch('/api/code-definations');
+      console.log('📡 CodeDefinitionsIcon - API response status:', response.status);
+      
       if (!response.ok) {
         throw new Error(`Failed to fetch data: ${response.status} ${response.statusText}`);
       }
       
       const result = await response.json();
+      console.log('📊 CodeDefinitionsIcon - API response data length:', result?.length || 0);
       
       // Ensure the data is an array and not empty
       if (Array.isArray(result) && result.length > 0) {
@@ -229,14 +234,17 @@ const CodeDefinitionsIcon = () => {
         const uniqueData = result.filter((item, index, self) =>
           index === self.findIndex((t) => t.service_code === item.service_code)
         );
+        console.log('✅ CodeDefinitionsIcon - Setting data:', uniqueData.length, 'unique items');
         setData(uniqueData);
       } else {
         throw new Error('No data received from API');
       }
     } catch (error) {
+      console.error('❌ CodeDefinitionsIcon - Fetch error:', error);
       setError(error instanceof Error ? error.message : 'Failed to load code definitions. Please try again later.');
       setData([]); // Reset data to empty array
     } finally {
+      console.log('🏁 CodeDefinitionsIcon - Fetch completed, setting loading to false');
       setLoading(false);
     }
   };

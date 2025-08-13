@@ -695,22 +695,20 @@ export default function RateDevelopments() {
     }
 
     try {
-      // Check if the user is a sub-user
+      // Check if the user is a sub-user using the API endpoint
       console.log('🔍 Checking if user is a sub-user...');
-      const { data: subUserData, error: subUserError } = await supabase
-        .from("subscription_users")
-        .select("sub_users")
-        .contains("sub_users", JSON.stringify([userEmail]));
-
-      if (subUserError) {
-        console.error("❌ Error checking sub-user:", subUserError);
-        console.error("Full error object:", JSON.stringify(subUserError, null, 2));
-        return;
+      const subUserResponse = await fetch("/api/subscription-users");
+      if (!subUserResponse.ok) {
+        throw new Error("Failed to check sub-user status");
       }
 
-      console.log('📊 Sub-user check result:', { subUserData });
-
-      if (subUserData && subUserData.length > 0) {
+      const subUserData = await subUserResponse.json();
+      const subUsers = subUserData.subUsers || [];
+      
+      console.log('📊 Sub-user check result:', { subUsers, userEmail });
+      
+      // Check if current user is in the sub_users array
+      if (subUsers.includes(userEmail)) {
         console.log('✅ User is a sub-user, checking User table...');
         // Check if the user already exists in the User table
         const { data: existingUser, error: fetchError } = await supabase
@@ -793,29 +791,32 @@ export default function RateDevelopments() {
 
   const fetchData = async () => {
     setLoading(true);
-    // Fetch Provider Alerts from Supabase
-    const { data: providerAlerts, error: providerError } = await supabase
-      .from("provider_alerts")
-      .select("*")
-      .order("announcement_date", { ascending: false });
-    if (providerError) {
-      console.error("Error fetching provider alerts from Supabase:", providerError);
+    try {
+      // Use admin API endpoint to bypass RLS
+      const response = await fetch('/api/admin/rate-data');
+      if (!response.ok) {
+        throw new Error('Failed to fetch admin data');
+      }
+      
+      const data = await response.json();
+      
+      // Set provider alerts
+      if (data.providerAlerts) {
+        setAlerts(data.providerAlerts);
+      }
+      
+      // Set legislative updates
+      if (data.bills) {
+        setBills(data.bills);
+      }
+      
+    } catch (error) {
+      console.error("Error fetching admin data:", error);
       setAlerts([]);
-    } else {
-      setAlerts(providerAlerts || []);
-    }
-
-    // Fetch Legislative Updates from Supabase
-    const { data: billsData, error: billsError } = await supabase
-      .from("bill_track_50")
-      .select("*");
-    if (billsError) {
-      console.error("Error fetching legislative updates from Supabase:", billsError);
       setBills([]);
-    } else {
-      setBills(billsData || []);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   // Function to toggle sort direction

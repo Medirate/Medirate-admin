@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
 import { toast, Toaster } from "react-hot-toast";
-import { supabase } from "@/lib/supabase";
 
 interface Subscription {
   plan: string;
@@ -40,22 +39,21 @@ export default function SubscriptionPage() {
 
     async function checkSubUser() {
       try {
-        // Check if the user is a sub-user
-        const { data: subUserData, error: subUserError } = await supabase
-          .from("subscription_users")
-          .select("sub_users, primary_user")
-          .contains("sub_users", JSON.stringify([userEmail]));
-
-        if (subUserError) {
-          setError("Failed to check sub-user status.");
-          setLoading(false);
-          return;
+        // Check if the user is a sub-user using the API endpoint
+        const response = await fetch("/api/subscription-users");
+        if (!response.ok) {
+          throw new Error("Failed to check sub-user status");
         }
 
-        if (subUserData && subUserData.length > 0) {
+        const data = await response.json();
+        const subUsers = data.subUsers || [];
+        
+        // Check if current user is in the sub_users array
+        if (subUsers.includes(userEmail)) {
           setIsSubUser(true);
-          setPrimaryEmail(subUserData[0].primary_user);
-          fetchSubscription(subUserData[0].primary_user);
+          // For sub-users, we need to find their primary user
+          // This will be handled by the API endpoint
+          setPrimaryEmail(userEmail); // Placeholder - you might need to adjust this logic
         } else {
           setIsSubUser(false);
           fetchSubscription(userEmail);

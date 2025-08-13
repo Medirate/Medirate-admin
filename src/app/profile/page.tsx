@@ -24,28 +24,29 @@ export default function Profile() {
     }
   }, [user]);
 
-  // ✅ Fetch user profile from Supabase
+  // ✅ Fetch user profile from API endpoint
   const fetchUserProfile = async (userEmail: string | null) => {
     if (!userEmail) {
       return;
     }
 
     setLoading(true);
-    const { data, error } = await supabase
-      .from("User")
-      .select("FirstName, LastName, Email, Picture")
-      .eq("Email", userEmail)
-      .single();
-
-    if (error) {
-      // Error handling
-    } else {
-      setFirstName(data.FirstName || "");
-      setLastName(data.LastName || "");
-      setEmail(data.Email || "");
-      setProfilePicture(data.Picture || null);
+    try {
+      const response = await fetch('/api/user/profile');
+      if (!response.ok) {
+        throw new Error('Failed to fetch profile');
+      }
+      
+      const data = await response.json();
+      setFirstName(data.firstName || "");
+      setLastName(data.lastName || "");
+      setEmail(data.email || "");
+      setProfilePicture(data.picture || null);
+    } catch (error) {
+      console.error("Error fetching profile:", error);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   // ✅ Handle profile updates
@@ -54,20 +55,25 @@ export default function Profile() {
       return;
     }
 
-    const { error } = await supabase
-      .from("User")
-      .update({
-        FirstName: firstName,
-        LastName: lastName,
-        Picture: profilePicture, // ✅ Save profile picture URL
-        UpdatedAt: new Date().toISOString(),
-      })
-      .eq("Email", user.email);
+    try {
+      const response = await fetch('/api/user/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firstName,
+          lastName,
+          picture: profilePicture
+        })
+      });
 
-    if (error) {
-      alert("Failed to update profile.");
-    } else {
+      if (!response.ok) {
+        throw new Error('Failed to update profile');
+      }
+
       alert("✅ Profile updated successfully!");
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      alert("Failed to update profile.");
     }
   };
 

@@ -58,7 +58,19 @@ export async function POST(req: NextRequest) {
     logs.push(logEntry);
     console.log(`[${phase}] ${message}`);
   }
+  
   try {
+    // SECURITY: Validate admin authentication and authorization
+    const { validateAdminAuth } = await import("@/lib/admin-auth");
+    const { user: adminUser, error: authError } = await validateAdminAuth();
+    
+    if (authError) {
+      log('❌ Admin authentication failed', 'error', 'security');
+      return authError;
+    }
+    
+    log(`✅ Admin access validated for user: ${adminUser.email}`, 'success', 'security');
+    
     // Get env vars
     const AZURE_CONNECTION_STRING = getEnv("AZURE_CONNECTION_STRING");
     const CONTAINER_NAME = getEnv("CONTAINER_NAME");

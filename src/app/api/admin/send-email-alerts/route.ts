@@ -86,6 +86,17 @@ export async function POST(req: NextRequest) {
   try {
     logs.push("🔍 Starting email notification process...");
     
+    // SECURITY: Validate admin authentication and authorization
+    const { validateAdminAuth } = await import("@/lib/admin-auth");
+    const { user: adminUser, error: authError } = await validateAdminAuth();
+    
+    if (authError) {
+      logs.push('❌ Admin authentication failed');
+      return NextResponse.json({ success: false, logs, error: "Admin privileges required" }, { status: 403 });
+    }
+    
+    logs.push(`✅ Admin access validated for user: ${adminUser.email}`);
+    
     // Check environment variables
     if (!BREVO_API_KEY) {
       logs.push("❌ BREVO_API_KEY environment variable is missing");

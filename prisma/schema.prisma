@@ -48,15 +48,16 @@ model Plan {
 }
 
 model Payment {
-  paymentId     Int      @id @default(autoincrement())
-  userId        Int
-  planId        Int
-  amount        Float
-  paymentStatus String
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  plan          Plan     @relation(fields: [planId], references: [planId])
-  user          User     @relation(fields: [userId], references: [userId])
+  paymentId       Int      @id @default(autoincrement())
+  userId          Int
+  planId          Int
+  amount          Float
+  paymentStatus   String
+  webhookData     Json?    // Store complete Stripe webhook data
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  plan            Plan     @relation(fields: [planId], references: [planId])
+  user            User     @relation(fields: [userId], references: [userId])
 }
 
 model EmailPreferences {
@@ -151,5 +152,5 @@ model EmailPreferences {
   THERAPY_OT_PT_ST Boolean @default(false)
   VISION Boolean @default(false)
   GENERAL_MEDICAID Boolean @default(false)
-  _340B Boolean @default(false)
+  PROGRAM_340B Boolean @default(false)
 } 

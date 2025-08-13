@@ -6,6 +6,17 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 // Create a single Supabase client instance for the entire app
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
+// Create an authenticated Supabase client with user token
+export const createAuthenticatedClient = (accessToken: string) => {
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    global: {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  })
+}
+
 // For server-side operations that need service role access
 export const createServiceClient = () => {
   return createClient(

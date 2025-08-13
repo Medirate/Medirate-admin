@@ -3,6 +3,16 @@ import { createServiceClient } from "@/lib/supabase";
 
 export async function GET(req: NextRequest) {
   try {
+    // SECURITY: Validate admin authentication and authorization
+    const { validateAdminAuth } = await import("@/lib/admin-auth");
+    const { user: adminUser, error: authError } = await validateAdminAuth();
+    
+    if (authError) {
+      return authError;
+    }
+    
+    console.log(`✅ Admin access validated for marketing emails list: ${adminUser.email}`);
+    
     // Check if service role key is available
     if (!process.env.SUPABASE_SERVICE_ROLE) {
       console.error("SUPABASE_SERVICE_ROLE environment variable is missing");
