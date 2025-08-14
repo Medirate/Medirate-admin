@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
 
     // Also get recent events for daily breakdown
     const eventsUrl = new URL('https://api.brevo.com/v3/smtp/statistics/events');
-    eventsUrl.searchParams.set('limit', '100');
+    eventsUrl.searchParams.set('limit', '1000'); // Increased limit to get more comprehensive data
     eventsUrl.searchParams.set('startDate', startDate.toISOString().split('T')[0]);
     eventsUrl.searchParams.set('endDate', endDate.toISOString().split('T')[0]);
 

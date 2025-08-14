@@ -71,6 +71,13 @@ export default function MarketingEmailsAdminPage() {
   const [analyticsLoading, setAnalyticsLoading] = useState<boolean>(false);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
   const [analyticsDays, setAnalyticsDays] = useState<number>(30);
+  
+  // Pagination state for email activity
+  const [showAllEmails, setShowAllEmails] = useState<boolean>(false);
+  const [emailsPerPage, setEmailsPerPage] = useState<number>(50);
+  const [currentEmailPage, setCurrentEmailPage] = useState<number>(1);
+  const [allEmails, setAllEmails] = useState<any[]>([]);
+  const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
 
   // Bounced emails state
   const [bouncedEmails, setBouncedEmails] = useState<any[]>([]);
@@ -1645,10 +1652,38 @@ export default function MarketingEmailsAdminPage() {
                 </div>
               </div>
 
-              {/* Recent Email Activity */}
+                            {/* Recent Email Activity */}
               {analytics.recentEmails.length > 0 && (
                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
-                  <h4 className="text-lg font-medium text-gray-800 mb-4">🕐 Recent Email Activity</h4>
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-lg font-medium text-gray-800">🕐 Recent Email Activity</h4>
+                    <div className="flex items-center space-x-3">
+                      <select
+                        value={emailsPerPage}
+                        onChange={(e) => {
+                          setEmailsPerPage(Number(e.target.value));
+                          setCurrentEmailPage(1);
+                        }}
+                        className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value={25}>25 per page</option>
+                        <option value={50}>50 per page</option>
+                        <option value={100}>100 per page</option>
+                        <option value={200}>200 per page</option>
+                      </select>
+                      <button
+                        onClick={() => setShowAllEmails(!showAllEmails)}
+                        className={`px-3 py-1 rounded-md text-sm font-medium ${
+                          showAllEmails 
+                            ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                            : 'bg-gray-600 text-white hover:bg-gray-700'
+                        }`}
+                      >
+                        {showAllEmails ? 'Show Recent Only' : 'Show All Emails'}
+                      </button>
+                    </div>
+                  </div>
+                  
                   <div className="overflow-x-auto">
                     <table className="min-w-full text-sm">
                       <thead>
@@ -1660,35 +1695,101 @@ export default function MarketingEmailsAdminPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {analytics.recentEmails.slice(0, 10).map((email, index) => (
-                          <tr key={index} className="border-b border-gray-200 hover:bg-white">
-                            <td className="py-2 px-3">
-                              <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
-                                email.event === 'opened' ? 'bg-green-100 text-green-800' :
-                                email.event === 'clicked' ? 'bg-purple-100 text-purple-800' :
-                                email.event === 'sent' ? 'bg-blue-100 text-blue-800' :
-                                email.event === 'delivered' ? 'bg-teal-100 text-teal-800' :
-                                'bg-gray-100 text-gray-800'
-                              }`}>
-                                {email.event}
-                              </span>
-                            </td>
-                            <td className="py-2 px-3 text-gray-700 truncate max-w-48">{email.email}</td>
-                            <td className="py-2 px-3 text-gray-700 truncate max-w-64">{email.subject || 'N/A'}</td>
-                            <td className="py-2 px-3 text-gray-500">
-                              {new Date(email.ts * 1000).toLocaleString()}
-                            </td>
-                          </tr>
-                        ))}
+                        {(() => {
+                          const emailsToShow = showAllEmails 
+                            ? analytics.recentEmails 
+                            : analytics.recentEmails.slice(0, 10);
+                          
+                          const startIndex = (currentEmailPage - 1) * emailsPerPage;
+                          const endIndex = startIndex + emailsPerPage;
+                          const paginatedEmails = showAllEmails 
+                            ? emailsToShow.slice(startIndex, endIndex)
+                            : emailsToShow;
+                          
+                          return paginatedEmails.map((email, index) => (
+                            <tr key={index} className="border-b border-gray-200 hover:bg-white">
+                              <td className="py-2 px-3">
+                                <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
+                                  email.event === 'opened' ? 'bg-green-100 text-green-800' :
+                                  email.event === 'clicked' ? 'bg-purple-100 text-purple-800' :
+                                  email.event === 'sent' ? 'bg-blue-100 text-blue-800' :
+                                  email.event === 'delivered' ? 'bg-teal-100 text-teal-800' :
+                                  'bg-gray-100 text-gray-800'
+                                }`}>
+                                  {email.event}
+                                </span>
+                              </td>
+                              <td className="py-2 px-3 text-gray-700 truncate max-w-48">{email.email}</td>
+                              <td className="py-2 px-3 text-gray-700 truncate max-w-64">{email.subject || 'N/A'}</td>
+                              <td className="py-2 px-3 text-gray-500">
+                                {(() => {
+                                  if (email.ts && typeof email.ts === 'number') {
+                                    return new Date(email.ts * 1000).toLocaleString();
+                                  } else if (email.date) {
+                                    return new Date(email.date).toLocaleString();
+                                  } else {
+                                    return 'No timestamp';
+                                  }
+                                })()}
+                              </td>
+                            </tr>
+                          ));
+                        })()}
                       </tbody>
                     </table>
+                  </div>
+                  
+                  {/* Pagination Controls - Only show when viewing all emails */}
+                  {showAllEmails && analytics.recentEmails.length > emailsPerPage && (
+                    <div className="mt-4 flex items-center justify-between">
+                      <div className="text-sm text-gray-600">
+                        Showing {((currentEmailPage - 1) * emailsPerPage) + 1}-{Math.min(currentEmailPage * emailsPerPage, analytics.recentEmails.length)} of {analytics.recentEmails.length} emails
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => setCurrentEmailPage(Math.max(1, currentEmailPage - 1))}
+                          disabled={currentEmailPage === 1}
+                          className={`px-3 py-1 rounded-md text-sm ${
+                            currentEmailPage === 1
+                              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                              : 'bg-blue-600 text-white hover:bg-blue-700'
+                          }`}
+                        >
+                          Previous
+                        </button>
+                        <span className="px-3 py-1 text-sm text-gray-600">
+                          Page {currentEmailPage} of {Math.ceil(analytics.recentEmails.length / emailsPerPage)}
+                        </span>
+                        <button
+                          onClick={() => setCurrentEmailPage(Math.min(Math.ceil(analytics.recentEmails.length / emailsPerPage), currentEmailPage + 1))}
+                          disabled={currentEmailPage >= Math.ceil(analytics.recentEmails.length / emailsPerPage)}
+                          className={`px-3 py-1 rounded-md text-sm ${
+                            currentEmailPage >= Math.ceil(analytics.recentEmails.length / emailsPerPage)
+                              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                              : 'bg-blue-600 text-white hover:bg-blue-700'
+                          }`}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Summary Info */}
+                  <div className="mt-3 text-sm text-gray-600">
+                    {showAllEmails 
+                      ? `Showing all ${analytics.recentEmails.length} email events from the selected date range`
+                      : `Showing recent 10 of ${analytics.recentEmails.length} total email events. Click "Show All Emails" to see the complete list.`
+                    }
                   </div>
                 </div>
               )}
 
               {/* Date Range Info */}
               <div className="text-center text-sm text-gray-500">
-                Showing data from {new Date(analytics.dateRange.startDate).toLocaleDateString()} to {new Date(analytics.dateRange.endDate).toLocaleDateString()}
+                📅 Showing data from {new Date(analytics.dateRange.startDate).toLocaleDateString()} to {new Date(analytics.dateRange.endDate).toLocaleDateString()}
+                <br />
+                📊 Total events: {analytics.recentEmails.length} | Daily breakdown: {analytics.dailyStats.length} days
               </div>
             </div>
           )}
