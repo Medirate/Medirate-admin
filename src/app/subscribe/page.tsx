@@ -6,7 +6,7 @@ import Footer from "@/app/components/footer";
 import { CreditCard, CheckCircle, Mail, Shield, ArrowLeft } from "lucide-react"; // Added new icons
 import SubscriptionTermsModal from '@/app/components/SubscriptionTermsModal';
 import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 const StripePricingTableWithFooter = () => {
@@ -15,7 +15,6 @@ const StripePricingTableWithFooter = () => {
   const router = useRouter();
   const [showStripeTable, setShowStripeTable] = useState(false);
   const [formSubmitted, setFormSubmitted] = useState(false);
-  const searchParams = useSearchParams();
   const [showRedirectBanner, setShowRedirectBanner] = useState(false);
   
   // Email verification states
@@ -165,7 +164,7 @@ const StripePricingTableWithFooter = () => {
 
   // If redirected with must_complete_form=1, show banner and guide to next step
   useEffect(() => {
-    const flag = searchParams.get('must_complete_form');
+    const flag = typeof window !== 'undefined' ? new URL(window.location.href).searchParams.get('must_complete_form') : null;
     if (flag === '1') {
       setShowRedirectBanner(true);
       // Guide user to the appropriate step
@@ -183,7 +182,7 @@ const StripePricingTableWithFooter = () => {
         }
       }, 150);
     }
-  }, [searchParams, isAuthenticated, isEmailVerified, formFilled]);
+  }, [isAuthenticated, isEmailVerified, formFilled]);
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
