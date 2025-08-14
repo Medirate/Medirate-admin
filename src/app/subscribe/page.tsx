@@ -113,6 +113,29 @@ const StripePricingTableWithFooter = () => {
     }
   }, [user]);
 
+  // If a non-auth user verifies email and we already have a form on file, set cookie to allow account creation
+  useEffect(() => {
+    const checkExistingForm = async () => {
+      if (!isAuthenticated && isEmailVerified && emailToVerify) {
+        try {
+          const { data, error } = await supabase
+            .from("registrationform")
+            .select("email")
+            .eq("email", emailToVerify)
+            .maybeSingle();
+          if (!error && data) {
+            setFormFilled(true);
+            try {
+              document.cookie = `mr_form_complete=1; path=/; max-age=${60 * 60}; samesite=Lax`;
+              sessionStorage.setItem('mr_form_complete', '1');
+            } catch {}
+          }
+        } catch {}
+      }
+    };
+    checkExistingForm();
+  }, [isAuthenticated, isEmailVerified, emailToVerify]);
+
   const fetchFormData = async (email: string) => {
     setLoading(true);
     try {
@@ -684,8 +707,8 @@ const StripePricingTableWithFooter = () => {
           </div>
         )}
 
-        {/* Registration Form - Show for non-authenticated users after email verification */}
-        {!isAuthenticated && verificationStep === 'complete' && !showStripeTable && (
+        {/* Registration Form - Show for non-authenticated users after email verification (only if not already filled) */}
+        {!isAuthenticated && verificationStep === 'complete' && !showStripeTable && !formFilled && (
           <div id="registration-form" className="w-full max-w-4xl mb-8 p-8 bg-white rounded-xl shadow-2xl border border-gray-100">
             <div className="text-center mb-6">
               <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
