@@ -51,8 +51,9 @@ export default function MarketingEmailsAdminPage() {
   const [marketingEmailList, setMarketingEmailList] = useState<EmailRow[]>([]);
   const [emailTemplate, setEmailTemplate] = useState<string>("");
   const [emailSubject, setEmailSubject] = useState<string>("");
+  const [individualEmail, setIndividualEmail] = useState<string>("");
   const [isSending, setIsSending] = useState<boolean>(false);
-  const [sendingTo, setSendingTo] = useState<"test" | "marketing" | null>(null);
+  const [sendingTo, setSendingTo] = useState<"test" | "marketing" | "individual" | null>(null);
   const [sendingLogs, setSendingLogs] = useState<Array<{
     type: "info" | "success" | "error";
     message: string;
@@ -264,10 +265,23 @@ export default function MarketingEmailsAdminPage() {
   };
 
   // Function to send email campaign
-  const sendEmailCampaign = async (target: "test" | "marketing") => {
+  const sendEmailCampaign = async (target: "test" | "marketing" | "individual") => {
     if (!emailTemplate.trim() || !emailSubject.trim()) {
       addLog("error", "Please provide both email template and subject");
       return;
+    }
+
+    // For individual emails, validate the email address
+    if (target === "individual") {
+      if (!individualEmail.trim()) {
+        addLog("error", "Please provide an email address to send to");
+        return;
+      }
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(individualEmail.trim())) {
+        addLog("error", "Please provide a valid email address");
+        return;
+      }
     }
 
     setIsSending(true);
@@ -276,9 +290,25 @@ export default function MarketingEmailsAdminPage() {
     setSendingProgress({ current: 0, total: 0 });
 
     try {
-      addLog("info", `Starting email campaign to ${target === "test" ? "test users" : "marketing list"}...`);
+      if (target === "individual") {
+        addLog("info", `Starting email campaign to individual email: ${individualEmail}`);
+      } else {
+        addLog("info", `Starting email campaign to ${target === "test" ? "test users" : "marketing list"}...`);
+      }
       
-      const targetList = target === "test" ? testEmailList : marketingEmailList;
+      let targetList: EmailRow[] = [];
+      if (target === "individual") {
+        // For individual emails, create a single-item list
+        targetList = [{
+          id: 0,
+          email: individualEmail.trim(),
+          firstname: "Individual",
+          lastname: "Recipient",
+          company_name: ""
+        }];
+      } else {
+        targetList = target === "test" ? testEmailList : marketingEmailList;
+      }
       
       if (targetList.length === 0) {
         addLog("error", `No emails found in ${target === "test" ? "test" : "marketing"} list`);
@@ -342,7 +372,11 @@ export default function MarketingEmailsAdminPage() {
         }
       }
       if (errorCount === 0) {
-        addLog("success", `🎉 Campaign completed successfully! Sent ${successCount} emails to ${target === "test" ? "test users" : "marketing list"}`);
+        if (target === "individual") {
+          addLog("success", `🎉 Email sent successfully to ${individualEmail}!`);
+        } else {
+          addLog("success", `🎉 Campaign completed successfully! Sent ${successCount} emails to ${target === "test" ? "test users" : "marketing list"}`);
+        }
       } else {
         addLog("error", `Campaign completed with errors. Success: ${successCount}, Errors: ${errorCount}`);
       }
@@ -352,6 +386,11 @@ export default function MarketingEmailsAdminPage() {
       setIsSending(false);
       setSendingTo(null);
       setSendingProgress({ current: 0, total: 0 });
+      
+      // Clear individual email field if campaign was successful
+      if (target === "individual") {
+        setIndividualEmail("");
+      }
     }
   };
 
@@ -361,6 +400,17 @@ export default function MarketingEmailsAdminPage() {
       message,
       timestamp: Date.now()
     }]);
+  };
+
+  // Function to reset all form fields
+  const resetAllForms = () => {
+    setEmailTemplate("");
+    setEmailSubject("");
+    setIndividualEmail("");
+    setNewTestEmail({ email: "", firstname: "", lastname: "", company_name: "" });
+    setNewMarketingEmail({ email: "", firstname: "", lastname: "", company_name: "" });
+    setSendingLogs([]);
+    setSendingProgress({ current: 0, total: 0 });
   };
 
   // Function to add new email
@@ -397,6 +447,9 @@ export default function MarketingEmailsAdminPage() {
         } else {
           setNewMarketingEmail({ email: "", firstname: "", lastname: "", company_name: "" });
         }
+        
+        // Clear individual email field
+        setIndividualEmail("");
         
         console.log(`✅ Added email to ${table}`);
       } else {
@@ -1269,16 +1322,55 @@ export default function MarketingEmailsAdminPage() {
             />
           </div>
 
+          {/* Individual Email Input */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Send to Specific Email (Optional)
+              {individualEmail.trim() && (
+                <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                  🎯 Individual Mode
+                </span>
+              )}
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="email"
+                value={individualEmail}
+                onChange={(e) => setIndividualEmail(e.target.value)}
+                placeholder="Enter specific email address..."
+                className={`flex-1 p-3 border rounded-md focus:outline-none focus:ring-2 ${
+                  individualEmail.trim() 
+                    ? "border-purple-300 focus:ring-purple-500 bg-purple-50" 
+                    : "border-gray-300 focus:ring-blue-500"
+                }`}
+              />
+              <button
+                onClick={() => setIndividualEmail("")}
+                className="px-3 py-3 bg-gray-500 text-white rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                title="Clear email address"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              {individualEmail.trim() 
+                ? `Will send email to: ${individualEmail}` 
+                : "Leave empty to send to lists, or enter a specific email address to send individually"
+              }
+            </p>
+          </div>
+
           {/* Send Buttons */}
           <div className="flex gap-4 mb-4">
             <button
               onClick={() => sendEmailCampaign("test")}
-              disabled={!emailTemplate.trim() || !emailSubject.trim() || isSending}
+              disabled={!emailTemplate.trim() || !emailSubject.trim() || isSending || !!individualEmail.trim()}
               className={`px-6 py-3 rounded-md text-white font-medium ${
-                !emailTemplate.trim() || !emailSubject.trim() || isSending
+                !emailTemplate.trim() || !emailSubject.trim() || isSending || !!individualEmail.trim()
                   ? "bg-gray-400 cursor-not-allowed"
                   : "bg-green-600 hover:bg-green-700"
               }`}
+              title={individualEmail.trim() ? "Clear individual email to enable list sending" : ""}
             >
               {isSending && sendingTo === "test" ? (
                 <span className="flex items-center">
@@ -1292,12 +1384,13 @@ export default function MarketingEmailsAdminPage() {
             
             <button
               onClick={() => sendEmailCampaign("marketing")}
-              disabled={!emailTemplate.trim() || !emailSubject.trim() || isSending}
+              disabled={!emailTemplate.trim() || !emailSubject.trim() || isSending || !!individualEmail.trim()}
               className={`px-6 py-3 rounded-md text-white font-medium ${
-                !emailTemplate.trim() || !emailSubject.trim() || isSending
+                !emailTemplate.trim() || !emailSubject.trim() || isSending || !!individualEmail.trim()
                   ? "bg-gray-400 cursor-not-allowed"
                   : "bg-blue-600 hover:bg-blue-700"
               }`}
+              title={individualEmail.trim() ? "Clear individual email to enable list sending" : ""}
             >
               {isSending && sendingTo === "marketing" ? (
                 <span className="flex items-center">
@@ -1308,7 +1401,47 @@ export default function MarketingEmailsAdminPage() {
                 "📢 Send to Marketing List"
               )}
             </button>
+
+            <button
+              onClick={() => sendEmailCampaign("individual")}
+              disabled={!emailTemplate.trim() || !emailSubject.trim() || !individualEmail.trim() || isSending}
+              className={`px-6 py-3 rounded-md text-white font-medium ${
+                !emailTemplate.trim() || !emailSubject.trim() || !individualEmail.trim() || isSending
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-purple-600 hover:bg-purple-700"
+              }`}
+            >
+              {isSending && sendingTo === "individual" ? (
+                <span className="flex items-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Sending to Individual...
+                </span>
+              ) : (
+                "📮 Send to Individual"
+              )}
+            </button>
+
+            <button
+              onClick={resetAllForms}
+              disabled={isSending}
+              className="px-6 py-3 bg-gray-500 text-white rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              🔄 Reset All Forms
+            </button>
           </div>
+
+          {/* Info message when individual email is entered */}
+          {individualEmail.trim() && (
+            <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-md">
+              <div className="flex items-center">
+                <span className="text-purple-600 mr-2">ℹ️</span>
+                <span className="text-sm text-purple-700">
+                  <strong>Individual Mode Active:</strong> When an individual email is entered, only the "Send to Individual" button is enabled. 
+                  Clear the email field to send to lists instead.
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Sending Logs */}
           {sendingLogs.length > 0 && (
