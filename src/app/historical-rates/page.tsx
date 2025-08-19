@@ -1471,19 +1471,6 @@ export default function HistoricalRates() {
     loadUltraFilterOptions();
   }, []);
 
-  // Don't render anything until the subscription check is complete
-  if (isLoading || !isSubscriptionCheckComplete) {
-    return (
-      <div className="loader-overlay">
-        <div className="cssloader">
-          <div className="sh1"></div>
-          <div className="sh2"></div>
-          <h4 className="lt">loading</h4>
-        </div>
-      </div>
-    );
-  }
-
   // Add available options variables like dashboard
   const availableServiceCategories = getAvailableOptionsForFilter('service_category', selections, filterOptionsData) as string[];
   const availableStates = getAvailableOptionsForFilter('state_name', selections, filterOptionsData) as string[];
@@ -1528,6 +1515,19 @@ export default function HistoricalRates() {
     
     return Array.from(modifierSet).sort();
   }, [filterOptionsData, selections]);
+
+  // Don't render anything until the subscription check is complete
+  if (isLoading || !isSubscriptionCheckComplete) {
+    return (
+      <div className="loader-overlay">
+        <div className="cssloader">
+          <div className="sh1"></div>
+          <div className="sh2"></div>
+          <h4 className="lt">loading</h4>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <AppLayout activeTab="historicalRates">
