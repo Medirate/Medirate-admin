@@ -1493,7 +1493,41 @@ export default function HistoricalRates() {
   const availableLocationRegions = getAvailableOptionsForFilter('location_region', selections, filterOptionsData) as string[];
   const availableProviderTypes = getAvailableOptionsForFilter('provider_type', selections, filterOptionsData) as string[];
   const availableDurationUnits = getAvailableOptionsForFilter('duration_unit', selections, filterOptionsData) as string[];
-  const availableModifiers = getAvailableOptionsForFilter('modifier_1', selections, filterOptionsData) as string[];
+  
+  // Get modifiers from ALL modifier columns (modifier_1, modifier_2, modifier_3, modifier_4)
+  const availableModifiers = useMemo(() => {
+    if (!filterOptionsData || !filterOptionsData.combinations) return [];
+    
+    const modifierSet = new Set<string>();
+    
+    filterOptionsData.combinations.forEach((combo: any) => {
+      // Check if this combination matches current selections (excluding modifier_1)
+      const matches = Object.entries(selections).every(([key, value]) => {
+        if (key === 'modifier_1' || key === 'fee_schedule_date') return true; // skip current filter
+        if (!value) return true; // skip unset selections
+        
+        // Handle multi-select values (comma-separated strings) vs single values (strings)
+        if (typeof value === 'string' && value.includes(',')) {
+          const selectedValues = value.split(',').map(v => v.trim());
+          return selectedValues.includes(combo[key]);
+        } else if (Array.isArray(value)) {
+          return value.includes(combo[key]);
+        } else {
+          return combo[key] === value;
+        }
+      });
+      
+      if (matches) {
+        // Add modifiers from all columns if they exist
+        if (combo.modifier_1) modifierSet.add(combo.modifier_1);
+        if (combo.modifier_2) modifierSet.add(combo.modifier_2);
+        if (combo.modifier_3) modifierSet.add(combo.modifier_3);
+        if (combo.modifier_4) modifierSet.add(combo.modifier_4);
+      }
+    });
+    
+    return Array.from(modifierSet).sort();
+  }, [filterOptionsData, selections]);
 
   return (
     <AppLayout activeTab="historicalRates">

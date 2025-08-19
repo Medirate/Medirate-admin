@@ -11,6 +11,7 @@ interface EmailRow {
   email: string;
   firstname: string;
   lastname: string;
+  company_name?: string;
 }
 
 interface EmailAnalytics {
@@ -92,19 +93,21 @@ export default function MarketingEmailsAdminPage() {
   const [newTestEmail, setNewTestEmail] = useState({
     email: "",
     firstname: "",
-    lastname: ""
+    lastname: "",
+    company_name: ""
   });
   const [newMarketingEmail, setNewMarketingEmail] = useState({
     email: "",
     firstname: "",
-    lastname: ""
+    lastname: "",
+    company_name: ""
   });
 
   // State for editing emails
   const [editingEmail, setEditingEmail] = useState<{
     table: "test_email_list" | "marketing_email_list";
     email: string;
-    data: { email: string; firstname: string; lastname: string };
+    data: { email: string; firstname: string; lastname: string; company_name?: string };
   } | null>(null);
 
   // Sample HTML email template for testing
@@ -361,7 +364,7 @@ export default function MarketingEmailsAdminPage() {
   };
 
   // Function to add new email
-  const handleAddEmail = async (table: "test_email_list" | "marketing_email_list", emailData: {email: string, firstname: string, lastname: string}) => {
+  const handleAddEmail = async (table: "test_email_list" | "marketing_email_list", emailData: {email: string, firstname: string, lastname: string, company_name: string}) => {
     if (!emailData.email.trim()) return;
 
     // Basic email validation
@@ -379,7 +382,8 @@ export default function MarketingEmailsAdminPage() {
           table,
           email: emailData.email.trim(),
           firstname: emailData.firstname.trim(),
-          lastname: emailData.lastname.trim()
+          lastname: emailData.lastname.trim(),
+          company_name: emailData.company_name?.trim() || ""
         }),
       });
 
@@ -389,9 +393,9 @@ export default function MarketingEmailsAdminPage() {
         
         // Clear the form
         if (table === "test_email_list") {
-          setNewTestEmail({ email: "", firstname: "", lastname: "" });
+          setNewTestEmail({ email: "", firstname: "", lastname: "", company_name: "" });
         } else {
-          setNewMarketingEmail({ email: "", firstname: "", lastname: "" });
+          setNewMarketingEmail({ email: "", firstname: "", lastname: "", company_name: "" });
         }
         
         console.log(`✅ Added email to ${table}`);
@@ -457,13 +461,14 @@ export default function MarketingEmailsAdminPage() {
 
     try {
       const response = await fetch("/api/admin/marketing-emails/rows", {
-        method: "POST",
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           table: editingEmail.table,
           email: editingEmail.data.email.trim(),
           firstname: editingEmail.data.firstname.trim(),
-          lastname: editingEmail.data.lastname.trim()
+          lastname: editingEmail.data.lastname.trim(),
+          company_name: editingEmail.data.company_name?.trim() || ""
         }),
       });
 
@@ -495,6 +500,8 @@ export default function MarketingEmailsAdminPage() {
   const loadEmailLists = async () => {
     try {
       console.log("🔍 Loading email lists...");
+      setAnalyticsLoading(true);
+      
       const response = await fetch("/api/admin/marketing-emails/list");
       
       console.log("📡 API Response status:", response.status);
@@ -502,6 +509,7 @@ export default function MarketingEmailsAdminPage() {
       if (!response.ok) {
         const errorText = await response.text();
         console.error("❌ API Error:", response.status, errorText);
+        setAnalyticsLoading(false);
         return false;
       }
       
@@ -512,9 +520,11 @@ export default function MarketingEmailsAdminPage() {
       setMarketingEmailList(json.marketingEmailList || []);
       
       console.log("✅ Email lists loaded successfully");
+      setAnalyticsLoading(false);
       return true;
     } catch (error) {
       console.error("❌ Failed to load email lists:", error);
+      setAnalyticsLoading(false);
       return false;
     }
   };
@@ -527,7 +537,8 @@ export default function MarketingEmailsAdminPage() {
     return testEmailList.filter(item => 
       item.email.toLowerCase().includes(searchTerm) ||
       item.firstname.toLowerCase().includes(searchTerm) ||
-      item.lastname.toLowerCase().includes(searchTerm)
+      item.lastname.toLowerCase().includes(searchTerm) ||
+      (item.company_name && item.company_name.toLowerCase().includes(searchTerm))
     );
   };
 
@@ -538,7 +549,8 @@ export default function MarketingEmailsAdminPage() {
     return marketingEmailList.filter(item => 
       item.email.toLowerCase().includes(searchTerm) ||
       item.firstname.toLowerCase().includes(searchTerm) ||
-      item.lastname.toLowerCase().includes(searchTerm)
+      item.lastname.toLowerCase().includes(searchTerm) ||
+      (item.company_name && item.company_name.toLowerCase().includes(searchTerm))
     );
   };
 
@@ -670,7 +682,7 @@ export default function MarketingEmailsAdminPage() {
             {/* Add New Email Form - Top */}
             <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4 mb-4">
               <h5 className="text-sm font-medium text-blue-800 mb-3">➕ Add New Test Email</h5>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
                 <input
                   type="email"
                   placeholder="Enter email address"
@@ -688,9 +700,16 @@ export default function MarketingEmailsAdminPage() {
                 <input
                   type="text"
                   placeholder="Last name"
-                  className="px-3 py-2 border border-blue-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="px-3 py-2 border border-blue-300 rounded-md text-sm focus:outline-none focus:ring-blue-500"
                   value={newTestEmail.lastname}
                   onChange={(e) => setNewTestEmail({...newTestEmail, lastname: e.target.value})}
+                />
+                <input
+                  type="text"
+                  placeholder="Company name"
+                  className="px-3 py-2 border border-blue-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={newTestEmail.company_name}
+                  onChange={(e) => setNewTestEmail({...newTestEmail, company_name: e.target.value})}
                 />
                 <button
                   onClick={() => handleAddEmail("test_email_list", newTestEmail)}
@@ -711,7 +730,7 @@ export default function MarketingEmailsAdminPage() {
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="🔍 Search test emails by email, first name, or last name..."
+                  placeholder="🔍 Search test emails by email, first name, last name, or company name..."
                   className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   value={testEmailSearch}
                   onChange={(e) => setTestEmailSearch(e.target.value)}
@@ -740,13 +759,20 @@ export default function MarketingEmailsAdminPage() {
             </div>
 
             {/* Test Email List Table */}
-            <div className="overflow-x-auto">
+            {analyticsLoading ? (
+              <div className="flex flex-col justify-center items-center h-32 bg-gray-50 rounded-lg">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <span className="ml-3 text-gray-600 mt-2">Loading email lists...</span>
+                <span className="text-xs text-gray-400 mt-1">Fetching data in batches for better performance</span>
+              </div>
+            ) : (
               <table className="min-w-full bg-white border border-gray-200 rounded-lg">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">First Name</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Name</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company Name</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
@@ -781,6 +807,14 @@ export default function MarketingEmailsAdminPage() {
                             />
                           </td>
                           <td className="px-4 py-3">
+                            <input
+                              type="text"
+                              value={editingEmail.data.company_name || ""}
+                              onChange={(e) => setEditingEmail({...editingEmail, data: {...editingEmail.data, company_name: e.target.value}})}
+                              className="w-full px-2 py-1 border border-blue-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
                             <div className="flex gap-2">
                               <button
                                 onClick={handleSaveEdit}
@@ -803,6 +837,7 @@ export default function MarketingEmailsAdminPage() {
                           <td className="px-4 py-3 text-sm text-gray-900 cursor-pointer hover:bg-blue-50" onClick={() => handleEditEmail("test_email_list", item)}>{item.email}</td>
                           <td className="px-4 py-3 text-sm text-gray-900 cursor-pointer hover:bg-blue-50" onClick={() => handleEditEmail("test_email_list", item)}>{item.firstname}</td>
                           <td className="px-4 py-3 text-sm text-gray-900 cursor-pointer hover:bg-blue-50" onClick={() => handleEditEmail("test_email_list", item)}>{item.lastname}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900 cursor-pointer hover:bg-blue-50" onClick={() => handleEditEmail("test_email_list", item)}>{item.company_name || "-"}</td>
                           <td className="px-4 py-3 text-sm text-gray-900">
                             <div className="flex gap-3">
                               <button
@@ -825,14 +860,14 @@ export default function MarketingEmailsAdminPage() {
                   ))}
                   {getFilteredTestEmails().length === 0 && (
                     <tr>
-                      <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                      <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
                         {testEmailSearch ? `No test emails found matching "${testEmailSearch}"` : "No test emails yet. Add one using the form above."}
                       </td>
                     </tr>
                   )}
                 </tbody>
               </table>
-            </div>
+            )}
           </div>
 
           {/* Marketing Email List */}
@@ -847,7 +882,7 @@ export default function MarketingEmailsAdminPage() {
             {/* Add New Email Form - Top */}
             <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4 mb-4">
               <h5 className="text-sm font-medium text-green-800 mb-3">➕ Add New Marketing Email</h5>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
                 <input
                   type="email"
                   placeholder="Enter email address"
@@ -869,6 +904,13 @@ export default function MarketingEmailsAdminPage() {
                   value={newMarketingEmail.lastname}
                   onChange={(e) => setNewMarketingEmail({...newMarketingEmail, lastname: e.target.value})}
                 />
+                <input
+                  type="text"
+                  placeholder="Company name"
+                  className="px-3 py-2 border border-green-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  value={newMarketingEmail.company_name}
+                  onChange={(e) => setNewMarketingEmail({...newMarketingEmail, company_name: e.target.value})}
+                />
                 <button
                   onClick={() => handleAddEmail("marketing_email_list", newMarketingEmail)}
                   disabled={!newMarketingEmail.email}
@@ -888,7 +930,7 @@ export default function MarketingEmailsAdminPage() {
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="🔍 Search marketing emails by email, first name, or last name..."
+                  placeholder="🔍 Search marketing emails by email, first name, last name, or company name..."
                   className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   value={marketingEmailSearch}
                   onChange={(e) => setMarketingEmailSearch(e.target.value)}
@@ -917,13 +959,21 @@ export default function MarketingEmailsAdminPage() {
             </div>
 
             {/* Marketing Email List Table */}
-            <div className="overflow-x-auto max-h-96 overflow-y-auto border border-gray-200 rounded-lg">
-              <table className="min-w-full bg-white">
+            {analyticsLoading ? (
+              <div className="flex flex-col justify-center items-center h-32 bg-gray-50 rounded-lg">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+                <span className="ml-3 text-gray-600 mt-2">Loading email lists...</span>
+                <span className="text-xs text-gray-400 mt-1">Fetching data in batches for better performance</span>
+              </div>
+            ) : (
+              <div className="overflow-x-auto max-h-96 overflow-y-auto border border-gray-200 rounded-lg">
+                <table className="min-w-full bg-white">
                 <thead className="bg-gray-50 sticky top-0">
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">First Name</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Name</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company Name</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
@@ -958,6 +1008,14 @@ export default function MarketingEmailsAdminPage() {
                             />
                           </td>
                           <td className="px-4 py-3">
+                            <input
+                              type="text"
+                              value={editingEmail.data.company_name || ""}
+                              onChange={(e) => setEditingEmail({...editingEmail, data: {...editingEmail.data, company_name: e.target.value}})}
+                              className="w-full px-2 py-1 border border-green-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
                             <div className="flex gap-2">
                               <button
                                 onClick={handleSaveEdit}
@@ -980,6 +1038,7 @@ export default function MarketingEmailsAdminPage() {
                           <td className="px-4 py-3 text-sm text-gray-900 cursor-pointer hover:bg-green-50" onClick={() => handleEditEmail("marketing_email_list", item)}>{item.email}</td>
                           <td className="px-4 py-3 text-sm text-gray-900 cursor-pointer hover:bg-green-50" onClick={() => handleEditEmail("marketing_email_list", item)}>{item.firstname}</td>
                           <td className="px-4 py-3 text-sm text-gray-900 cursor-pointer hover:bg-green-50" onClick={() => handleEditEmail("marketing_email_list", item)}>{item.lastname}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900 cursor-pointer hover:bg-green-50" onClick={() => handleEditEmail("marketing_email_list", item)}>{item.company_name || "-"}</td>
                           <td className="px-4 py-3 text-sm text-gray-900">
                             <div className="flex gap-3">
                               <button
@@ -1002,7 +1061,7 @@ export default function MarketingEmailsAdminPage() {
                   ))}
                   {getFilteredMarketingEmails().length === 0 && (
                     <tr>
-                      <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                      <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
                         {marketingEmailSearch ? `No marketing emails found matching "${marketingEmailSearch}"` : "No marketing emails yet. Add one using the form above."}
                       </td>
                     </tr>
@@ -1010,6 +1069,7 @@ export default function MarketingEmailsAdminPage() {
                 </tbody>
               </table>
             </div>
+            )}
           </div>
         </div>
 

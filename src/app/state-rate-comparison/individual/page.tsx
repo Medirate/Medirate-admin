@@ -1482,11 +1482,26 @@ export default function StatePaymentComparison() {
     }
     
     // Get unique values for the requested filter
-    const uniqueValues = Array.from(new Set(
-      filteredCombinations
-        .map(c => c[filterKey])
-        .filter(Boolean)
-    ));
+    let uniqueValues: string[];
+    
+    if (filterKey === 'modifier_1') {
+      // Special handling for modifiers: collect from all modifier columns
+      const modifierSet = new Set<string>();
+      filteredCombinations.forEach(combo => {
+        if (combo.modifier_1) modifierSet.add(combo.modifier_1);
+        if (combo.modifier_2) modifierSet.add(combo.modifier_2);
+        if (combo.modifier_3) modifierSet.add(combo.modifier_3);
+        if (combo.modifier_4) modifierSet.add(combo.modifier_4);
+      });
+      uniqueValues = Array.from(modifierSet);
+    } else {
+      // For all other filters, use the standard approach
+      uniqueValues = Array.from(new Set(
+        filteredCombinations
+          .map(c => c[filterKey])
+          .filter(Boolean)
+      ));
+    }
     
     // Apply custom sorting for service codes
     if (filterKey === 'service_code') {
@@ -1614,7 +1629,41 @@ export default function StatePaymentComparison() {
   const availableProviderTypes = getAvailableOptionsForFilter('provider_type');
   const availableDurationUnits = getAvailableOptionsForFilter('duration_unit');
   const availableFeeScheduleDates = getAvailableOptionsForFilter('fee_schedule_date');
-  const availableModifiers = getAvailableOptionsForFilter('modifier_1');
+  
+  // Get modifiers from ALL modifier columns (modifier_1, modifier_2, modifier_3, modifier_4)
+  const availableModifiers = useMemo(() => {
+    if (!filterOptionsData || !filterOptionsData.combinations) return [];
+    
+    const modifierSet = new Set<string>();
+    
+    filterOptionsData.combinations.forEach((combo: any) => {
+      // Check if this combination matches current selections (excluding modifier_1)
+      const matches = Object.entries(selections).every(([key, value]) => {
+        if (key === 'modifier_1' || key === 'fee_schedule_date') return true; // skip current filter
+        if (!value) return true; // skip unset selections
+        
+        // Handle multi-select values (comma-separated strings) vs single values (strings)
+        if (typeof value === 'string' && value.includes(',')) {
+          const selectedValues = value.split(',').map(v => v.trim());
+          return selectedValues.includes(combo[key]);
+        } else if (Array.isArray(value)) {
+          return value.includes(combo[key]);
+        } else {
+          return combo[key] === value;
+        }
+      });
+      
+      if (matches) {
+        // Add modifiers from all columns if they exist
+        if (combo.modifier_1) modifierSet.add(combo.modifier_1);
+        if (combo.modifier_2) modifierSet.add(combo.modifier_2);
+        if (combo.modifier_3) modifierSet.add(combo.modifier_3);
+        if (combo.modifier_4) modifierSet.add(combo.modifier_4);
+      }
+    });
+    
+    return Array.from(modifierSet).sort();
+  }, [filterOptionsData, selections]);
 
   // Add loadFilterOptions function (like dashboard)
   const loadFilterOptions = useCallback(async () => {

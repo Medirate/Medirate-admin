@@ -281,6 +281,14 @@ const CodeDefinitionsIcon = () => {
             <h2 className="text-xl font-bold text-[#012C61] uppercase font-lemonMilkRegular">
               Code Definitions
             </h2>
+            {data.length > 0 && (
+              <p className="text-sm text-gray-600 mt-1">
+                {data.length.toLocaleString()} total codes loaded
+                {filteredData.length !== data.length && (
+                  <span className="text-blue-600"> ({filteredData.length.toLocaleString()} shown)</span>
+                )}
+              </p>
+            )}
           </div>
           
           {/* Search Bar */}
@@ -307,9 +315,10 @@ const CodeDefinitionsIcon = () => {
           {/* Content Area */}
           <div className="flex-1 overflow-y-auto">
             {loading ? (
-              <div className="flex justify-center items-center h-full">
+              <div className="flex flex-col justify-center items-center h-full">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-                <span className="ml-3 text-gray-600">Loading code definitions...</span>
+                <span className="ml-3 text-gray-600 text-center">Loading all code definitions...</span>
+                <span className="text-xs text-gray-400 mt-2 text-center">Fetching data in batches for better performance</span>
               </div>
             ) : error ? (
               <div className="p-4 bg-red-50 border border-red-200 rounded-lg">

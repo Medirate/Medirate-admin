@@ -456,10 +456,15 @@ export default function Dashboard() {
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push("/api/auth/login");
-    } else if (isAuthenticated) {
-      checkSubscriptionAndSubUser();
+    } else if (isAuthenticated && user?.email) {
+      console.log("🔍 Dashboard: User authenticated, waiting for user data to load...");
+      // Add a small delay to ensure user data is fully loaded
+      setTimeout(() => {
+        console.log("🔍 Dashboard: Starting subscription check after delay");
+        checkSubscriptionAndSubUser();
+      }, 1000);
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isLoading, user, router]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -572,92 +577,161 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage]);
 
+  const checkExistingFormData = async (email: string) => {
+    try {
+      console.log("🔍 Dashboard: Checking for existing form data for email:", email);
+      const { data, error } = await supabase
+        .from("registrationform")
+        .select("email")
+        .eq("email", email)
+        .maybeSingle();
+
+      if (error && error.code !== "PGRST116") { // PGRST116 is "no rows found"
+        console.error("❌ Dashboard: Error checking existing form data:", error);
+        return false;
+      } else if (data) {
+        console.log("✅ Dashboard: Found existing form data for email:", email);
+        return true;
+      } else {
+        console.log("ℹ️ Dashboard: No existing form data found for email:", email);
+        return false;
+      }
+    } catch (err) {
+      console.error("❌ Dashboard: Unexpected error during existing form data check:", err);
+      return false;
+    }
+  };
+
   const checkSubscriptionAndSubUser = async () => {
     const userEmail = user?.email ?? "";
     const kindeUserId = user?.id ?? "";
     
-    if (!userEmail || !kindeUserId) {
+    console.log("🔍 Dashboard: Starting subscription check for user:", userEmail);
+    
+    if (!userEmail) {
+      console.log("❌ Dashboard: No user email found, skipping subscription check");
       return;
     }
 
     try {
-      // Check if the user is a sub-user using the API endpoint
-      const subUserResponse = await fetch("/api/subscription-users");
-      if (!subUserResponse.ok) {
-        console.warn("⚠️ Failed to check sub-user status, proceeding with subscription check");
-        // Don't throw error, continue with subscription check
-      } else {
-        const subUserData = await subUserResponse.json();
-        
-        // Check if current user is a sub-user
-        if (subUserData.isSubUser) {
-          try {
-            // Check if the user already exists in the User table
-            const { data: existingUser, error: fetchError } = await supabase
-              .from("User")
-              .select("Email")
-              .eq("Email", userEmail)
-              .single();
+      // First, check if the user is a sub-user
+      try {
+        // Check if user is a primary user or sub-user
+        // Use proper Supabase syntax for the OR query
+        // Check for both primary users and sub-users using a comprehensive approach
+        // Fetch all subscription_users records and check client-side
+        const { data: allSubscriptionData, error: allSubscriptionError } = await supabase
+          .from("subscription_users")
+          .select("primary_user, sub_users");
 
-            if (fetchError && fetchError.code !== "PGRST116") { // Ignore "no rows found" error
-              console.warn("⚠️ Error checking existing user, but continuing as sub-user");
-            }
+        let isSubUser = false;
+        let isPrimaryUser = false;
 
-            if (existingUser) {
-              // User exists, update their role to "sub-user"
-              const { error: updateError } = await supabase
-                .from("User")
-                .update({ Role: "sub-user", UpdatedAt: new Date().toISOString() })
-                .eq("Email", userEmail);
+        if (allSubscriptionData && !allSubscriptionError) {
+          // Check if user is a primary user
+          isPrimaryUser = allSubscriptionData.some(record => record.primary_user === userEmail);
+          
+          // Check if user is a sub-user in any record
+          isSubUser = allSubscriptionData.some(record => 
+            record.sub_users && 
+            Array.isArray(record.sub_users) && 
+            record.sub_users.includes(userEmail)
+          );
+        }
 
-              if (updateError) {
-                console.warn("⚠️ Error updating user role, but continuing as sub-user:", updateError);
-              }
-            } else {
-              // User does not exist, insert them as a sub-user
-              const { error: insertError } = await supabase
-                .from("User")
-                .insert({
-                  KindeUserID: kindeUserId,
-                  Email: userEmail,
-                  Role: "sub-user",
-                  UpdatedAt: new Date().toISOString(),
-                });
+        const allData = isPrimaryUser || isSubUser ? [{ found: true }] : [];
+        const hasError = allSubscriptionError;
 
-              if (insertError) {
-                console.warn("⚠️ Error inserting user, but continuing as sub-user:", insertError);
-              }
-            }
-          } catch (dbError) {
-            console.warn("⚠️ Database error during sub-user setup, but continuing as sub-user:", dbError);
-          }
-
-          // Allow sub-user to access the dashboard regardless of database errors
+        if (hasError) {
+          console.log("❌ Dashboard: Error checking subscription_users:", { allSubscriptionError });
+        } else if (allData && allData.length > 0) {
+          console.log("✅ Dashboard: User found in subscription_users:", {
+            isPrimaryUser,
+            isSubUser,
+            userType: isPrimaryUser ? 'Primary User' : 'Sub User'
+          });
           setIsSubscriptionCheckComplete(true);
           return;
+        } else {
+          console.log("ℹ️ Dashboard: User is not in subscription_users, checking subscription status");
         }
+      } catch (subUserCheckError) {
+        console.log("⚠️ Dashboard: Error in sub-user check, continuing with subscription check:", subUserCheckError);
       }
 
       // If not a sub-user, check for an active subscription
+      console.log("🔍 Dashboard: Checking Stripe subscription for:", userEmail);
+      
+      // Check subscription status
+      
       const response = await fetch("/api/stripe/subscription", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: userEmail }),
       });
 
+      console.log("🔍 Dashboard: Stripe API response status:", response.status);
+      console.log("🔍 Dashboard: Stripe API response headers:", Object.fromEntries(response.headers.entries()));
+
       const data = await response.json();
+      console.log("🔍 Dashboard: Stripe subscription response:", data);
+      console.log("🔍 Dashboard: Stripe response details:", {
+        error: data.error,
+        status: data.status,
+        plan: data.plan,
+        amount: data.amount,
+        customerId: data.customerId,
+        subscriptionId: data.subscriptionId
+      });
 
       if (data.error || data.status === 'no_customer' || data.status === 'no_subscription' || data.status === 'no_items') {
-        router.push("/subscribe");
+        console.log("❌ Dashboard: No valid subscription found, checking for existing form data");
+        console.log("❌ Dashboard: Subscription check details:", {
+          error: data.error,
+          status: data.status,
+          plan: data.plan,
+          amount: data.amount
+        });
+        
+        // Check if user already has registration form data
+        try {
+          const { data: formData, error: formError } = await supabase
+            .from("registrationform")
+            .select("email")
+            .eq("email", userEmail)
+            .maybeSingle();
+
+          console.log("🔍 Dashboard: Form data check result:", { formData, formError });
+
+          if (formData && !formError) {
+            // User has form data but no subscription, redirect to subscribe with form pre-filled
+            console.log("✅ Dashboard: User has form data but no subscription, redirecting to subscribe with form_completed=1");
+            router.push("/subscribe?form_completed=1");
+          } else {
+            // User has no form data and no subscription, redirect to subscribe to fill form
+            console.log("ℹ️ Dashboard: User has no form data and no subscription, redirecting to subscribe");
+            router.push("/subscribe");
+          }
+        } catch (formCheckError) {
+          console.error("❌ Dashboard: Error checking form data:", formCheckError);
+          // Fallback: redirect to subscribe
+          router.push("/subscribe");
+        }
       } else {
+        console.log("✅ Dashboard: Valid subscription found, allowing access");
+        console.log("✅ Dashboard: Subscription details:", {
+          plan: data.plan,
+          status: data.status,
+          amount: data.amount
+        });
         setIsSubscriptionCheckComplete(true);
       }
     } catch (error) {
-      console.error("❌ Critical error in subscription check:", error);
+      console.error("❌ Dashboard: Critical error in subscription check:", error);
       // Only redirect to subscribe if we're certain the user is not a sub-user
       // For now, let's be more conservative and not redirect on errors
       // This prevents sub-users from being incorrectly redirected
-      console.warn("⚠️ Error occurred during subscription check, allowing access to prevent sub-user redirects");
+      console.warn("⚠️ Dashboard: Error occurred during subscription check, allowing access to prevent sub-user redirects");
       setIsSubscriptionCheckComplete(true);
     }
   };
@@ -1195,18 +1269,82 @@ export default function Dashboard() {
   const availableProviderTypes = getAvailableOptionsForFilter('provider_type');
   const availableDurationUnits = getAvailableOptionsForFilter('duration_unit');
   const availableFeeScheduleDates = getAvailableOptionsForFilter('fee_schedule_date');
-  const availableModifiers = getAvailableOptionsForFilter('modifier_1');
+  
+  // Get modifiers from ALL modifier columns (modifier_1, modifier_2, modifier_3, modifier_4)
+  const availableModifiers = useMemo(() => {
+    if (!filterOptionsData || !filterOptionsData.combinations) return [];
+    
+    const modifierSet = new Set<string>();
+    
+    filterOptionsData.combinations.forEach(combo => {
+      // Check if this combination matches current selections (excluding modifier_1)
+      const matches = Object.entries(selections).every(([key, value]) => {
+        if (key === 'modifier_1' || key === 'fee_schedule_date') return true; // skip current filter
+        if (!value) return true; // skip unset selections
+        
+        // Handle multi-select values (comma-separated strings) vs single values (strings)
+        if (typeof value === 'string' && value.includes(',')) {
+          const selectedValues = value.split(',').map(v => v.trim());
+          return selectedValues.includes(combo[key]);
+        } else if (Array.isArray(value)) {
+          return value.includes(combo[key]);
+        } else {
+          return combo[key] === value;
+        }
+      });
+      
+      if (matches) {
+        // Add modifiers from all columns if they exist
+        if (combo.modifier_1) modifierSet.add(combo.modifier_1);
+        if (combo.modifier_2) modifierSet.add(combo.modifier_2);
+        if (combo.modifier_3) modifierSet.add(combo.modifier_3);
+        if (combo.modifier_4) modifierSet.add(combo.modifier_4);
+      }
+    });
+    
+    return Array.from(modifierSet).sort();
+  }, [filterOptionsData, selections]);
 
   // Build modifier dropdown options with definitions
   const modifierOptions = useMemo(() => {
     if (!filterOptionsData || !availableModifiers.length) return [];
     const modDefMap = new Map<string, string>();
+    
+    // First pass: collect all modifier definitions, prioritizing non-empty details
     filterOptionsData.combinations.forEach(c => {
-      if (c.modifier_1) modDefMap.set(c.modifier_1, c.modifier_1_details || '');
-      if (c.modifier_2) modDefMap.set(c.modifier_2, c.modifier_2_details || '');
-      if (c.modifier_3) modDefMap.set(c.modifier_3, c.modifier_3_details || '');
-      if (c.modifier_4) modDefMap.set(c.modifier_4, c.modifier_4_details || '');
+      // Check modifier_1
+      if (c.modifier_1) {
+        const existing = modDefMap.get(c.modifier_1);
+        if (!existing || (c.modifier_1_details && !existing)) {
+          modDefMap.set(c.modifier_1, c.modifier_1_details || '');
+        }
+      }
+      
+      // Check modifier_2
+      if (c.modifier_2) {
+        const existing = modDefMap.get(c.modifier_2);
+        if (!existing || (c.modifier_2_details && !existing)) {
+          modDefMap.set(c.modifier_2, c.modifier_2_details || '');
+        }
+      }
+      
+      // Check modifier_3
+      if (c.modifier_3) {
+        const existing = modDefMap.get(c.modifier_3);
+        if (!existing || (c.modifier_3_details && !existing)) {
+          modDefMap.set(c.modifier_3, c.modifier_3_details || '');
+        }
+      }
+      
+      // Check modifier_4
+      if (c.modifier_4) {
+        const existing = modDefMap.get(c.modifier_4);
+        if (!existing || (c.modifier_4_details && !existing)) {
+          modDefMap.set(c.modifier_4, c.modifier_4_details || '');
+        }
+      }
     });
+    
     return availableModifiers.map(mod => ({
       value: mod,
       label: modDefMap.get(mod) ? `${mod} - ${modDefMap.get(mod)}` : mod
@@ -1250,6 +1388,8 @@ export default function Dashboard() {
       </div>
     );
   }
+
+  // Debug mode removed - everything is working correctly!
 
   // Filter options are now handled by the backend API
 

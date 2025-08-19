@@ -76,35 +76,7 @@ const StripePricingTableWithFooter = () => {
   // Determine if purchasing should be disabled
   const disablePurchase = (!isAuthenticated || !formFilled) || hasActiveSubscription || isSubUser;
 
-  // Inject or remove styles to disable Stripe pricing table buttons based on state
-  useEffect(() => {
-    const styleId = 'stripe-pricing-disable-style';
-    let styleEl = document.getElementById(styleId) as HTMLStyleElement | null;
 
-    if (disablePurchase) {
-      if (!styleEl) {
-        styleEl = document.createElement('style');
-        styleEl.id = styleId;
-        styleEl.textContent = `
-          .Button-root[type="submit"] {
-            opacity: 0.5 !important;
-            pointer-events: none !important;
-            cursor: not-allowed !important;
-          }
-        `;
-        document.head.appendChild(styleEl);
-      }
-    } else {
-      if (styleEl) {
-        document.head.removeChild(styleEl);
-      }
-    }
-
-    return () => {
-      const existing = document.getElementById(styleId);
-      if (existing) document.head.removeChild(existing);
-    };
-  }, [disablePurchase]);
 
   // Fetch existing form data when the page loads or when the user's email changes
   useEffect(() => {
@@ -112,29 +84,6 @@ const StripePricingTableWithFooter = () => {
       fetchFormData(user.email);
     }
   }, [user]);
-
-  // If a non-auth user verifies email and we already have a form on file, set cookie to allow account creation
-  useEffect(() => {
-    const checkExistingForm = async () => {
-      if (!isAuthenticated && isEmailVerified && emailToVerify) {
-        try {
-          const { data, error } = await supabase
-            .from("registrationform")
-            .select("email")
-            .eq("email", emailToVerify)
-            .maybeSingle();
-          if (!error && data) {
-            setFormFilled(true);
-            try {
-              document.cookie = `mr_form_complete=1; path=/; max-age=${60 * 60}; samesite=Lax`;
-              sessionStorage.setItem('mr_form_complete', '1');
-            } catch {}
-          }
-        } catch {}
-      }
-    };
-    checkExistingForm();
-  }, [isAuthenticated, isEmailVerified, emailToVerify]);
 
   const fetchFormData = async (email: string) => {
     setLoading(true);
@@ -707,8 +656,8 @@ const StripePricingTableWithFooter = () => {
           </div>
         )}
 
-        {/* Registration Form - Show for non-authenticated users after email verification (only if not already filled) */}
-        {!isAuthenticated && verificationStep === 'complete' && !showStripeTable && !formFilled && (
+        {/* Registration Form - Show for non-authenticated users after email verification */}
+        {!isAuthenticated && verificationStep === 'complete' && !showStripeTable && (
           <div id="registration-form" className="w-full max-w-4xl mb-8 p-8 bg-white rounded-xl shadow-2xl border border-gray-100">
             <div className="text-center mb-6">
               <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
@@ -970,47 +919,16 @@ const StripePricingTableWithFooter = () => {
           </div>
         )}
 
-        {/* Stripe Pricing Table - Always visible; purchase buttons disabled until prerequisites are met */}
+        {/* Stripe Pricing Table - Always visible for everyone to see */}
         <div id="pricing-table" className="w-full max-w-4xl transform scale-110 relative" style={{ transformOrigin: "center" }}>
-          {disablePurchase && (
-            <div
-              className="absolute inset-0 z-10 bg-transparent cursor-not-allowed"
-              onClick={() => {
-                if (!isAuthenticated) {
-                  if (!isEmailVerified) {
-                    setVerificationStep('email');
-                    scrollToElementById('email-verification');
-                    return;
-                  }
-                  if (!formFilled) {
-                    setVerificationStep('complete');
-                    scrollToElementById('registration-form');
-                    return;
-                  }
-                  router.push('/api/auth/register');
-                  return;
-                }
-                if (!formFilled) {
-                  scrollToElementById('registration-form');
-                  return;
-                }
-              }}
-            />
-          )}
+
           {React.createElement("stripe-pricing-table", {
             "pricing-table-id": "prctbl_1RBMKo2NeWrBDfGslMwYkTKz",
             "publishable-key": "pk_live_51QXT6G2NeWrBDfGsjthMPwaWhPV7UIzSJjZ3fpmANYKT58UCVSnoHaHKyozK9EptYNbV3Y1y5SX1QQcuI9dK5pZW00VQH9T3Hh",
           })}
         </div>
 
-        {/* Guidance under pricing table when purchasing is disabled */}
-        {disablePurchase && (
-          <div className="w-full max-w-4xl mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-yellow-800 text-center text-sm">
-              To subscribe, please verify your email, complete the registration form, and {isAuthenticated ? 'ensure the form is complete below.' : 'create your account after submitting the form.'}
-            </p>
-          </div>
-        )}
+
 
         {/* Warning message for subscribed users */}
         {isAuthenticated && (hasActiveSubscription || isSubUser) && (

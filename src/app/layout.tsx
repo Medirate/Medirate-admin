@@ -26,7 +26,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Medirate - Rate Developments",
+  title: "Medirate",
   description: "Healthcare rate developments and legislative updates",
 };
 

@@ -34,17 +34,60 @@ export async function GET(req: NextRequest) {
     const supabase = createServiceClient();
     console.log("Supabase service client created successfully");
     
-    // Fetch both email lists
-    const [testEmailResult, marketingEmailResult] = await Promise.all([
-      supabase
-        .from("test_email_list")
-        .select("*")
-        .order("email", { ascending: true }),
-      supabase
-        .from("marketing_email_list")
-        .select("*")
-        .order("email", { ascending: true })
+    // Fetch both email lists with batch processing to get all records
+    const fetchAllRecords = async (tableName: string) => {
+      let allData: any[] = [];
+      let start = 0;
+      const batchSize = 1000;
+      let hasMoreData = true;
+      let batchCount = 0;
+      
+      while (hasMoreData) {
+        batchCount++;
+        console.log(`📦 Fetching batch ${batchCount} for ${tableName} (records ${start}-${start + batchSize - 1})...`);
+        
+        const { data, error } = await supabase
+          .from(tableName)
+          .select("*")
+          .order("email", { ascending: true })
+          .range(start, start + batchSize - 1);
+        
+        if (error) {
+          console.error(`Error fetching batch ${batchCount} from ${tableName}:`, error);
+          break;
+        }
+        
+        if (!data || data.length === 0) {
+          hasMoreData = false;
+          break;
+        }
+        
+        allData.push(...data);
+        
+        if (data.length < batchSize) {
+          hasMoreData = false;
+        } else {
+          start += batchSize;
+        }
+        
+        // Safety mechanism to prevent infinite loops
+        if (batchCount > 100) {
+          console.warn(`⚠️ Safety limit reached for ${tableName}, stopping at ${batchCount} batches`);
+          hasMoreData = false;
+        }
+      }
+      
+      console.log(`✅ Fetched ${allData.length} total records from ${tableName} in ${batchCount} batches`);
+      return allData;
+    };
+
+    const [testEmailList, marketingEmailList] = await Promise.all([
+      fetchAllRecords("test_email_list"),
+      fetchAllRecords("marketing_email_list")
     ]);
+
+    const testEmailResult = { data: testEmailList, error: null };
+    const marketingEmailResult = { data: marketingEmailList, error: null };
 
     if (testEmailResult.error) {
       console.error("Error fetching test email list:", testEmailResult.error);

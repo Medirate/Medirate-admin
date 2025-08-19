@@ -12,32 +12,59 @@ export async function POST(req: Request) {
   try {
     const { email } = await req.json(); // Expect email from frontend
 
+    console.log("🔍 Stripe API: Checking subscription for email:", email);
+
     if (!email) {
       return NextResponse.json({ error: "Email is required." }, { status: 400 });
     }
 
     // Fetch customer using email
+    console.log("🔍 Stripe API: Fetching customers with email:", email);
     const customers = await stripe.customers.list({ email });
 
+    console.log("🔍 Stripe API: Found customers:", customers.data.length);
+
     if (!customers.data.length) {
+      console.log("❌ Stripe API: No customer found for email:", email);
       return NextResponse.json({ status: "no_customer" }, { status: 200 });
     }
 
     const customer = customers.data[0];
+    console.log("🔍 Stripe API: Customer found:", { id: customer.id, email: customer.email });
 
     // Fetch active subscriptions for the customer
+    console.log("🔍 Stripe API: Fetching subscriptions for customer:", customer.id);
     const subscriptions = await stripe.subscriptions.list({
       customer: customer.id,
-      status: "active",
+      // Include all valid subscription statuses, not just "active"
+      status: "all", // This will get all subscriptions regardless of status
       expand: ["data.latest_invoice", "data.default_payment_method"],
     });
 
-    if (!subscriptions.data.length) {
+    console.log("🔍 Stripe API: Found subscriptions:", subscriptions.data.length);
+    console.log("🔍 Stripe API: Subscription statuses:", subscriptions.data.map(s => ({ id: s.id, status: s.status })));
+
+    // Filter for valid subscription statuses (not cancelled, incomplete, or unpaid)
+    const validSubscriptions = subscriptions.data.filter(sub => {
+      // Include canceled subscriptions if they haven't expired yet
+      if (sub.status === 'canceled') {
+        const now = Math.floor(Date.now() / 1000);
+        return sub.current_period_end > now;
+      }
+      return ['active', 'trialing', 'past_due', 'incomplete'].includes(sub.status);
+    });
+
+    console.log("🔍 Stripe API: Valid subscriptions:", validSubscriptions.length);
+    console.log("🔍 Stripe API: Valid subscription statuses:", validSubscriptions.map(s => ({ id: s.id, status: s.status })));
+
+    if (!validSubscriptions.length) {
+      console.log("❌ Stripe API: No valid subscriptions found for customer:", customer.id);
+      console.log("❌ Stripe API: All subscription statuses:", subscriptions.data.map(s => s.status));
       return NextResponse.json({ status: "no_subscription" }, { status: 200 });
     }
 
-    // Extract subscription details safely
-    const subscription = subscriptions.data[0];
+    // Use the first valid subscription
+    const subscription = validSubscriptions[0];
 
     if (!subscription.items?.data || subscription.items.data.length === 0) {
       return NextResponse.json({ status: "no_items" }, { status: 200 });
@@ -76,9 +103,23 @@ export async function POST(req: Request) {
       paymentMethod: paymentMethod ? paymentMethod.type : "N/A",
     });
   } catch (error: unknown) {
-    console.error("❌ Subscription Fetch Error:", error);
+    console.error("❌ Stripe API: Subscription Fetch Error:", error);
+    console.error("❌ Stripe API: Error details:", {
+      message: (error as Error).message,
+      stack: (error as Error).stack,
+      name: (error as Error).name
+    });
+    
+    // Return more detailed error information
     return NextResponse.json(
-      { error: (error as Error).message || "An unexpected error occurred." },
+      { 
+        error: (error as Error).message || "An unexpected error occurred.",
+        details: {
+          message: (error as Error).message,
+          name: (error as Error).name,
+          timestamp: new Date().toISOString()
+        }
+      },
       { status: 500 }
     );
   }
