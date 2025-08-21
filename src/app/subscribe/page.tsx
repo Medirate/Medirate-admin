@@ -613,13 +613,13 @@ const StripePricingTableWithFooter = () => {
             </div>
           </div>
           <div className="mt-12 flex space-x-4 justify-center">
-            <button
-              onClick={handleSubscribeClick}
-              className="bg-[#012C61] text-white px-8 py-3 rounded-lg transition-all duration-300 hover:bg-transparent hover:border hover:border-[#012C61] hover:text-[#012C61]"
+              <button
+                onClick={handleSubscribeClick}
+                className="bg-[#012C61] text-white px-8 py-3 rounded-lg transition-all duration-300 hover:bg-transparent hover:border hover:border-[#012C61] hover:text-[#012C61]"
               style={{ pointerEvents: "auto", userSelect: "auto" }}
-            >
-              Subscribe Now
-            </button>
+              >
+                Subscribe Now
+              </button>
             <a
               href="https://calendar.google.com/calendar/u/0/appointments/schedules/AcZssZ1QOXygd6Dpekn_BDsmrizOLq3D9aX8iq_aopMjF5o4Z2_APztYi8VXo5QMn2ab0sDZ5rTX18ii"
               target="_blank"
@@ -1060,10 +1060,10 @@ const StripePricingTableWithFooter = () => {
               MozUserSelect: "auto"
             } as React.CSSProperties}
           >
-            {React.createElement("stripe-pricing-table", {
-              "pricing-table-id": "prctbl_1RBMKo2NeWrBDfGslMwYkTKz",
-              "publishable-key": "pk_live_51QXT6G2NeWrBDfGsjthMPwaWhPV7UIzSJjZ3fpmANYKT58UCVSnoHaHKyozK9EptYNbV3Y1y5SX1QQcuI9dK5pZW00VQH9T3Hh",
-            })}
+          {React.createElement("stripe-pricing-table", {
+            "pricing-table-id": "prctbl_1RBMKo2NeWrBDfGslMwYkTKz",
+            "publishable-key": "pk_live_51QXT6G2NeWrBDfGsjthMPwaWhPV7UIzSJjZ3fpmANYKT58UCVSnoHaHKyozK9EptYNbV3Y1y5SX1QQcuI9dK5pZW00VQH9T3Hh",
+          })}
           </div>
         </div>
 
@@ -1114,7 +1114,7 @@ const StripePricingTableWithFooter = () => {
 
       {/* Footer */}
       <Footer />
-      </div>
+    </div>
     </>
   );
 };

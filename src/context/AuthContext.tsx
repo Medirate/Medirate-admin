@@ -52,17 +52,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       // Check sub-user status using the API endpoint
+      console.log("🔍 AuthContext: Calling /api/subscription-users for email:", userEmail);
       const subUserResponse = await fetch("/api/subscription-users");
       let isPrimaryUser = false;
       let isSubUser = false;
 
+      console.log("🔍 AuthContext: subscription-users API response status:", subUserResponse.status);
+      
       if (subUserResponse.ok) {
         const subUserData = await subUserResponse.json();
-        isPrimaryUser = subUserData.isPrimaryUser || false;
+        // Fix: API returns isSubUser and primaryUser, not isPrimaryUser
         isSubUser = subUserData.isSubUser || false;
-        console.log("✅ AuthContext: Sub-user check complete:", { isPrimaryUser, isSubUser });
+        isPrimaryUser = !isSubUser && subUserData.primaryUser === userEmail; // Primary if not sub-user and email matches
+        console.log("✅ AuthContext: Sub-user check complete:", { 
+          isPrimaryUser, 
+          isSubUser, 
+          userEmail,
+          apiPrimaryUser: subUserData.primaryUser,
+          rawData: subUserData 
+        });
       } else {
-        console.log("⚠️ AuthContext: Sub-user check failed, continuing...");
+        const errorText = await subUserResponse.text();
+        console.log("⚠️ AuthContext: Sub-user check failed:", subUserResponse.status, errorText);
       }
 
       // If user is primary or sub-user, they have access
