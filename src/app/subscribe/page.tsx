@@ -50,11 +50,11 @@ const StripePricingTableWithFooter = () => {
   const [isSubUser, setIsSubUser] = useState(false);
   const [primaryEmail, setPrimaryEmail] = useState<string | null>(null);
 
-  // Remove subscription checks - allow all users to proceed
+  // Authenticated users can proceed with form pre-filling and email verification
   useEffect(() => {
     if (auth.isAuthenticated && auth.userEmail) {
       fetchFormData(auth.userEmail);
-      // If user is authenticated, mark email as verified
+      // If user is authenticated, mark email as verified for convenience
       setIsEmailVerified(true);
       setVerificationStep('complete');
     }
@@ -72,8 +72,9 @@ const StripePricingTableWithFooter = () => {
     };
   }, []);
 
-  // Remove all purchase restrictions - allow everyone to click
-  const disablePurchase = false;
+  // Proper purchase restrictions based on authentication and form completion
+  const canProceedToPurchase = auth.isAuthenticated && (formFilled || isEmailVerified);
+  const disablePurchase = !canProceedToPurchase;
 
 
 
@@ -1040,24 +1041,24 @@ const StripePricingTableWithFooter = () => {
           </div>
         )}
 
-        {/* Stripe Pricing Table - Always visible for everyone to see */}
+        {/* Stripe Pricing Table - Conditional access based on requirements */}
         <div 
           id="pricing-table" 
-          className="w-full max-w-4xl transform scale-110 relative" 
+          className={`w-full max-w-4xl transform scale-110 relative ${disablePurchase ? 'opacity-50 pointer-events-none' : ''}`}
           style={{ 
             transformOrigin: "center", 
             zIndex: 1,
-            pointerEvents: "auto",
-            userSelect: "auto",
+            pointerEvents: disablePurchase ? "none" : "auto",
+            userSelect: disablePurchase ? "none" : "auto",
             position: "relative"
           }}
         >
           <div 
             style={{ 
-              pointerEvents: "auto",
-              userSelect: "auto",
-              WebkitUserSelect: "auto",
-              MozUserSelect: "auto"
+              pointerEvents: disablePurchase ? "none" : "auto",
+              userSelect: disablePurchase ? "none" : "auto",
+              WebkitUserSelect: disablePurchase ? "none" : "auto",
+              MozUserSelect: disablePurchase ? "none" : "auto"
             } as React.CSSProperties}
           >
           {React.createElement("stripe-pricing-table", {
@@ -1069,7 +1070,23 @@ const StripePricingTableWithFooter = () => {
 
 
 
-        {/* Warning message removed - allow all users to interact with purchase buttons */}
+        {/* Warning message for users who can't proceed with purchase */}
+        {disablePurchase && (
+          <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg shadow-md">
+            <div className="flex items-center space-x-2">
+              <Shield className="w-5 h-5 text-amber-600" />
+              <span className="text-amber-800 font-semibold">Action Required</span>
+            </div>
+            <p className="text-amber-700 mt-2">
+              {!auth.isAuthenticated 
+                ? "Please verify your email and complete the form to proceed with subscription."
+                : !formFilled && !isEmailVerified
+                ? "Please complete the registration form to proceed with subscription."
+                : "Please complete the required steps above to proceed with subscription."
+              }
+            </p>
+          </div>
+        )}
 
         {/* Accepted Payment Methods - Always visible */}
         <div className="mt-6 p-4 bg-gray-100 rounded-lg shadow-md flex items-center space-x-2">

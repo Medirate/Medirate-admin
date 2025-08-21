@@ -8,7 +8,6 @@ import {
   X,
   User,
   Settings,
-  CircleDollarSign,
   ChartNoAxesCombined,
   Megaphone,
   ChartColumnStacked,
@@ -405,28 +404,7 @@ const SideNav = ({
                   )}
                 </li>
               )}
-              {/* Add Support Page Link */}
-              <li className="group">
-                <Link
-                  href="/payment-history"
-                  onClick={() => setActiveTab("paymentHistory")}
-                  className={`flex items-center p-4 hover:bg-gray-200/20 transition-colors cursor-pointer ${
-                    activeTab === "paymentHistory" ? "bg-gray-200/20" : ""
-                  }`}
-                >
-                  <div className="flex items-center justify-center w-6 h-6">
-                    <CircleDollarSign size={20} />
-                  </div>
-                  <span
-                    className={`ml-4 font-semibold transition-opacity duration-300 ease-in-out flex-grow pr-2 ${
-                      isSidebarCollapsed ? "opacity-0 invisible" : "opacity-100 visible"
-                    }`}
-                    style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
-                  >
-                    Payment History
-                  </span>
-                </Link>
-              </li>
+
               <li className="group">
                 <Link
                   href="/support"

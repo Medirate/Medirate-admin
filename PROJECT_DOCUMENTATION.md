@@ -109,7 +109,6 @@ src/
 - `/state-rate-comparison/individual` - Individual state comparison
 - `/subscription` - Subscription management
 - `/email-preferences` - Email alert preferences
-- `/payment-history` - Billing and payment records
 
 #### **👑 Admin Only**
 - `/admin-dashboard` - Admin control panel
@@ -374,7 +373,6 @@ npm run lint         # Lint code
 ### **Payments & Subscriptions**
 - `POST /api/stripe/subscription` - Check subscription status
 - `POST /api/stripe/create-checkout-session` - Create payment session
-- `GET /api/payments` - Get payment history
 - `POST /api/stripe/add-slot` - Add subscription slots
 - `POST /api/stripe/add-slots` - Add multiple subscription slots
 - `GET /api/subscription-users` - Get sub-user data
