@@ -77,7 +77,7 @@ export default function PaymentHistory() {
     }
   };
 
-  if (isLoading) {
+  if (loading) {
     return (
       <AppLayout activeTab="dashboard">
         <div className="flex items-center justify-center min-h-screen">
