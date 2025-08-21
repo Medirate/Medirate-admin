@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { Camera, Mail, User } from "lucide-react";
-import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import SubscriptionTermsModal from '@/app/components/SubscriptionTermsModal';
 import { supabase } from "@/lib/supabase";
 
 export default function Profile() {
-  const { user } = useKindeBrowserClient();
+  const auth = useRequireAuth();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -19,10 +19,10 @@ export default function Profile() {
 
   // ✅ Fetch user profile when the page loads
   useEffect(() => {
-    if (user?.email) {
-      fetchUserProfile(user.email);
+    if (auth.isAuthenticated && !auth.isLoading && auth.userEmail) {
+      fetchUserProfile(auth.userEmail);
     }
-  }, [user]);
+  }, [auth.isAuthenticated, auth.isLoading, auth.userEmail]);
 
   // ✅ Fetch user profile from API endpoint
   const fetchUserProfile = async (userEmail: string | null) => {
@@ -32,16 +32,19 @@ export default function Profile() {
 
     setLoading(true);
     try {
-      const response = await fetch('/api/user/profile');
+      const response = await fetch(`/api/user/profile?email=${encodeURIComponent(userEmail)}`);
+      const result = await response.json();
+
       if (!response.ok) {
-        throw new Error('Failed to fetch profile');
+        console.error("Error fetching user profile:", result.error);
+        return;
       }
-      
-      const data = await response.json();
-      setFirstName(data.firstName || "");
-      setLastName(data.lastName || "");
-      setEmail(data.email || "");
-      setProfilePicture(data.picture || null);
+
+      const data = result.data;
+      setFirstName(data.FirstName || "");
+      setLastName(data.LastName || "");
+      setEmail(data.Email || "");
+      setProfilePicture(data.Picture || null);
     } catch (error) {
       console.error("Error fetching profile:", error);
     } finally {
@@ -50,30 +53,32 @@ export default function Profile() {
   };
 
   // ✅ Handle profile updates
-  const handleSave = async () => {
-    if (!user?.email) {
-      return;
-    }
+  const updateProfile = async () => {
+    if (!auth.userEmail) return;
 
     try {
       const response = await fetch('/api/user/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          firstName,
-          lastName,
-          picture: profilePicture
+          email: auth.userEmail,
+          FirstName: firstName,
+          LastName: lastName,
+          Picture: profilePicture
         })
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to update profile');
-      }
+      const result = await response.json();
 
-      alert("✅ Profile updated successfully!");
+      if (!response.ok) {
+        console.error("Error updating profile:", result.error);
+        alert("Failed to update profile");
+      } else {
+        alert("Profile updated successfully!");
+      }
     } catch (error) {
       console.error("Error updating profile:", error);
-      alert("Failed to update profile.");
+      alert("Failed to update profile");
     }
   };
 
@@ -125,12 +130,18 @@ export default function Profile() {
       setProfilePicture(urlData.publicUrl);
       alert("Profile picture uploaded successfully!");
       
-      // Optionally update the database if needed
-      if (user?.email) {
-        await supabase
-          .from("User")
-          .update({ Picture: urlData.publicUrl })
-          .eq("Email", user.email);
+      // Update the database with new picture URL
+      if (auth.userEmail) {
+        await fetch('/api/user/profile', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: auth.userEmail,
+            FirstName: firstName,
+            LastName: lastName,
+            Picture: urlData.publicUrl
+          })
+        });
       }
 
     } catch (err) {
@@ -194,7 +205,7 @@ export default function Profile() {
               </div>
               <div className="flex justify-end space-x-4">
                 <button type="button" className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400">Cancel</button>
-                <button type="button" onClick={handleSave} className="px-4 py-2 bg-[#012C61] text-white rounded-lg hover:bg-blue-800">Save Changes</button>
+                <button type="button" onClick={updateProfile} className="px-4 py-2 bg-[#012C61] text-white rounded-lg hover:bg-blue-800">Save Changes</button>
               </div>
             </form>
           )}

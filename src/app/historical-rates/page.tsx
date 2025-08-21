@@ -17,7 +17,7 @@ import {
   Legend,
 } from 'chart.js';
 
-import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
+import { useRequireSubscription } from "@/hooks/useRequireAuth";
 import { useRouter } from "next/navigation";
 import type { Dispatch, SetStateAction } from 'react';
 import { gunzipSync, strFromU8 } from "fflate";
@@ -662,7 +662,7 @@ function formatDate(dateString: string | undefined): string {
 }
 
 export default function HistoricalRates() {
-  const { isAuthenticated, isLoading, user } = useKindeBrowserClient();
+  const auth = useRequireSubscription();
   const router = useRouter();
   
   // Add proper data state management
@@ -704,16 +704,9 @@ export default function HistoricalRates() {
     // This can be implemented later if needed for filter options
   };
 
-  const [isSubscriptionCheckComplete, setIsSubscriptionCheckComplete] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.push("/api/auth/login");
-    } else if (isAuthenticated) {
-      checkSubscriptionAndSubUser();
-    }
-  }, [isAuthenticated, isLoading, router]);
+  // Authentication is now handled by useRequireSubscription hook
 
   // Add pagination state
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -973,99 +966,11 @@ export default function HistoricalRates() {
     }
   };
 
-  // Define checkSubscriptionAndSubUser before using it
-  const checkSubscriptionAndSubUser = async () => {
-    const userEmail = user?.email ?? "";
-    const kindeUserId = user?.id ?? "";
-    
-    if (!userEmail || !kindeUserId) {
-      return;
-    }
-
-    try {
-      // Check if the user is a sub-user using the API endpoint
-      const subUserResponse = await fetch("/api/subscription-users");
-      if (!subUserResponse.ok) {
-        console.warn("⚠️ Failed to check sub-user status, proceeding with subscription check");
-        // Don't throw error, continue with subscription check
-      } else {
-        const subUserData = await subUserResponse.json();
-        
-        // Check if current user is a sub-user
-        if (subUserData.isSubUser) {
-          try {
-            // Check if the user already exists in the User table
-            const { data: existingUser, error: fetchError } = await supabase
-              .from("User")
-              .select("Email")
-              .eq("Email", userEmail)
-              .single();
-
-            if (fetchError && fetchError.code !== "PGRST116") { // Ignore "no rows found" error
-              console.warn("⚠️ Error checking existing user, but continuing as sub-user");
-            }
-
-            if (existingUser) {
-              // User exists, update their role to "sub-user"
-              const { error: updateError } = await supabase
-                .from("User")
-                .update({ Role: "sub-user", UpdatedAt: new Date().toISOString() })
-                .eq("Email", userEmail);
-
-              if (updateError) {
-                console.warn("⚠️ Error updating user role, but continuing as sub-user:", updateError);
-              }
-            } else {
-              // User does not exist, insert them as a sub-user
-              const { error: insertError } = await supabase
-                .from("User")
-                .insert({
-                  KindeUserID: kindeUserId,
-                  Email: userEmail,
-                  Role: "sub-user",
-                  UpdatedAt: new Date().toISOString(),
-                });
-
-              if (insertError) {
-                console.warn("⚠️ Error inserting user, but continuing as sub-user:", insertError);
-              }
-            }
-          } catch (dbError) {
-            console.warn("⚠️ Database error during sub-user setup, but continuing as sub-user:", dbError);
-          }
-
-          // Allow sub-user to access the page regardless of database errors
-          setIsSubscriptionCheckComplete(true);
-          return;
-        }
-      }
-
-      // If not a sub-user, check for an active subscription
-      const response = await fetch("/api/stripe/subscription", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: userEmail }),
-      });
-
-      const data = await response.json();
-      if (data.error || !data.status || data.status !== "active") {
-        router.push("/subscribe");
-      } else {
-        setIsSubscriptionCheckComplete(true);
-      }
-    } catch (error) {
-      console.error("❌ Critical error in subscription check:", error);
-      // Only redirect to subscribe if we're certain the user is not a sub-user
-      // For now, let's be more conservative and not redirect on errors
-      // This prevents sub-users from being incorrectly redirected
-      console.warn("⚠️ Error occurred during subscription check, allowing access to prevent sub-user redirects");
-      setIsSubscriptionCheckComplete(true);
-    }
-  };
+  // Authentication and subscription checks are now handled by useRequireSubscription hook
 
   // Add periodic authentication check for long-running sessions
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!auth.isAuthenticated) return;
 
     const checkAuthStatus = async () => {
       try {
@@ -1081,7 +986,7 @@ export default function HistoricalRates() {
     const authCheckInterval = setInterval(checkAuthStatus, 5 * 60 * 1000);
 
     const handleVisibilityChange = () => {
-      if (!document.hidden && isAuthenticated) {
+      if (!document.hidden && auth.isAuthenticated) {
         checkAuthStatus();
         
         if (hasSearched && !authError && areFiltersApplied) {
@@ -1096,12 +1001,7 @@ export default function HistoricalRates() {
       clearInterval(authCheckInterval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [isAuthenticated, router, hasSearched, authError, areFiltersApplied]);
-
-  // Now the useEffect can safely use checkSubscriptionAndSubUser
-  useEffect(() => {
-    checkSubscriptionAndSubUser();
-  }, [router]);
+  }, [auth.isAuthenticated, router, hasSearched, authError, areFiltersApplied]);
 
   // Move all useEffect hooks here, before any conditional returns
   useEffect(() => {
@@ -1517,7 +1417,7 @@ export default function HistoricalRates() {
   }, [filterOptionsData, selections]);
 
   // Don't render anything until the subscription check is complete
-  if (isLoading || !isSubscriptionCheckComplete) {
+  if (auth.isLoading || auth.shouldRedirect) {
     return (
       <div className="loader-overlay">
         <div className="cssloader">

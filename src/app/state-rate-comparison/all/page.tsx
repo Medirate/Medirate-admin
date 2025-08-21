@@ -20,7 +20,7 @@ import ReactECharts from 'echarts-for-react';
 import * as echarts from 'echarts';
 import { useRouter } from "next/navigation";
 import { DataTable } from './DataTable';
-import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
+import { useRequireSubscription } from "@/hooks/useRequireAuth";
 import clsx from 'clsx';
 import { gunzipSync, strFromU8 } from "fflate";
 import { supabase } from "@/lib/supabase";
@@ -323,15 +323,21 @@ function isServiceCategoryMatch(dbCategory: string | null | undefined, filterCat
 }
 
 export default function StatePaymentComparison() {
-  const { isAuthenticated, isLoading, user } = useKindeBrowserClient();
+  const auth = useRequireSubscription();
   const router = useRouter();
-  const [isSubscriptionCheckComplete, setIsSubscriptionCheckComplete] = useState(false);
 
   // Add local state for data, loading, and error (like dashboard)
   const [data, setData] = useState<ServiceData[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTimestamp, setSearchTimestamp] = useState<number>(Date.now()); // For chart key stability
+
+  // Load data once auth is ready
+  useEffect(() => {
+    if (auth.isAuthenticated && auth.hasActiveSubscription && !auth.isLoading) {
+      // Initialize data fetching if needed
+    }
+  }, [auth.isAuthenticated, auth.hasActiveSubscription, auth.isLoading]);
 
   // Add filter options data state (like dashboard)
   const [filterOptionsData, setFilterOptionsData] = useState<FilterOptionsData | null>(null);
@@ -534,7 +540,7 @@ export default function StatePaymentComparison() {
 
   // Add periodic authentication check for long-running sessions
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!auth.isAuthenticated) return;
 
     const checkAuthStatus = async () => {
       try {
@@ -554,7 +560,7 @@ export default function StatePaymentComparison() {
 
     // Also check when the page becomes visible again (user returns from another tab)
     const handleVisibilityChange = () => {
-      if (!document.hidden && isAuthenticated) {
+      if (!document.hidden && auth.isAuthenticated) {
         checkAuthStatus();
         
         // Refresh data if filters are complete
@@ -571,12 +577,12 @@ export default function StatePaymentComparison() {
       clearInterval(authCheckInterval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [isAuthenticated, router, areFiltersComplete]);
+  }, [auth.isAuthenticated, router, areFiltersComplete]);
 
   // Add checkSubscriptionAndSubUser function
   const checkSubscriptionAndSubUser = async () => {
-    const userEmail = user?.email ?? "";
-    const kindeUserId = user?.id ?? "";
+    const userEmail = auth.userEmail ?? "";
+    const kindeUserId = auth.user?.id ?? "";
     
     if (!userEmail || !kindeUserId) {
       return;
@@ -597,19 +603,20 @@ export default function StatePaymentComparison() {
             // Check if the user already exists in the User table
             const { data: existingUser, error: fetchError } = await supabase
               .from("User")
-              .select("Email")
-              .eq("Email", userEmail)
+              .select("email")
+              .eq("email", userEmail)
               .single();
 
-            if (fetchError && fetchError.code !== "PGRST116") {
+            if (fetchError && fetchError.code !== "PGRST116") { // Ignore "no rows found" error
               console.warn("⚠️ Error checking existing user, but continuing as sub-user");
             }
 
             if (existingUser) {
+              // User exists, update their role to "sub-user"
               const { error: updateError } = await supabase
                 .from("User")
-                .update({ Role: "sub-user", UpdatedAt: new Date().toISOString() })
-                .eq("Email", userEmail);
+                .update({ role: "sub-user", updatedAt: new Date().toISOString() })
+                .eq("email", userEmail);
 
               if (updateError) {
                 console.warn("⚠️ Error updating user role, but continuing as sub-user:", updateError);
@@ -617,12 +624,12 @@ export default function StatePaymentComparison() {
             } else {
               const { error: insertError } = await supabase
                 .from("User")
-                .insert({
-                  KindeUserID: kindeUserId,
-                  Email: userEmail,
-                  Role: "sub-user",
-                  UpdatedAt: new Date().toISOString(),
-                });
+                                  .insert({
+                    kindeId: kindeUserId,
+                    email: userEmail,
+                    role: "sub-user",
+                    updatedAt: new Date().toISOString(),
+                  });
 
               if (insertError) {
                 console.warn("⚠️ Error inserting user, but continuing as sub-user:", insertError);
@@ -633,7 +640,7 @@ export default function StatePaymentComparison() {
           }
 
           // Allow sub-user to access the page regardless of database errors
-          setIsSubscriptionCheckComplete(true);
+          console.log("✅ Sub-user access granted");
           return;
         }
       }
@@ -649,7 +656,7 @@ export default function StatePaymentComparison() {
       if (data.error || data.status === 'no_customer' || data.status === 'no_subscription' || data.status === 'no_items') {
         router.push("/subscribe");
       } else {
-        setIsSubscriptionCheckComplete(true);
+        console.log("✅ Subscription verified");
       }
     } catch (error) {
       console.error("❌ Critical error in subscription check:", error);
@@ -657,7 +664,6 @@ export default function StatePaymentComparison() {
       // For now, let's be more conservative and not redirect on errors
       // This prevents sub-users from being incorrectly redirected
       console.warn("⚠️ Error occurred during subscription check, allowing access to prevent sub-user redirects");
-      setIsSubscriptionCheckComplete(true);
     }
   };
 

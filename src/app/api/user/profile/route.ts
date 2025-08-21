@@ -1,84 +1,77 @@
 import { NextResponse } from "next/server";
-import { createServiceClient } from "@/lib/supabase";
-import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
+import { getSupabaseServiceRole } from "@/lib/supabase";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const { getUser } = getKindeServerSession();
-    const user = await getUser();
+    const { searchParams } = new URL(req.url);
+    const email = searchParams.get('email');
 
-    if (!user || !user.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!email) {
+      return NextResponse.json({ error: "Email parameter is required" }, { status: 400 });
     }
 
-    const supabase = createServiceClient();
+    console.log("🔍 Fetching user profile for:", email);
+
+    const supabase = getSupabaseServiceRole();
     
-    // Fetch user profile data
     const { data, error } = await supabase
       .from("User")
       .select("FirstName, LastName, Email, Picture")
-      .eq("Email", user.email)
-      .single();
+      .eq("Email", email)
+      .maybeSingle();
 
     if (error) {
-      if (error.code === "PGRST116") {
-        // No user found, return empty profile
-        return NextResponse.json({
-          firstName: "",
-          lastName: "",
-          email: user.email,
-          picture: null
-        });
-      }
-      console.error("Error fetching user profile:", error);
-      return NextResponse.json({ error: "Failed to fetch profile" }, { status: 500 });
+      console.error("❌ Error fetching user profile:", error);
+      return NextResponse.json({ error: "Failed to fetch user profile" }, { status: 500 });
     }
 
-    return NextResponse.json({
-      firstName: data.FirstName || "",
-      lastName: data.LastName || "",
-      email: data.Email || user.email,
-      picture: data.Picture || null
-    });
+    if (!data) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    console.log("✅ User profile fetched successfully:", data);
+    return NextResponse.json({ data }, { status: 200 });
 
   } catch (error) {
-    console.error("Error in user profile API:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    console.error("❌ Unexpected error:", error);
+    return NextResponse.json({ error: "Unexpected error occurred" }, { status: 500 });
   }
 }
 
-export async function PUT(request: Request) {
+export async function PUT(req: Request) {
   try {
-    const { getUser } = getKindeServerSession();
-    const user = await getUser();
+    const body = await req.json();
+    const { email, FirstName, LastName, Picture } = body;
 
-    if (!user || !user.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!email) {
+      return NextResponse.json({ error: "Email is required" }, { status: 400 });
     }
 
-    const { firstName, lastName, picture } = await request.json();
-    const supabase = createServiceClient();
+    console.log("🔄 Updating user profile for:", email);
+
+    const supabase = getSupabaseServiceRole();
     
-    // Update user profile data
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("User")
       .update({
-        FirstName: firstName,
-        LastName: lastName,
-        Picture: picture,
-        UpdatedAt: new Date().toISOString(),
+        FirstName,
+        LastName,
+        Picture
       })
-      .eq("Email", user.email);
+      .eq("Email", email)
+      .select("FirstName, LastName, Email, Picture")
+      .single();
 
     if (error) {
-      console.error("Error updating user profile:", error);
-      return NextResponse.json({ error: "Failed to update profile" }, { status: 500 });
+      console.error("❌ Error updating user profile:", error);
+      return NextResponse.json({ error: "Failed to update user profile" }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true });
+    console.log("✅ User profile updated successfully:", data);
+    return NextResponse.json({ data }, { status: 200 });
 
   } catch (error) {
-    console.error("Error in user profile update API:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    console.error("❌ Unexpected error:", error);
+    return NextResponse.json({ error: "Unexpected error occurred" }, { status: 500 });
   }
 }

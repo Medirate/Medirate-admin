@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Navbar from "./components/Navbar";
 import RightClickProtection from "./components/RightClickProtection";
+import DebugMode from "./components/DebugMode";
+import { AuthProvider } from "@/context/AuthContext";
 import "./globals.css";
 import { cn } from "./lib/utils";
 
@@ -46,13 +48,16 @@ export default function RootLayout({
     <html lang="en" className="light">
       <body
         className={cn(
-          "min-h-screen font-sans antialiased no-right-click",
+          "min-h-screen font-sans antialiased",
           geistMono.variable
         )}
       >
-        <RightClickProtection />
-        <Navbar />
-        {children}
+        <AuthProvider>
+          {/* <RightClickProtection /> - Disabled to allow all clicks */}
+          <DebugMode />
+          <Navbar />
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );

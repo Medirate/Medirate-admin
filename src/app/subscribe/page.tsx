@@ -5,13 +5,13 @@ import { Toaster, toast } from "react-hot-toast";
 import Footer from "@/app/components/footer";
 import { CreditCard, CheckCircle, Mail, Shield, ArrowLeft } from "lucide-react"; // Added new icons
 import SubscriptionTermsModal from '@/app/components/SubscriptionTermsModal';
-import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
+import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 const StripePricingTableWithFooter = () => {
   const [showTerms, setShowTerms] = useState(false);
-  const { isAuthenticated, isLoading, user } = useKindeBrowserClient();
+  const auth = useAuth();
   const router = useRouter();
   const [showStripeTable, setShowStripeTable] = useState(false);
   const [formSubmitted, setFormSubmitted] = useState(false);
@@ -45,21 +45,20 @@ const StripePricingTableWithFooter = () => {
   });
   const [loading, setLoading] = useState(false);
   const [formFilled, setFormFilled] = useState(false);
+  const [isFormPreFilled, setIsFormPreFilled] = useState(false);
   const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
   const [isSubUser, setIsSubUser] = useState(false);
   const [primaryEmail, setPrimaryEmail] = useState<string | null>(null);
 
-  // Check subscription status when user is authenticated
+  // Remove subscription checks - allow all users to proceed
   useEffect(() => {
-    if (isAuthenticated && user?.email) {
-      checkSubscription();
-      checkSubUser();
-      fetchFormData(user.email);
+    if (auth.isAuthenticated && auth.userEmail) {
+      fetchFormData(auth.userEmail);
       // If user is authenticated, mark email as verified
       setIsEmailVerified(true);
       setVerificationStep('complete');
     }
-  }, [isAuthenticated, user]);
+  }, [auth.isAuthenticated, auth.userEmail]);
 
   useEffect(() => {
     // Dynamically load the Stripe Pricing Table script
@@ -71,47 +70,48 @@ const StripePricingTableWithFooter = () => {
     return () => {
       document.body.removeChild(script);
     };
-  }, [hasActiveSubscription, isSubUser]);
+  }, []);
 
-  // Determine if purchasing should be disabled
-  const disablePurchase = (!isAuthenticated || !formFilled) || hasActiveSubscription || isSubUser;
+  // Remove all purchase restrictions - allow everyone to click
+  const disablePurchase = false;
 
 
 
   // Fetch existing form data when the page loads or when the user's email changes
   useEffect(() => {
-    if (user?.email) {
-      fetchFormData(user.email);
+    if (auth.userEmail) {
+      fetchFormData(auth.userEmail);
     }
-  }, [user]);
+  }, [auth.userEmail]);
 
   const fetchFormData = async (email: string) => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("registrationform")
-        .select("*")
-        .eq("email", email)
-        .single();
+      const response = await fetch(`/api/registrationform?email=${encodeURIComponent(email)}`);
+      const result = await response.json();
 
-      if (error && error.code !== "PGRST116") { // PGRST116 is the error code for "no rows found"
-        console.error("Error fetching form data:", error);
-      } else if (data) {
+      if (!response.ok) {
+        if (response.status !== 404) {
+          console.error("Error fetching form data:", result.error);
+        }
+      } else if (result.data) {
         // If form data exists, mark the form as filled
         setFormFilled(true);
+        setIsFormPreFilled(true); // Mark that form was pre-filled
         setFormData({
-          firstName: data.firstname || "",
-          lastName: data.lastname || "",
-          companyName: data.companyname || "",
-          companyType: data.companytype || "",
-          providerType: data.providertype || "",
-          howDidYouHear: data.howdidyouhear || "",
-          interest: data.interest || "",
-          demoRequest: data.demorequest || "No",
+          firstName: result.data.firstname || "",
+          lastName: result.data.lastname || "",
+          companyName: result.data.companyname || "",
+          companyType: result.data.companytype || "",
+          providerType: result.data.providertype || "",
+          howDidYouHear: result.data.howdidyouhear || "",
+          interest: result.data.interest || "",
+          demoRequest: result.data.demorequest || "No",
         });
       } else {
         // If no data is found, mark the form as not filled
         setFormFilled(false);
+        setIsFormPreFilled(false);
       }
     } catch (err) {
       console.error("Unexpected error during form data fetch:", err);
@@ -121,6 +121,7 @@ const StripePricingTableWithFooter = () => {
   };
 
   const toggleModalVisibility = () => {
+    console.log('🔴 Terms and Conditions button clicked!');
     setShowTerms(!showTerms); // Toggle modal visibility
   };
 
@@ -137,11 +138,13 @@ const StripePricingTableWithFooter = () => {
   // If redirected with must_complete_form=1, show banner and guide to next step
   useEffect(() => {
     const flag = typeof window !== 'undefined' ? new URL(window.location.href).searchParams.get('must_complete_form') : null;
+    const formCompleted = typeof window !== 'undefined' ? new URL(window.location.href).searchParams.get('form_completed') : null;
+    
     if (flag === '1') {
       setShowRedirectBanner(true);
       // Guide user to the appropriate step
       setTimeout(() => {
-        if (!isAuthenticated) {
+        if (!auth.isAuthenticated) {
           if (!isEmailVerified) {
             setVerificationStep('email');
             scrollToElementById('email-verification');
@@ -154,18 +157,61 @@ const StripePricingTableWithFooter = () => {
         }
       }, 150);
     }
-  }, [isAuthenticated, isEmailVerified, formFilled]);
+
+    // Handle form_completed=1 parameter - pre-fill form with existing data
+    if (formCompleted === '1' && auth.isAuthenticated && auth.userEmail) {
+      loadExistingFormData();
+    }
+  }, [auth.isAuthenticated, isEmailVerified, formFilled, auth.userEmail]);
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  // Load existing form data when user is redirected with form_completed=1
+  const loadExistingFormData = async () => {
+    if (!auth.userEmail) return;
+    
+    try {
+      const response = await fetch(`/api/registrationform?email=${encodeURIComponent(auth.userEmail)}`);
+      const result = await response.json();
+
+      if (!response.ok) {
+        console.log("No existing form data found:", result.error);
+        return;
+      }
+
+      if (result.data) {
+        console.log("✅ Loading existing form data:", result.data);
+        // Pre-fill the form with existing data
+        setFormData({
+          firstName: result.data.firstname || "",
+          lastName: result.data.lastname || "",
+          companyName: result.data.companyname || "",
+          companyType: result.data.companytype || "",
+          providerType: result.data.providertype || "",
+          howDidYouHear: result.data.howdidyouhear || "",
+          interest: result.data.interest || "",
+          demoRequest: result.data.demorequest || false,
+        });
+        setFormFilled(true); // Mark form as already filled
+        setIsFormPreFilled(true); // Mark that form was pre-filled
+        toast.success("Form data loaded from previous submission");
+        
+        // Show a banner that form was pre-filled
+        setShowRedirectBanner(true);
+      }
+    } catch (err) {
+      console.error("Error loading existing form data:", err);
+    }
+  };
+
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     // Determine which email to use for saving the form
-    const targetEmail = isAuthenticated && user?.email
-      ? user.email
+    const targetEmail = auth.isAuthenticated && auth.userEmail
+      ? auth.userEmail
       : (isEmailVerified && emailToVerify ? emailToVerify : null);
 
     if (!targetEmail) {
@@ -175,9 +221,10 @@ const StripePricingTableWithFooter = () => {
 
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("registrationform")
-        .upsert({
+      const response = await fetch('/api/registrationform', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           email: targetEmail,
           firstname: formData.firstName,
           lastname: formData.lastName,
@@ -187,28 +234,34 @@ const StripePricingTableWithFooter = () => {
           howdidyouhear: formData.howDidYouHear,
           interest: formData.interest,
           demorequest: formData.demoRequest,
-        });
+        }),
+      });
 
-        if (error) {
-        console.error("Error saving form data:", error);
-        console.error("Full error object:", JSON.stringify(error, null, 2));
+      const result = await response.json();
+
+      if (!response.ok) {
+        console.error("Error saving form data:", result.error);
         toast.error("Failed to save form data. Please try again.");
-      } else {
-        setFormFilled(true); // Mark the form as filled
-        setFormSubmitted(true);
-        // If user is not authenticated yet, prompt account creation before subscribing
-        if (!isAuthenticated) {
-          toast.success("Form submitted. Please create your account to continue.");
-          // Mark form completion so middleware permits register route
-          try {
-            document.cookie = `mr_form_complete=1; path=/; max-age=${60 * 60}; samesite=Lax`;
-            sessionStorage.setItem('mr_form_complete', '1');
-          } catch {}
-          router.push("/api/auth/register");
-          return;
-        }
-        toast.success("Form submitted! You can now subscribe.");
+        return;
       }
+
+      console.log(`✅ Form ${result.action}:`, result.data);
+
+      // Success - form saved/updated
+      setFormFilled(true);
+      setFormSubmitted(true);
+      
+      if (!auth.isAuthenticated) {
+        toast.success("Form submitted. Please create your account to continue.");
+        try {
+          document.cookie = `mr_form_complete=1; path=/; max-age=${60 * 60}; samesite=Lax`;
+          sessionStorage.setItem('mr_form_complete', '1');
+        } catch {}
+        router.push("/api/auth/register");
+        return;
+      }
+      
+      toast.success("Form submitted! You can now subscribe.");
     } catch (err) {
       console.error("Unexpected error during form submission:", err);
       toast.error("An unexpected error occurred. Please try again.");
@@ -220,15 +273,13 @@ const StripePricingTableWithFooter = () => {
   useEffect(() => {
     const testTableDetection = async () => {
       try {
-        const { data, error } = await supabase
-          .from("registrationform")
-          .select("*")
-          .limit(1); // Fetch just one row to test
+        const response = await fetch('/api/registrationform?email=test@example.com');
+        const result = await response.json();
 
-        if (error) {
-          console.error("Error fetching from registrationform table:", error);
+        if (response.ok || response.status === 404) {
+          console.log("Table detected. API working.");
         } else {
-          console.log("Table detected. Data:", data);
+          console.error("Error testing registrationform API:", result.error);
         }
       } catch (err) {
         console.error("Unexpected error during table detection:", err);
@@ -238,53 +289,9 @@ const StripePricingTableWithFooter = () => {
     testTableDetection();
   }, []);
 
-  const checkSubscription = async () => {
-    const userEmail = user?.email ?? "";
-    if (!userEmail) return;
+  // Removed subscription checking - allow all users to subscribe
 
-    try {
-      const response = await fetch("/api/stripe/subscription", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: userEmail }),
-      });
-
-      const data = await response.json();
-      if (data.error || !data.status || data.status !== "active") {
-        setHasActiveSubscription(false); // No active subscription
-      } else {
-        setHasActiveSubscription(true); // Active subscription found
-      }
-    } catch (error) {
-      console.error("Error checking subscription:", error);
-      setHasActiveSubscription(false); // Assume no active subscription on error
-    }
-  };
-
-  const checkSubUser = async () => {
-    const userEmail = user?.email ?? "";
-    if (!userEmail) return;
-
-    try {
-      const response = await fetch("/api/subscription-users");
-      if (!response.ok) {
-        throw new Error("Failed to check sub-user status");
-      }
-
-      const data = await response.json();
-      
-      // Check if current user is a sub-user
-      if (data.isSubUser) {
-        setIsSubUser(true);
-        // For sub-users, we need to find their primary user
-        setPrimaryEmail(data.primaryUser || userEmail);
-      } else {
-        setIsSubUser(false);
-      }
-    } catch (err) {
-      console.error("❌ Error checking sub-user:", err);
-    }
-  };
+  // Removed sub-user checking - allow all users to subscribe
 
   // Email verification functions (real via Brevo-backed API)
   const handleSendVerificationCode = async () => {
@@ -359,59 +366,170 @@ const StripePricingTableWithFooter = () => {
     setVerificationSuccess("");
   };
 
-  // Function to handle subscription button click
+  // Function to handle subscription button click - simplified to allow all clicks
   const handleSubscribeClick = async () => {
-    if (!isAuthenticated) {
-      if (!isEmailVerified) {
-        setVerificationStep('email');
-        scrollToElementById('email-verification');
-        return;
-      }
-      if (!formFilled) {
-        setVerificationStep('complete');
-        scrollToElementById('registration-form');
-        return;
-      }
-      router.push('/api/auth/register');
-      return;
-    }
-
-    if (!formFilled) {
-      scrollToElementById('registration-form');
-      return;
-    }
-    // Authenticated and form filled: pricing table already visible
+    console.log('🔴 Subscribe button clicked!');
+    // Simply scroll to pricing table - remove all restrictions
+    scrollToElementById('pricing-table');
   };
 
-  // Function to handle subscription button click for non-authenticated users
+  // Function to handle subscription button click for non-authenticated users - simplified
   const handleNonAuthSubscribeClick = () => {
-    if (!isEmailVerified) {
-      setVerificationStep('email');
-      scrollToElementById('email-verification');
-      return;
-    }
-    if (!formFilled) {
-      setVerificationStep('complete');
-      scrollToElementById('registration-form');
-      return;
-    }
-    router.push('/api/auth/register');
+    // Simply scroll to pricing table - remove all restrictions
+    scrollToElementById('pricing-table');
   };
+
+  // Add global style overrides to ensure everything is clickable and debug overlays
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      .subscribe-page * {
+        pointer-events: auto !important;
+        user-select: auto !important;
+        -webkit-user-select: auto !important;
+        -moz-user-select: auto !important;
+        -ms-user-select: auto !important;
+      }
+      .subscribe-page button, 
+      .subscribe-page a, 
+      .subscribe-page input, 
+      .subscribe-page textarea, 
+      .subscribe-page select {
+        pointer-events: auto !important;
+        cursor: pointer !important;
+      }
+      .subscribe-page button:disabled {
+        pointer-events: none !important;
+        cursor: not-allowed !important;
+      }
+      
+      /* Force hide any loader overlays */
+      .loader-overlay {
+        display: none !important;
+      }
+      
+      /* Override any potential blocking overlays but keep below navbar */
+      .subscribe-page {
+        position: relative !important;
+        z-index: 1 !important;
+      }
+      
+      /* Fix React Hot Toast toaster blocking clicks */
+      #_rht_toaster {
+        pointer-events: none !important;
+        z-index: -1 !important;
+      }
+      
+      /* Fix toaster children to allow clicks */
+      #_rht_toaster > * {
+        pointer-events: auto !important;
+      }
+      
+      /* Keep toast notifications clickable but not the container */
+      [data-testid="toast"] {
+        pointer-events: auto !important;
+        z-index: 9999 !important;
+        position: relative !important;
+      }
+    `;
+    document.head.appendChild(style);
+    
+    // Debug: Check for blocking elements and remove them
+    setTimeout(() => {
+      // Remove any loader overlays
+      const loaderOverlays = document.querySelectorAll('.loader-overlay');
+      loaderOverlays.forEach(overlay => {
+        console.log('🔥 Removing loader overlay:', overlay);
+        overlay.remove();
+      });
+      
+      // Check and fix React Hot Toast toaster
+      const toaster = document.getElementById('_rht_toaster');
+      if (toaster) {
+        console.log('🔥 Found React Hot Toast toaster blocking clicks:', toaster);
+        console.log('🔥 Toaster computed style:', window.getComputedStyle(toaster));
+        
+        // Force fix the toaster
+        toaster.style.pointerEvents = 'none';
+        toaster.style.zIndex = '-1';
+        console.log('✅ Fixed toaster pointer events');
+      }
+      
+      // Find any modal backgrounds or overlays
+      const overlays = document.querySelectorAll('[style*="position: fixed"], .modal-backdrop, [class*="backdrop"]');
+      console.log('🔍 Found potential overlay elements:', overlays);
+      
+      // Check for elements with high z-index that might be blocking
+      const allElements = document.querySelectorAll('*');
+      const highZElements = Array.from(allElements).filter(el => {
+        const zIndex = window.getComputedStyle(el).zIndex;
+        const position = window.getComputedStyle(el).position;
+        return zIndex !== 'auto' && parseInt(zIndex) > 1000 && (position === 'fixed' || position === 'absolute');
+      });
+      console.log('🔍 Elements with high z-index:', highZElements);
+      
+      // Log high z-index elements for debugging (but don't remove them)
+      if (highZElements.length > 0) {
+        console.log('ℹ️ Found elements with high z-index (this is normal for navbar, etc.):', highZElements);
+      }
+      
+      // Add global click listener to detect any clicks
+      const clickListener = (e: MouseEvent) => {
+        console.log('🖱️ Click detected at:', e.clientX, e.clientY, 'on element:', e.target);
+      };
+      document.addEventListener('click', clickListener, true);
+      
+      return () => {
+        document.removeEventListener('click', clickListener, true);
+      };
+    }, 1000);
+    
+    return () => {
+      if (document.head.contains(style)) {
+        document.head.removeChild(style);
+      }
+    };
+  }, []);
 
   return (
-    <div className="flex flex-col min-h-screen">
-      <main className="flex-grow flex flex-col items-center justify-center px-4 pt-16">
+    <>
+      <div className="subscribe-page flex flex-col min-h-screen" style={{
+        pointerEvents: "auto",
+        userSelect: "auto",
+        WebkitUserSelect: "auto",
+        MozUserSelect: "auto",
+        zIndex: 1,
+        position: "relative"
+      } as React.CSSProperties}>
+      <main className="flex-grow flex flex-col items-center justify-center px-4 pt-24" style={{
+        pointerEvents: "auto",
+        userSelect: "auto",
+        zIndex: 1,
+        position: "relative"
+      } as React.CSSProperties}>
         <Toaster position="top-center" />
         {showRedirectBanner && (
           <div className="w-full max-w-4xl mb-6 p-5 bg-yellow-50 border border-yellow-200 rounded-xl">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-yellow-900 font-semibold">Please finish these steps before creating your account</p>
-                <ul className="mt-2 list-disc ml-6 text-yellow-900 text-sm space-y-1">
-                  <li>Verify your email address</li>
-                  <li>Complete the short registration form</li>
-                  <li>Then you'll create your account and proceed to payment</li>
-                </ul>
+                <p className="text-yellow-900 font-semibold">
+                  {isFormPreFilled 
+                    ? "✅ Form data loaded from previous submission" 
+                    : "Please finish these steps before creating your account"
+                  }
+                </p>
+                {!isFormPreFilled && (
+                  <ul className="mt-2 list-disc ml-6 text-yellow-900 text-sm space-y-1">
+                    <li>Verify your email address</li>
+                    <li>Complete the short registration form</li>
+                    <li>Then you'll create your account and proceed to payment</li>
+                  </ul>
+                )}
+                {isFormPreFilled && (
+                  <p className="mt-2 text-yellow-900 text-sm">
+                    Your previous form submission has been loaded. You can review and update the information if needed, or proceed to subscription.
+                  </p>
+                )}
               </div>
               <button
                 onClick={() => setShowRedirectBanner(false)}
@@ -421,7 +539,7 @@ const StripePricingTableWithFooter = () => {
               </button>
             </div>
             <div className="mt-3 flex flex-wrap gap-3">
-              {!isAuthenticated && !isEmailVerified && (
+              {!auth.isAuthenticated && !isEmailVerified && (
                 <button
                   onClick={() => { setVerificationStep('email'); scrollToElementById('email-verification'); }}
                   className="bg-[#012C61] text-white px-4 py-2 rounded-md"
@@ -429,7 +547,7 @@ const StripePricingTableWithFooter = () => {
                   Go to email verification
                 </button>
               )}
-              {((!isAuthenticated && isEmailVerified && !formFilled) || (isAuthenticated && !formFilled)) && (
+              {((!auth.isAuthenticated && isEmailVerified && !formFilled) || (auth.isAuthenticated && !formFilled)) && (
                 <button
                   onClick={() => { setVerificationStep('complete'); scrollToElementById('registration-form'); }}
                   className="bg-[#012C61] text-white px-4 py-2 rounded-md"
@@ -437,32 +555,18 @@ const StripePricingTableWithFooter = () => {
                   Go to registration form
                 </button>
               )}
+              {isFormPreFilled && formFilled && (
+                <button
+                  onClick={() => scrollToElementById('registration-form')}
+                  className="bg-[#012C61] text-white px-4 py-2 rounded-md"
+                >
+                  Review/Edit Form
+                </button>
+              )}
             </div>
           </div>
         )}
-        {/* Subscription Status Banner - Show only for subscribed users */}
-        {isAuthenticated && (hasActiveSubscription || isSubUser) && (
-          <div className="w-full max-w-4xl mb-8 p-4 bg-green-50 border border-green-200 rounded-xl">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-green-800 font-medium">
-                  ✓ You have an active subscription
-                </p>
-                {isSubUser && (
-                  <p className="text-sm text-green-600">
-                    This is a sub-user account
-                  </p>
-                )}
-              </div>
-              <a
-                href="/dashboard"
-                className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700 transition-colors"
-              >
-                Go to Dashboard
-              </a>
-            </div>
-          </div>
-        )}
+        {/* Subscription Status Banner - Removed restrictions, show for all users if they want to see it */}
 
         {/* Subscription Details - Always Visible */}
         <div className="w-full max-w-4xl mb-8 p-8 bg-white rounded-xl shadow-2xl border border-gray-100">
@@ -509,34 +613,27 @@ const StripePricingTableWithFooter = () => {
             </div>
           </div>
           <div className="mt-12 flex space-x-4 justify-center">
-            {isAuthenticated ? (
-              <button
-                onClick={handleSubscribeClick}
-                className="bg-[#012C61] text-white px-8 py-3 rounded-lg transition-all duration-300 hover:bg-transparent hover:border hover:border-[#012C61] hover:text-[#012C61]"
-              >
-                Subscribe Now
-              </button>
-            ) : (
-              <button
-                onClick={handleNonAuthSubscribeClick}
-                className="bg-[#012C61] text-white px-8 py-3 rounded-lg transition-all duration-300 hover:bg-transparent hover:border hover:border-[#012C61] hover:text-[#012C61]"
-              >
-                Subscribe Now
-              </button>
-            )}
+            <button
+              onClick={handleSubscribeClick}
+              className="bg-[#012C61] text-white px-8 py-3 rounded-lg transition-all duration-300 hover:bg-transparent hover:border hover:border-[#012C61] hover:text-[#012C61]"
+              style={{ pointerEvents: "auto", userSelect: "auto" }}
+            >
+              Subscribe Now
+            </button>
             <a
               href="https://calendar.google.com/calendar/u/0/appointments/schedules/AcZssZ1QOXygd6Dpekn_BDsmrizOLq3D9aX8iq_aopMjF5o4Z2_APztYi8VXo5QMn2ab0sDZ5rTX18ii"
               target="_blank"
               rel="noopener noreferrer"
               className="bg-[#012C61] text-white px-8 py-3 rounded-lg transition-all duration-300 hover:bg-transparent hover:border hover:border-[#012C61] hover:text-[#012C61]"
+              style={{ pointerEvents: "auto", userSelect: "auto" }}
             >
               Schedule a Live Presentation
             </a>
           </div>
         </div>
 
-        {/* Email Verification Section - Show for non-authenticated users */}
-        {!isAuthenticated && verificationStep === 'email' && (
+        {/* Email Verification Section - Show for all users who want to verify email */}
+        {verificationStep === 'email' && (
           <div id="email-verification" className="w-full max-w-4xl mb-8 p-8 bg-white rounded-xl shadow-2xl border border-gray-100">
             <div className="text-center mb-6">
               <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
@@ -585,7 +682,7 @@ const StripePricingTableWithFooter = () => {
         )}
 
         {/* Verification Code Input Section */}
-        {!isAuthenticated && verificationStep === 'code' && (
+        {verificationStep === 'code' && (
           <div className="w-full max-w-4xl mb-8 p-8 bg-white rounded-xl shadow-2xl border border-gray-100">
             <div className="text-center mb-6">
               <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
@@ -656,18 +753,31 @@ const StripePricingTableWithFooter = () => {
           </div>
         )}
 
-        {/* Registration Form - Show for non-authenticated users after email verification */}
-        {!isAuthenticated && verificationStep === 'complete' && !showStripeTable && (
+        {/* Registration Form - Show for all users after email verification */}
+        {verificationStep === 'complete' && !showStripeTable && (
           <div id="registration-form" className="w-full max-w-4xl mb-8 p-8 bg-white rounded-xl shadow-2xl border border-gray-100">
             <div className="text-center mb-6">
               <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
                 <CheckCircle className="w-8 h-8 text-green-600" />
               </div>
-              <h2 className="text-2xl font-bold mb-2 text-[#012C61] font-lemonMilkRegular">Email Verified!</h2>
+              <h2 className="text-2xl font-bold mb-2 text-[#012C61] font-lemonMilkRegular">
+                {isFormPreFilled ? "✅ Form Pre-filled" : "Email Verified!"}
+              </h2>
               <p className="text-gray-600">
-                Please complete the registration form to proceed with your subscription
+                {isFormPreFilled 
+                  ? "Your previous form data has been loaded. Review and update if needed, then submit to proceed."
+                  : "Please complete the registration form to proceed with your subscription"
+                }
               </p>
             </div>
+            
+            {isFormPreFilled && (
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-700 text-center">
+                  <strong>✓ Form Pre-filled:</strong> Your previous submission has been loaded. You can review and update the information below.
+                </p>
+              </div>
+            )}
             
             <form onSubmit={handleFormSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -792,10 +902,21 @@ const StripePricingTableWithFooter = () => {
           </div>
         )}
 
-        {/* Registration Form - Show only when authenticated but form not filled and not subscribed */}
-        {isAuthenticated && !formFilled && !showStripeTable && !hasActiveSubscription && !isSubUser && (
+        {/* Registration Form - Show for authenticated users who haven't filled form */}
+        {auth.isAuthenticated && !formFilled && !showStripeTable && (
           <div id="registration-form" className="w-full max-w-4xl mb-8 p-8 bg-white rounded-xl shadow-2xl border border-gray-100">
-            <h2 className="text-xl font-bold mb-8 text-[#012C61] text-center font-lemonMilkRegular">Please Complete the Form to Proceed</h2>
+            <h2 className="text-xl font-bold mb-8 text-[#012C61] text-center font-lemonMilkRegular">
+              {isFormPreFilled ? "✅ Form Pre-filled - Review & Submit" : "Please Complete the Form to Proceed"}
+            </h2>
+            
+            {isFormPreFilled && (
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-700 text-center">
+                  <strong>✓ Form Pre-filled:</strong> Your previous submission has been loaded. You can review and update the information below.
+                </p>
+              </div>
+            )}
+            
             <form onSubmit={handleFormSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
@@ -920,24 +1041,35 @@ const StripePricingTableWithFooter = () => {
         )}
 
         {/* Stripe Pricing Table - Always visible for everyone to see */}
-        <div id="pricing-table" className="w-full max-w-4xl transform scale-110 relative" style={{ transformOrigin: "center" }}>
-
-          {React.createElement("stripe-pricing-table", {
-            "pricing-table-id": "prctbl_1RBMKo2NeWrBDfGslMwYkTKz",
-            "publishable-key": "pk_live_51QXT6G2NeWrBDfGsjthMPwaWhPV7UIzSJjZ3fpmANYKT58UCVSnoHaHKyozK9EptYNbV3Y1y5SX1QQcuI9dK5pZW00VQH9T3Hh",
-          })}
+        <div 
+          id="pricing-table" 
+          className="w-full max-w-4xl transform scale-110 relative" 
+          style={{ 
+            transformOrigin: "center", 
+            zIndex: 1,
+            pointerEvents: "auto",
+            userSelect: "auto",
+            position: "relative"
+          }}
+        >
+          <div 
+            style={{ 
+              pointerEvents: "auto",
+              userSelect: "auto",
+              WebkitUserSelect: "auto",
+              MozUserSelect: "auto"
+            } as React.CSSProperties}
+          >
+            {React.createElement("stripe-pricing-table", {
+              "pricing-table-id": "prctbl_1RBMKo2NeWrBDfGslMwYkTKz",
+              "publishable-key": "pk_live_51QXT6G2NeWrBDfGsjthMPwaWhPV7UIzSJjZ3fpmANYKT58UCVSnoHaHKyozK9EptYNbV3Y1y5SX1QQcuI9dK5pZW00VQH9T3Hh",
+            })}
+          </div>
         </div>
 
 
 
-        {/* Warning message for subscribed users */}
-        {isAuthenticated && (hasActiveSubscription || isSubUser) && (
-          <div className="w-full max-w-4xl mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-yellow-800 text-center text-sm">
-              You already have an active subscription. The purchase buttons are disabled.
-            </p>
-          </div>
-        )}
+        {/* Warning message removed - allow all users to interact with purchase buttons */}
 
         {/* Accepted Payment Methods - Always visible */}
         <div className="mt-6 p-4 bg-gray-100 rounded-lg shadow-md flex items-center space-x-2">
@@ -953,22 +1085,22 @@ const StripePricingTableWithFooter = () => {
           </button>
         </div>
 
-        {/* Add a message for non-authenticated users who haven't started verification */}
-        {!isAuthenticated && verificationStep === 'email' && (
+        {/* Message for users who want to verify email - removed authentication restriction */}
+        {verificationStep === 'email' && (
           <div className="w-full max-w-4xl mb-8 p-8 bg-white rounded-xl shadow-2xl border border-gray-100 text-center">
             <h2 className="text-2xl font-bold mb-4 text-[#012C61] font-lemonMilkRegular">Ready to Subscribe?</h2>
             <p className="text-lg mb-6 text-gray-600">
-              Please verify your email address above to view subscription options and complete the registration process.
+              You can verify your email address above for a better experience, or proceed directly to subscription.
             </p>
           </div>
         )}
 
-        {/* Add a message for authenticated users who haven't filled the form */}
-        {isAuthenticated && !formFilled && !hasActiveSubscription && !isSubUser && (
+        {/* Message for users about form completion - removed restrictions */}
+        {auth.isAuthenticated && !formFilled && (
           <div className="w-full max-w-4xl mb-8 p-8 bg-white rounded-xl shadow-2xl border border-gray-100 text-center">
-            <h2 className="text-2xl font-bold mb-4 text-[#012C61] font-lemonMilkRegular">Almost There!</h2>
+            <h2 className="text-2xl font-bold mb-4 text-[#012C61] font-lemonMilkRegular">Optional Registration</h2>
             <p className="text-lg mb-6 text-gray-600">
-              Please complete the registration form above to view subscription options.
+              You can complete the registration form above for a personalized experience, or proceed directly to subscription.
             </p>
           </div>
         )}
@@ -982,7 +1114,8 @@ const StripePricingTableWithFooter = () => {
 
       {/* Footer */}
       <Footer />
-    </div>
+      </div>
+    </>
   );
 };
 

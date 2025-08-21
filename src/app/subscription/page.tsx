@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
-import { toast, Toaster } from "react-hot-toast";
+import { useRequireSubscription } from "@/hooks/useRequireAuth";
+import { toast } from "react-hot-toast";
 
 interface Subscription {
   plan: string;
@@ -18,7 +18,7 @@ interface Subscription {
 }
 
 export default function SubscriptionPage() {
-  const { user, isAuthenticated } = useKindeBrowserClient();
+  const auth = useRequireSubscription();
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -29,13 +29,42 @@ export default function SubscriptionPage() {
   const [slotEmails, setSlotEmails] = useState<string[]>([]);
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
   const [isAddingSlot, setIsAddingSlot] = useState(false);
+  const [editingSlot, setEditingSlot] = useState<number | null>(null);
+  const [editEmail, setEditEmail] = useState<string>("");
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminCheckComplete, setAdminCheckComplete] = useState(false);
 
   // ✅ Ensure user is defined before proceeding
-  const userEmail = user?.email ?? "";
-  const userId = user?.id ?? "";
+  const userEmail = auth.userEmail ?? "";
+  const userId = auth.user?.id ?? "";
+
+  // Check if user is admin
+  useEffect(() => {
+    if (!auth.isAuthenticated || auth.isLoading || !userEmail) return;
+
+    const checkAdminStatus = async () => {
+      try {
+        const response = await fetch("/api/admin/check-access", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: userEmail }),
+        });
+
+        const data = await response.json();
+        setIsAdmin(data.isAdmin || false);
+        setAdminCheckComplete(true);
+      } catch (error) {
+        console.error("Error checking admin status:", error);
+        setIsAdmin(false);
+        setAdminCheckComplete(true);
+      }
+    };
+
+    checkAdminStatus();
+  }, [auth.isAuthenticated, auth.isLoading, userEmail]);
 
   useEffect(() => {
-    if (!userEmail) return;
+    if (!auth.isAuthenticated || auth.isLoading || !userEmail || !adminCheckComplete) return;
 
     async function checkSubUser() {
       try {
@@ -51,10 +80,14 @@ export default function SubscriptionPage() {
         if (data.isSubUser) {
           setIsSubUser(true);
           // For sub-users, we need to find their primary user
-          setPrimaryEmail(data.primaryUser || userEmail);
+          const primaryUserEmail = data.primaryUser || userEmail;
+          setPrimaryEmail(primaryUserEmail);
+          // Fetch subscription data for the PRIMARY user, not the sub-user
+          await fetchSubscriptionData(primaryUserEmail);
         } else {
           setIsSubUser(false);
-          fetchSubscription(userEmail);
+          // For primary users, fetch their own subscription data
+          await fetchSubscriptionData(userEmail);
         }
       } catch (err) {
         setError("Something went wrong while checking sub-user status.");
@@ -63,10 +96,38 @@ export default function SubscriptionPage() {
     }
 
     checkSubUser();
-  }, [userEmail]);
+  }, [auth.isAuthenticated, auth.isLoading, userEmail, adminCheckComplete, isAdmin]);
+
+  // Fetch subscription data for primary users
+  const fetchSubscriptionData = async (email: string) => {
+    try {
+      const response = await fetch("/api/stripe/subscription", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email })
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch subscription data");
+      }
+
+      const data = await response.json();
+      setSubscription(data);
+      
+      // Set slots based on the subscription plan and admin status
+      const slotsForUser = getSlotsForPlan(data.plan, isAdmin);
+      setSlots(slotsForUser);
+      
+      setLoading(false);
+    } catch (err) {
+      console.error("Error fetching subscription:", err);
+      setError("Failed to load subscription data");
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    if (!userEmail) return;
+    if (!auth.isAuthenticated || auth.isLoading || !userEmail || !adminCheckComplete) return;
 
     const fetchSubUsers = async () => {
       try {
@@ -101,7 +162,7 @@ export default function SubscriptionPage() {
     };
 
     fetchSubUsers();
-  }, [userEmail]);
+  }, [auth.isAuthenticated, auth.isLoading, userEmail, adminCheckComplete, isAdmin]);
 
   const getRemainingDays = () => {
     if (!subscription) return 0;
@@ -205,19 +266,143 @@ export default function SubscriptionPage() {
       const updatedAddedUsers = [...addedUsers];
       updatedAddedUsers[slotIndex] = { email: newUserEmail, slot: slotIndex };
       setAddedUsers(updatedAddedUsers);
+      
+      // For unlimited users, expand slots dynamically
+      if (slots >= 50 && slotIndex >= slots - 5) {
+        // Add more slots when we're near the current limit
+        setSlots(Math.min(slots + 5, 50));
+      }
+      
       toast.success("Sub-user saved successfully!");
     } catch (err) {
       toast.error("Failed to save sub-user.");
     }
   };
 
-  const getSlotsForPlan = (plan: string) => {
-    if (plan === "Medirate Annual") {
-      return 9; // Annual users get 9 slots
-    } else if (plan === "MediRate 3 Months") {
-      return 1; // 3-month users get 1 slot (main slot)
+  const getSlotsForPlan = (plan: string, isAdminUser?: boolean) => {
+    // Admin users get unlimited slots
+    if (isAdminUser) {
+      return 50; // Effectively unlimited (50 slots)
     }
+    
+    // For all other users, limit to 2 slots regardless of plan
+    if (plan === "Medirate Annual" || plan === "MediRate 3 Months" || plan === "Professional Plan") {
+      return 2; // All regular users get 2 slots maximum
+    }
+    
     return 0; // Default to 0 slots for all other plans
+  };
+
+  const handleEditSubUser = (slotIndex: number) => {
+    const currentUser = addedUsers.find(user => user.slot === slotIndex);
+    if (currentUser) {
+      setEditingSlot(slotIndex);
+      setEditEmail(currentUser.email);
+    }
+  };
+
+  const handleSaveEditSubUser = async () => {
+    if (editingSlot === null || !editEmail || !userEmail) return;
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(editEmail)) {
+      toast.error("Please enter a valid email address.");
+      return;
+    }
+
+    try {
+      // Fetch current sub-users
+      const response = await fetch("/api/subscription-users", {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch sub-users.");
+      }
+
+      const data = await response.json();
+      const subUsers = Array.isArray(data.subUsers) ? data.subUsers : [];
+
+      // Update the email in the specified slot
+      subUsers[editingSlot] = editEmail;
+
+      // Update the sub-users in the database
+      const updateResponse = await fetch("/api/subscription-users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subUsers: subUsers }),
+      });
+
+      if (!updateResponse.ok) {
+        throw new Error("Failed to update sub-user.");
+      }
+
+      // Update local state
+      const updatedAddedUsers = addedUsers.map(user => 
+        user.slot === editingSlot ? { ...user, email: editEmail } : user
+      );
+      setAddedUsers(updatedAddedUsers);
+      
+      // Reset edit state
+      setEditingSlot(null);
+      setEditEmail("");
+      
+      toast.success("Sub-user updated successfully!");
+    } catch (err) {
+      toast.error("Failed to update sub-user.");
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingSlot(null);
+    setEditEmail("");
+  };
+
+  const handleRemoveSubUser = async (slotIndex: number) => {
+    if (!userEmail) return;
+
+    if (!confirm("Are you sure you want to remove this sub-user?")) {
+      return;
+    }
+
+    try {
+      // Fetch current sub-users
+      const response = await fetch("/api/subscription-users", {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch sub-users.");
+      }
+
+      const data = await response.json();
+      const subUsers = Array.isArray(data.subUsers) ? data.subUsers : [];
+
+      // Remove the user from the specified slot (set to empty string or remove from array)
+      subUsers[slotIndex] = ""; // Or you could use subUsers.splice(slotIndex, 1) to remove entirely
+
+      // Update the sub-users in the database
+      const updateResponse = await fetch("/api/subscription-users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subUsers: subUsers }),
+      });
+
+      if (!updateResponse.ok) {
+        throw new Error("Failed to remove sub-user.");
+      }
+
+      // Update local state
+      const updatedAddedUsers = addedUsers.filter(user => user.slot !== slotIndex);
+      setAddedUsers(updatedAddedUsers);
+      
+      toast.success("Sub-user removed successfully!");
+    } catch (err) {
+      toast.error("Failed to remove sub-user.");
+    }
   };
 
   const fetchSubscription = async (email: string) => {
@@ -235,9 +420,9 @@ export default function SubscriptionPage() {
       } else {
         setSubscription(data);
 
-        // Set slots based on the subscription plan
-        const slotsForPlan = getSlotsForPlan(data.plan);
-        setSlots(slotsForPlan);
+        // Set slots based on the subscription plan and admin status
+        const slotsForUser = getSlotsForPlan(data.plan, isAdmin);
+        setSlots(slotsForUser);
       }
     } catch (err) {
       setError("Failed to load subscription.");
@@ -246,7 +431,11 @@ export default function SubscriptionPage() {
     }
   };
 
-  if (!isAuthenticated) {
+  if (auth.isLoading || auth.shouldRedirect) {
+    return <div>Loading...</div>;
+  }
+
+  if (!auth.isAuthenticated) {
     return (
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl md:text-4xl text-[#012C61] font-lemonMilkRegular uppercase mb-8 text-center">
@@ -260,8 +449,9 @@ export default function SubscriptionPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto bg-gradient-to-br from-gray-50 to-blue-50 p-8 rounded-2xl">
-      <Toaster position="top-center" />
+    <div className="max-w-7xl mx-auto bg-gradient-to-br from-gray-50 to-blue-50 p-8 rounded-2xl pointer-events-auto">
+
+
                 <h1 className="text-3xl md:text-4xl text-[#012C61] font-lemonMilkRegular uppercase mb-8 text-center">
         Subscription
       </h1>
@@ -290,12 +480,19 @@ export default function SubscriptionPage() {
               <>
                 {/* User Information */}
                 <div className="mb-6 border-b pb-4">
-                  <h2 className="text-2xl font-bold text-gray-900">User Details</h2>
+                  <h2 className="text-2xl font-bold text-gray-900">
+                    {isSubUser ? "Primary Account Subscription" : "Your Subscription"}
+                  </h2>
+                  {isSubUser && (
+                    <p className="text-sm text-blue-600 mb-3">
+                      Subscription for primary account: <strong>{primaryEmail}</strong>
+                    </p>
+                  )}
                   <p className="text-lg text-gray-700">
-                    <strong>Name:</strong> {user?.given_name || user?.family_name || "N/A"}
+                    <strong>Your Name:</strong> {auth.user?.given_name || auth.user?.family_name || "N/A"}
                   </p>
                   <p className="text-lg text-gray-700">
-                    <strong>Email:</strong> {userEmail}
+                    <strong>Your Email:</strong> {userEmail} {isSubUser && <span className="text-sm text-blue-600">(Sub-user)</span>}
                   </p>
                 </div>
 
@@ -333,20 +530,59 @@ export default function SubscriptionPage() {
                 {/* Slots Section */}
                 {!isSubUser && slots > 0 && (
                   <div id="slots-section" className="mt-8">
-                    <h3 className="text-xl font-semibold text-gray-900 mb-4">Available Slots</h3>
-                    {[...Array(slots)].map((_, index) => (
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-xl font-semibold text-gray-900">Available Slots</h3>
+                      {slots >= 50 && (
+                        <span className="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
+                          Unlimited Access
+                        </span>
+                      )}
+                    </div>
+                    <div className="space-y-3">
+                      {[...Array(Math.min(slots, 10))].map((_, index) => {
+                        const assignedUser = addedUsers.find(user => user.slot === index);
+                        const isEditing = editingSlot === index;
+                        
+                        return (
                       <div
                         key={index}
-                        className={`mt-4 p-4 rounded-lg border ${
-                          index < 2
-                            ? "bg-gray-50 border-gray-100"
-                            : "bg-gray-200 border-gray-300 opacity-50"
-                        }`}
-                      >
-                        <div className="flex items-center space-x-3">
-                          <span className="text-sm text-gray-700">Slot {index + 1}</span>
-                          {index < 2 ? (
-                            <>
+                            className={`p-4 rounded-lg border ${
+                              assignedUser 
+                                ? 'bg-blue-50 border-blue-200' 
+                                : 'bg-white border-gray-200'
+                            } transition-colors`}
+                          >
+                            {/* CSS Grid Layout for Perfect Alignment */}
+                            <div className="grid grid-cols-12 gap-4 items-center">
+                              {/* Slot Number - 2 columns */}
+                              <div className="col-span-2 flex items-center space-x-2">
+                                <span className="inline-flex items-center justify-center w-8 h-8 bg-gray-100 text-gray-600 text-sm font-medium rounded-full">
+                                  {index + 1}
+                                </span>
+                                <span className="text-sm font-medium text-gray-700">Slot {index + 1}</span>
+                              </div>
+                              
+                              {/* Email Section - 7 columns */}
+                              <div className="col-span-7 min-w-0">
+                                {assignedUser && !isEditing ? (
+                                  // Show assigned user
+                                  <div className="min-w-0">
+                                    <div className="text-sm font-medium text-gray-900 truncate overflow-hidden whitespace-nowrap" title={assignedUser.email}>
+                                      {assignedUser.email}
+                                    </div>
+                                    <div className="text-xs text-gray-500">Active sub-user</div>
+                                  </div>
+                                ) : isEditing ? (
+                                  // Show edit mode
+                                  <input
+                                    type="email"
+                                    value={editEmail}
+                                    onChange={(e) => setEditEmail(e.target.value)}
+                                    className="w-full px-3 py-2 border border-blue-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 overflow-hidden"
+                                    placeholder="Enter new email address"
+                                  />
+                                ) : (
+                                  // Show empty slot
                               <input
                                 type="email"
                                 value={slotEmails[index] || ""}
@@ -355,53 +591,95 @@ export default function SubscriptionPage() {
                                   updatedSlotEmails[index] = e.target.value;
                                   setSlotEmails(updatedSlotEmails);
                                 }}
-                                placeholder="Assign user email"
-                                className="flex-1 px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    placeholder="Enter email to assign user"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 overflow-hidden"
                                 pattern="^[^\s@]+@[^\s@]+\.[^\s@]+$"
                                 required
                               />
+                                )}
+                              </div>
+                              
+                              {/* Action Buttons - 3 columns, right aligned */}
+                              <div className="col-span-3 flex justify-end space-x-2">
+                                {assignedUser && !isEditing ? (
+                                  // Edit/Remove buttons for assigned users
+                                  <>
+                                    <button
+                                      onClick={() => handleEditSubUser(index)}
+                                      className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700 transition-colors"
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      onClick={() => handleRemoveSubUser(index)}
+                                      className="px-3 py-1.5 bg-red-600 text-white text-xs font-medium rounded-md hover:bg-red-700 transition-colors"
+                                    >
+                                      Remove
+                                    </button>
+                                  </>
+                                ) : isEditing ? (
+                                  // Save/Cancel buttons for editing
+                                  <>
                               <button
-                                onClick={() => handleAssignUserToSlot(index)}
-                                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+                                      onClick={handleSaveEditSubUser}
+                                      className="px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-md hover:bg-green-700 transition-colors"
                               >
                                 Save
                               </button>
+                                    <button
+                                      onClick={handleCancelEdit}
+                                      className="px-3 py-1.5 bg-gray-600 text-white text-xs font-medium rounded-md hover:bg-gray-700 transition-colors"
+                                    >
+                                      Cancel
+                                    </button>
                             </>
                           ) : (
-                            <span className="text-sm text-gray-500">Coming Soon</span>
+                                  // Assign button for empty slots
+                                  <button
+                                    onClick={() => handleAssignUserToSlot(index)}
+                                    disabled={!slotEmails[index]?.trim()}
+                                    className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                                  >
+                                    Assign
+                                  </button>
                           )}
                         </div>
                       </div>
-                    ))}
+                  </div>
+                        );
+                      })}
+                    </div>
+                    {slots >= 50 && (
+                      <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p className="text-blue-800 text-sm">
+                          <strong>Admin Account:</strong> You have unlimited sub-user slots available. 
+                          {slots > 10 && " Additional slots will appear automatically as you add users."}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
 
-                {!isSubUser && addedUsers.length > 0 && (
-                  <div className="mt-8">
-                    <h3 className="text-xl font-semibold text-gray-900 mb-4">Assigned Users</h3>
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full bg-white border border-gray-200 rounded-lg">
-                        <thead>
-                          <tr className="bg-gray-50">
-                            <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Email</th>
-                            <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Slot</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {addedUsers.map((user, index) => (
-                            <tr key={index} className="border-b border-gray-200">
-                              <td className="px-6 py-4 text-sm text-gray-700">{user.email}</td>
-                              <td className="px-6 py-4 text-sm text-gray-700">{user.slot + 1}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
+
               </>
             ) : (
-              <p className="text-red-500 text-center text-lg">No active subscription found.</p>
+              <div className="text-center">
+                {isSubUser ? (
+                  <div>
+                    <p className="text-orange-600 text-lg font-semibold mb-2">
+                      Unable to load subscription details for primary account
+                    </p>
+                    <p className="text-gray-600">
+                      Primary Account: <strong>{primaryEmail}</strong>
+                    </p>
+                    <p className="text-sm text-gray-500 mt-2">
+                      As a sub-user, you have access to all premium features through the primary account.
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-red-500 text-lg">No active subscription found.</p>
+                )}
+              </div>
             )}
           </div>
         )}

@@ -1,22 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import AppLayout from "@/app/components/applayout";
 import EmailPreferences from "@/app/email-preferences/page";
 import Profile from "@/app/profile/page";
 import Subscription from "@/app/subscription/page";
-import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
-import { useRouter } from "next/navigation";
+import { useRequireSubscription } from "@/hooks/useRequireAuth";
 
 export default function Settings() {
-  const { isAuthenticated, isLoading } = useKindeBrowserClient();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.push("/api/auth/login");
-    }
-  }, [isAuthenticated, isLoading, router]);
+  const auth = useRequireSubscription();
 
   const [activeTab, setActiveTab] = useState("profile");
 
@@ -33,7 +25,7 @@ export default function Settings() {
     }
   };
 
-  if (isLoading || !isAuthenticated) {
+  if (auth.isLoading || auth.shouldRedirect) {
     return null; // or a loading spinner
   }
 

@@ -3,7 +3,7 @@
 import { LogOut, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
+import { useAuth } from "@/context/AuthContext";
 import { LogoutLink } from "@kinde-oss/kinde-auth-nextjs/components";
 import { usePathname } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
@@ -11,7 +11,7 @@ import { KindeUser } from "@kinde-oss/kinde-auth-nextjs/types";
 import { supabase } from "@/lib/supabase";
 
 const Navbar = () => {
-  const { isAuthenticated, isLoading, user } = useKindeBrowserClient();
+  const auth = useAuth();
   const pathname = usePathname();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -23,11 +23,15 @@ const Navbar = () => {
 
   // ✅ Sync user to Supabase after login and fetch user data
   useEffect(() => {
-    if (isAuthenticated && user?.email) {
-      syncUserToSupabase(user.email, user.given_name || "", user.family_name || "", user.id);
+    if (auth.isAuthenticated && auth.userEmail) {
+      syncUserToSupabase(auth.userEmail, auth.user?.given_name || "", auth.user?.family_name || "", auth.user?.id || "");
       // fetchUserFromSupabase is now called after sync completes
     }
-  }, [isAuthenticated, user]);
+  }, [auth.isAuthenticated, auth.userEmail, auth.user]);
+
+  // ✅ Sub-user status is now handled by centralized auth context
+
+  // Sub-user status checking removed - handled by centralized auth context
 
   const fetchUserFromSupabase = async (email: string) => {
     try {
@@ -140,7 +144,10 @@ const Navbar = () => {
     "/support",
   ];
 
-  if (isLoading) {
+  // Debug logging - temporarily disabled
+  // console.log("Navbar state:", { isLoading, isAuthenticated, isAuthCheckComplete, pathname });
+
+  if (auth.isLoading) {
     return (
       <nav className="sticky inset-x-0 top-0 z-[1000] w-full border-b backdrop-blur-lg transition-all" style={navbarStyle}>
         <div className="flex h-[5.5rem] items-center justify-center">
@@ -150,13 +157,14 @@ const Navbar = () => {
     );
   }
 
-  if (isAuthenticated && authenticatedPages.includes(pathname)) {
+  // Show authenticated navbar for users with valid subscriptions OR sub-users
+  if (auth.isAuthenticated && authenticatedPages.includes(pathname)) {
     return (
-      <nav className="sticky inset-x-0 top-0 z-[1000] w-full border-b backdrop-blur-lg transition-all" style={navbarStyle}>
+      <nav className="sticky inset-x-0 top-0 z-[1000] w-full border-b backdrop-blur-lg transition-all pointer-events-auto" style={navbarStyle}>
         <div className="flex h-[5.5rem] items-center justify-between px-8">
           {/* Wordmark on the Left */}
           <div className="flex-shrink-0 transform -translate-x-4">
-            <Link href="/" className="flex items-center">
+            <Link href="/" className="flex items-center pointer-events-auto" onClick={() => console.log("Home link clicked")}>
               <Image src="/top-black-just-word.png" alt="MediRate Wordmark" width={200} height={80} priority />
             </Link>
           </div>
@@ -213,8 +221,49 @@ const Navbar = () => {
     );
   }
 
+  // Show authenticated navbar for authenticated users on public pages (like /subscribe)
+  if (auth.isAuthenticated) {
+    return (
+      <nav className="sticky inset-x-0 top-0 z-[99999] w-full border-b backdrop-blur-lg transition-all pointer-events-auto" style={{...navbarStyle, position: 'fixed', zIndex: 99999}}>
+        <div className="flex h-[5.5rem] items-center justify-between px-8">
+          {/* Wordmark on the Left */}
+          <div className="flex-shrink-0 transform -translate-x-4">
+            <Link href="/" className="flex items-center pointer-events-auto">
+              <Image src="/top-black-just-word.png" alt="MediRate Wordmark" width={200} height={80} priority />
+            </Link>
+          </div>
+
+          <div className="flex items-center space-x-6">
+            <Link href="/oursolution" className="border border-transparent px-4 py-2 rounded-md text-white transition-colors hover:border-white hover:bg-transparent pointer-events-auto">
+              Our Solution
+            </Link>
+            <Link href="/aboutus" className="border border-transparent px-4 py-2 rounded-md text-white transition-colors hover:border-white hover:bg-transparent pointer-events-auto">
+              About Us
+            </Link>
+            <Link href="/contactus" className="border border-transparent px-4 py-2 rounded-md text-white transition-colors hover:border-white hover:bg-transparent pointer-events-auto">
+              Contact Us
+            </Link>
+            <Link href="/subscribe" className="border border-transparent px-4 py-2 rounded-md text-white transition-colors hover:border-white hover:bg-transparent pointer-events-auto">
+              Subscribe
+            </Link>
+
+            <Link href="/dashboard" className="flex items-center border border-white bg-white px-4 py-2 rounded-md text-[#000000] font-semibold transition-colors hover:bg-transparent hover:text-white pointer-events-auto">
+              Dashboard
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Link>
+          </div>
+
+          {/* Logo on the Right */}
+          <div className="flex-shrink-0 transform -translate-x-4">
+            <Image src="/top-black-just-logo.png" alt="MediRate Logo" width={80} height={80} priority />
+          </div>
+        </div>
+      </nav>
+    );
+  }
+
   return (
-    <nav className="sticky inset-x-0 top-0 z-[1000] w-full border-b backdrop-blur-lg transition-all" style={navbarStyle}>
+    <nav className="sticky inset-x-0 top-0 z-[1000] w-full border-b backdrop-blur-lg transition-all pointer-events-auto" style={navbarStyle}>
       <div className="flex h-[5.5rem] items-center justify-between px-8">
         {/* Wordmark on the Left */}
         <div className="flex-shrink-0 transform -translate-x-4">
@@ -224,20 +273,20 @@ const Navbar = () => {
         </div>
 
         <div className="flex items-center space-x-6">
-          <Link href="/oursolution" className="border border-transparent px-4 py-2 rounded-md text-white transition-colors hover:border-white hover:bg-transparent">
+          <Link href="/oursolution" className="border border-transparent px-4 py-2 rounded-md text-white transition-colors hover:border-white hover:bg-transparent pointer-events-auto">
             Our Solution
           </Link>
-          <Link href="/aboutus" className="border border-transparent px-4 py-2 rounded-md text-white transition-colors hover:border-white hover:bg-transparent">
+          <Link href="/aboutus" className="border border-transparent px-4 py-2 rounded-md text-white transition-colors hover:border-white hover:bg-transparent pointer-events-auto">
             About Us
           </Link>
-          <Link href="/contactus" className="border border-transparent px-4 py-2 rounded-md text-white transition-colors hover:border-white hover:bg-transparent">
+          <Link href="/contactus" className="border border-transparent px-4 py-2 rounded-md text-white transition-colors hover:border-white hover:bg-transparent pointer-events-auto">
             Contact Us
           </Link>
-          <Link href="/subscribe" className="border border-transparent px-4 py-2 rounded-md text-white transition-colors hover:border-white hover:bg-transparent">
+          <Link href="/subscribe" className="border border-transparent px-4 py-2 rounded-md text-white transition-colors hover:border-white hover:bg-transparent pointer-events-auto">
             Subscribe
           </Link>
 
-          {isAuthenticated ? (
+          {auth.isAuthenticated ? (
             <Link href="/dashboard" className="flex items-center border border-white bg-white px-4 py-2 rounded-md text-[#000000] font-semibold transition-colors hover:bg-transparent hover:text-white">
               Dashboard
               <ArrowRight className="ml-2 h-4 w-4" />

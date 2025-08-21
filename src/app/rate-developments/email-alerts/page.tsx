@@ -1,8 +1,15 @@
 "use client";
 
 import AppLayout from "@/app/components/applayout";
+import { useRequireSubscription } from "@/hooks/useRequireAuth";
 
 export default function RateDevelopmentsEmailAlerts() {
+  const auth = useRequireSubscription();
+  
+  if (auth.isLoading || auth.shouldRedirect) {
+    return <div>Loading...</div>;
+  }
+  
   return (
     <AppLayout activeTab="adminDashboard">
       <div className="p-8 min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">

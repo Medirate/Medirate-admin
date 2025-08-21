@@ -6,7 +6,7 @@ import { FaExclamationCircle, FaFilter } from 'react-icons/fa';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import Select from 'react-select';
-import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
+import { useProtectedPage } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import clsx from 'clsx';
 import { gunzipSync, strFromU8 } from "fflate";
@@ -181,7 +181,7 @@ const jumpToLetterFilterOption = (option: any, inputValue: string) => {
 };
 
 export default function Dashboard() {
-  const { isAuthenticated, isLoading, user } = useKindeBrowserClient();
+  const auth = useProtectedPage();
   const router = useRouter();
 
   // Add local state for data, loading, and error
@@ -190,7 +190,6 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
 
   // All useState hooks
-  const [isSubscriptionCheckComplete, setIsSubscriptionCheckComplete] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -453,21 +452,10 @@ export default function Dashboard() {
   }, [selections, startDate, endDate, currentPage, itemsPerPage, refreshData]);
 
   // All useEffect hooks
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.push("/api/auth/login");
-    } else if (isAuthenticated && user?.email) {
-      console.log("🔍 Dashboard: User authenticated, waiting for user data to load...");
-      // Add a small delay to ensure user data is fully loaded
-      setTimeout(() => {
-        console.log("🔍 Dashboard: Starting subscription check after delay");
-        checkSubscriptionAndSubUser();
-      }, 1000);
-    }
-  }, [isAuthenticated, isLoading, user, router]);
+  // Authentication is now handled by useProtectedPage hook
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!auth.isAuthenticated) return;
 
     const checkAuthStatus = async () => {
       try {
@@ -483,7 +471,7 @@ export default function Dashboard() {
     const authCheckInterval = setInterval(checkAuthStatus, 5 * 60 * 1000);
 
     const handleVisibilityChange = () => {
-      if (!document.hidden && isAuthenticated) {
+      if (!document.hidden && auth.isAuthenticated) {
         checkAuthStatus();
         
         if (hasSearched && !authError && getAreFiltersApplied()) {
@@ -498,7 +486,7 @@ export default function Dashboard() {
       clearInterval(authCheckInterval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [isAuthenticated, router, hasSearched, authError, handleSearch]);
+  }, [auth.isAuthenticated, router, hasSearched, authError, handleSearch]);
 
   useEffect(() => {
     async function loadUltraFilterOptions() {
@@ -580,17 +568,17 @@ export default function Dashboard() {
   const checkExistingFormData = async (email: string) => {
     try {
       console.log("🔍 Dashboard: Checking for existing form data for email:", email);
-      const { data, error } = await supabase
-        .from("registrationform")
-        .select("email")
-        .eq("email", email)
-        .maybeSingle();
+      const response = await fetch(`/api/registrationform?email=${encodeURIComponent(email)}`);
+      const result = await response.json();
 
-      if (error && error.code !== "PGRST116") { // PGRST116 is "no rows found"
-        console.error("❌ Dashboard: Error checking existing form data:", error);
+      if (!response.ok) {
+        if (response.status !== 404) {
+          console.error("❌ Dashboard: Error checking existing form data:", result.error);
+        }
+        console.log("ℹ️ Dashboard: No existing form data found for email:", email);
         return false;
-      } else if (data) {
-        console.log("✅ Dashboard: Found existing form data for email:", email);
+      } else if (result.data) {
+        console.log("✅ Dashboard: Found existing form data for email:", email, result.data);
         return true;
       } else {
         console.log("ℹ️ Dashboard: No existing form data found for email:", email);
@@ -602,139 +590,7 @@ export default function Dashboard() {
     }
   };
 
-  const checkSubscriptionAndSubUser = async () => {
-    const userEmail = user?.email ?? "";
-    const kindeUserId = user?.id ?? "";
-    
-    console.log("🔍 Dashboard: Starting subscription check for user:", userEmail);
-    
-    if (!userEmail) {
-      console.log("❌ Dashboard: No user email found, skipping subscription check");
-      return;
-    }
-
-    try {
-      // First, check if the user is a sub-user
-      try {
-        // Check if user is a primary user or sub-user
-        // Use proper Supabase syntax for the OR query
-        // Check for both primary users and sub-users using a comprehensive approach
-        // Fetch all subscription_users records and check client-side
-        const { data: allSubscriptionData, error: allSubscriptionError } = await supabase
-          .from("subscription_users")
-          .select("primary_user, sub_users");
-
-        let isSubUser = false;
-        let isPrimaryUser = false;
-
-        if (allSubscriptionData && !allSubscriptionError) {
-          // Check if user is a primary user
-          isPrimaryUser = allSubscriptionData.some(record => record.primary_user === userEmail);
-          
-          // Check if user is a sub-user in any record
-          isSubUser = allSubscriptionData.some(record => 
-            record.sub_users && 
-            Array.isArray(record.sub_users) && 
-            record.sub_users.includes(userEmail)
-          );
-        }
-
-        const allData = isPrimaryUser || isSubUser ? [{ found: true }] : [];
-        const hasError = allSubscriptionError;
-
-        if (hasError) {
-          console.log("❌ Dashboard: Error checking subscription_users:", { allSubscriptionError });
-        } else if (allData && allData.length > 0) {
-          console.log("✅ Dashboard: User found in subscription_users:", {
-            isPrimaryUser,
-            isSubUser,
-            userType: isPrimaryUser ? 'Primary User' : 'Sub User'
-          });
-          setIsSubscriptionCheckComplete(true);
-          return;
-        } else {
-          console.log("ℹ️ Dashboard: User is not in subscription_users, checking subscription status");
-        }
-      } catch (subUserCheckError) {
-        console.log("⚠️ Dashboard: Error in sub-user check, continuing with subscription check:", subUserCheckError);
-      }
-
-      // If not a sub-user, check for an active subscription
-      console.log("🔍 Dashboard: Checking Stripe subscription for:", userEmail);
-      
-      // Check subscription status
-      
-      const response = await fetch("/api/stripe/subscription", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: userEmail }),
-      });
-
-      console.log("🔍 Dashboard: Stripe API response status:", response.status);
-      console.log("🔍 Dashboard: Stripe API response headers:", Object.fromEntries(response.headers.entries()));
-
-      const data = await response.json();
-      console.log("🔍 Dashboard: Stripe subscription response:", data);
-      console.log("🔍 Dashboard: Stripe response details:", {
-        error: data.error,
-        status: data.status,
-        plan: data.plan,
-        amount: data.amount,
-        customerId: data.customerId,
-        subscriptionId: data.subscriptionId
-      });
-
-      if (data.error || data.status === 'no_customer' || data.status === 'no_subscription' || data.status === 'no_items') {
-        console.log("❌ Dashboard: No valid subscription found, checking for existing form data");
-        console.log("❌ Dashboard: Subscription check details:", {
-          error: data.error,
-          status: data.status,
-          plan: data.plan,
-          amount: data.amount
-        });
-        
-        // Check if user already has registration form data
-        try {
-          const { data: formData, error: formError } = await supabase
-            .from("registrationform")
-            .select("email")
-            .eq("email", userEmail)
-            .maybeSingle();
-
-          console.log("🔍 Dashboard: Form data check result:", { formData, formError });
-
-          if (formData && !formError) {
-            // User has form data but no subscription, redirect to subscribe with form pre-filled
-            console.log("✅ Dashboard: User has form data but no subscription, redirecting to subscribe with form_completed=1");
-            router.push("/subscribe?form_completed=1");
-          } else {
-            // User has no form data and no subscription, redirect to subscribe to fill form
-            console.log("ℹ️ Dashboard: User has no form data and no subscription, redirecting to subscribe");
-            router.push("/subscribe");
-          }
-        } catch (formCheckError) {
-          console.error("❌ Dashboard: Error checking form data:", formCheckError);
-          // Fallback: redirect to subscribe
-          router.push("/subscribe");
-        }
-      } else {
-        console.log("✅ Dashboard: Valid subscription found, allowing access");
-        console.log("✅ Dashboard: Subscription details:", {
-          plan: data.plan,
-          status: data.status,
-          amount: data.amount
-        });
-        setIsSubscriptionCheckComplete(true);
-      }
-    } catch (error) {
-      console.error("❌ Dashboard: Critical error in subscription check:", error);
-      // Only redirect to subscribe if we're certain the user is not a sub-user
-      // For now, let's be more conservative and not redirect on errors
-      // This prevents sub-users from being incorrectly redirected
-      console.warn("⚠️ Dashboard: Error occurred during subscription check, allowing access to prevent sub-user redirects");
-      setIsSubscriptionCheckComplete(true);
-    }
-  };
+  // Subscription check is now handled by the centralized AuthContext
 
   // Generic handler to update selections state
   const handleSelectionChange = (field: keyof Selections, value: string | null) => {
@@ -1377,7 +1233,7 @@ export default function Dashboard() {
 
 
   // Only after all hooks, do any early returns:
-  if (isLoading || !isAuthenticated || !isSubscriptionCheckComplete) {
+  if (auth.isLoading || auth.shouldRedirect) {
     return (
       <div className="loader-overlay">
         <div className="cssloader">

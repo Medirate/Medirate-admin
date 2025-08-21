@@ -23,4 +23,15 @@ export const createServiceClient = () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE!
   )
+}
+
+// Service role client - only create when needed (server-side)
+export const getSupabaseServiceRole = () => {
+  if (typeof window !== 'undefined') {
+    throw new Error('Service role client cannot be used on the client side');
+  }
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE!
+  );
 } 

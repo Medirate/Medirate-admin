@@ -4,6 +4,14 @@ import { useEffect } from 'react';
 
 const DebugMode = () => {
   useEffect(() => {
+    // Check if we're in development mode
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    
+    // If not in development mode, don't enable debug mode
+    if (!isDevelopment) {
+      return;
+    }
+
     // Re-enable right-click for debugging
     const enableRightClick = (e: MouseEvent) => {
       e.stopPropagation();
@@ -31,6 +39,8 @@ const DebugMode = () => {
     document.body.classList.remove('no-right-click');
     document.body.classList.add('debug-mode');
 
+    console.log('🔧 Debug Mode enabled - Right-click, text selection, and keyboard shortcuts are now available');
+
     // Cleanup function
     return () => {
       document.removeEventListener('contextmenu', enableRightClick, { capture: true });
@@ -43,9 +53,14 @@ const DebugMode = () => {
     };
   }, []);
 
+  // Only show the debug indicator in development mode
+  if (process.env.NODE_ENV !== 'development') {
+    return null;
+  }
+
   return (
-    <div className="fixed top-4 right-4 z-50 bg-yellow-100 border-2 border-yellow-400 rounded-lg p-2 text-xs text-yellow-800">
-      🐛 Debug Mode: Right-click enabled
+    <div className="fixed top-4 right-4 z-50 bg-green-100 border-2 border-green-400 rounded-lg p-2 text-xs text-green-800 font-mono">
+      🐛 Dev Mode: Right-click enabled
     </div>
   );
 };

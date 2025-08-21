@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
+import { useRequireSubscription } from "@/hooks/useRequireAuth";
 import { useRouter } from "next/navigation";
 import AppLayout from "@/app/components/applayout";
 import { FaCreditCard, FaDownload, FaEye } from "react-icons/fa";
@@ -19,19 +19,17 @@ interface Payment {
 }
 
 export default function PaymentHistory() {
-  const { isAuthenticated, isLoading, user } = useKindeBrowserClient();
+  const auth = useRequireSubscription();
   const router = useRouter();
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.push("/api/auth/login");
-    } else if (isAuthenticated) {
+    if (auth.isAuthenticated && auth.hasActiveSubscription && !auth.isLoading) {
       fetchPayments();
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [auth.isAuthenticated, auth.hasActiveSubscription, auth.isLoading]);
 
   const fetchPayments = async () => {
     setLoading(true);

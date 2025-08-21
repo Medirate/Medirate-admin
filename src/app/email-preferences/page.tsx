@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
+import { useRequireSubscription } from "@/hooks/useRequireAuth";
 import { motion } from "framer-motion";
 import { MoonLoader } from "react-spinners";
 
@@ -21,7 +21,7 @@ const STATES = [
 ];
 
 export default function EmailPreferences() {
-  const { user } = useKindeBrowserClient();
+  const auth = useRequireSubscription();
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -44,10 +44,10 @@ export default function EmailPreferences() {
   }, []);
 
   useEffect(() => {
-    if (user?.email) {
-      fetchPreferences(user.email);
+    if (auth.userEmail) {
+      fetchPreferences(auth.userEmail);
     }
-  }, [user]);
+  }, [auth.userEmail]);
 
   const fetchPreferences = async (email: string) => {
     setLoading(true);
@@ -90,7 +90,7 @@ export default function EmailPreferences() {
   };
 
   const handleSave = async () => {
-    if (!user?.email || preferenceId === null) return;
+    if (!auth.userEmail || preferenceId === null) return;
     setLoading(true);
     try {
       const updatedPreferences = { states: selectedStates, categories: selectedCategories };
@@ -142,14 +142,14 @@ export default function EmailPreferences() {
           Stay informed of Medicaid provider rate developments by selecting States and Categories for regular email alerts.
         </p>
 
-        {user?.email && (
+        {auth.userEmail && (
           <motion.p
             className="text-center text-lg font-semibold text-gray-700 mb-6"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.3 }}
           >
-            Logged in as: <span className="text-[#012C61]">{user.email}</span>
+            Logged in as: <span className="text-[#012C61]">{auth.userEmail}</span>
           </motion.p>
         )}
 

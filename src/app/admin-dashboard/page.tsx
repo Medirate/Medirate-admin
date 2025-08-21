@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useRouter } from "next/navigation";
 import AppLayout from "@/app/components/applayout";
 import { FaShieldAlt } from 'react-icons/fa';
@@ -15,9 +15,8 @@ interface AdminUser {
 }
 
 export default function AdminDashboard() {
-  const { isAuthenticated, isLoading, user } = useKindeBrowserClient();
+  const auth = useRequireAuth();
   const router = useRouter();
-  const [isAdminCheckComplete, setIsAdminCheckComplete] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminUser, setAdminUser] = useState<AdminUser | null>(null);
   const [loading, setLoading] = useState(true);
@@ -26,7 +25,7 @@ export default function AdminDashboard() {
 
   // Check if user is admin
   const checkAdminAccess = async () => {
-    const userEmail = user?.email ?? "";
+    const userEmail = auth.userEmail ?? "";
     if (!userEmail) return;
 
     try {
@@ -54,7 +53,7 @@ export default function AdminDashboard() {
         setAdminUser(data.adminUser);
       }
 
-      setIsAdminCheckComplete(true);
+      // Remove isAdminCheckComplete state since centralized auth handles this
     } catch (error) {
       setError("Failed to verify admin access");
       setIsAdmin(false);
@@ -63,23 +62,21 @@ export default function AdminDashboard() {
     }
   };
 
-  // Authentication and admin check
+  // Check admin access once auth is ready
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.push("/api/auth/login");
-    } else if (isAuthenticated && user?.email) {
+    if (auth.isAuthenticated && !auth.isLoading && auth.userEmail) {
       checkAdminAccess();
     }
-  }, [isAuthenticated, isLoading, user, router]);
+  }, [auth.isAuthenticated, auth.isLoading, auth.userEmail]);
 
   // Redirect if not admin
   useEffect(() => {
-    if (isAdminCheckComplete && !isAdmin) {
+    if (!loading && !isAdmin && auth.isAuthenticated) {
       router.push("/dashboard");
     }
-  }, [isAdminCheckComplete, isAdmin, router]);
+  }, [loading, isAdmin, auth.isAuthenticated, router]);
 
-  if (isLoading || !isAdminCheckComplete || loading) {
+  if (auth.isLoading || loading) {
     return (
       <div className="loader-overlay">
         <div className="cssloader">

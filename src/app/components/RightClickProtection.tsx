@@ -4,6 +4,15 @@ import { useEffect } from 'react';
 
 const RightClickProtection = () => {
   useEffect(() => {
+    // Check if we're in development mode
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    
+    // If in development mode, don't apply any protections
+    if (isDevelopment) {
+      console.log('🔧 Development mode detected - Right-click protection disabled');
+      return;
+    }
+
     // Disable right-click context menu
     const handleContextMenu = (e: MouseEvent) => {
       e.preventDefault();

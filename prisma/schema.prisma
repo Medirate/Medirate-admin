@@ -8,149 +8,283 @@ datasource db {
 }
 
 model User {
-  userId             Int       @id @default(autoincrement())
-  kindeId            String    @unique
-  email              String    @unique
-  firstName          String?
-  lastName           String?
-  fullName           String?   // New field from Kinde API
-  picture            String?   // New field from Kinde API
-  isSuspended        Boolean   @default(false) // New field from Kinde API
-  lastSignedIn       DateTime? // New field from Kinde API
-  totalSignIns       Int       @default(0)     // New field from Kinde API
-  failedSignIns      Int       @default(0)     // New field from Kinde API
-  createdOn          DateTime? // New field from Kinde API
-  role               String    @default("user")
-  passwordHash       String?
-  subscriptionStatus String?
-  primaryUserId      Int?
-  planId             Int?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-  payments           Payment[]
-  Plan               Plan?     @relation(fields: [planId], references: [planId])
-  primaryUser        User?     @relation("PrimaryUserRelation", fields: [primaryUserId], references: [userId])
-  secondaryUsers     User[]    @relation("PrimaryUserRelation")
+  UserID             Int            @id @default(autoincrement())
+  Email              String         @unique(map: "User_email_key")
+  Role               String         @default("user")
+  SubscriptionStatus String?
+  PrimaryUserID      Int?
+  PlanID             Int?
+  CreatedAt          DateTime       @default(now())
+  UpdatedAt          DateTime
+  FirstName          String?
+  LastName           String?
+  CreatedOn          DateTime?
+  FailedSignIns      Int            @default(0)
+  FullName           String?
+  IsSuspended        Boolean        @default(false)
+  LastSignedIn       DateTime?
+  Picture            String?
+  TotalSignIns       Int            @default(0)
+  KindeUserID        String         @unique(map: "User_kindeuserid_key")
+  Payment            Payment[]
+  Settings           Settings[]
+  SubUsers           SubUsers[]
+  Subscription       Subscription[]
+  Plan               Plan?          @relation(fields: [PlanID], references: [PlanID], map: "User_planId_fkey")
+  User               User?          @relation("UserToUser", fields: [PrimaryUserID], references: [UserID], map: "User_primaryUserId_fkey")
+  other_User         User[]         @relation("UserToUser")
 }
 
-
-
 model Plan {
-  planId             Int       @id @default(autoincrement())
-  planName           String
-  price              Float
-  maxUsers           Int
-  additionalUserCost Float?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-  payments           Payment[]
-  Users              User[]
+  PlanID             Int       @id @default(autoincrement())
+  PlanName           String
+  Price              Float
+  MaxUsers           Int
+  AdditionalUserCost Float?
+  CreatedAt          DateTime  @default(now())
+  UpdatedAt          DateTime
+  Payment            Payment[]
+  User               User[]
 }
 
 model Payment {
-  paymentId       Int      @id @default(autoincrement())
-  userId          Int
-  planId          Int
-  amount          Float
-  paymentStatus   String
-  webhookData     Json?    // Store complete Stripe webhook data
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  plan            Plan     @relation(fields: [planId], references: [planId])
-  user            User     @relation(fields: [userId], references: [userId])
+  PaymentID       Int           @id @default(autoincrement())
+  UserID          Int
+  PlanID          Int
+  Amount          Float
+  PaymentStatus   String
+  CreatedAt       DateTime      @default(now())
+  UpdatedAt       DateTime
+  SubscriptionID  String?
+  subscriptionId  String?
+  stripeInvoiceId String?
+  paymentDate     DateTime      @default(now()) @db.Timestamptz(6)
+  webhookData     Json?
+  Subscription    Subscription? @relation(fields: [SubscriptionID], references: [SubscriptionID], onDelete: Cascade, onUpdate: NoAction)
+  Plan            Plan          @relation(fields: [PlanID], references: [PlanID], map: "Payment_planId_fkey")
+  User            User          @relation(fields: [UserID], references: [UserID], map: "Payment_userId_fkey")
 }
 
-model EmailPreferences {
-  user_email String @id
+model Settings {
+  SettingID            Int       @id(map: "settings_pkey") @default(autoincrement())
+  UserID               Int?
+  NewsletterSubscribed Boolean?  @default(false)
+  CreatedAt            DateTime? @default(now()) @db.Timestamp(6)
+  UpdatedAt            DateTime? @default(now()) @db.Timestamp(6)
+  User                 User?     @relation(fields: [UserID], references: [UserID], onDelete: Cascade, onUpdate: NoAction, map: "settings_userid_fkey")
+}
 
-  // State Columns
-  ALABAMA Boolean @default(false)
-  ALASKA Boolean @default(false)
-  ARIZONA Boolean @default(false)
-  ARKANSAS Boolean @default(false)
-  CALIFORNIA Boolean @default(false)
-  COLORADO Boolean @default(false)
-  CONNECTICUT Boolean @default(false)
-  DELAWARE Boolean @default(false)
-  FLORIDA Boolean @default(false)
-  GEORGIA Boolean @default(false)
-  HAWAII Boolean @default(false)
-  IDAHO Boolean @default(false)
-  ILLINOIS Boolean @default(false)
-  INDIANA Boolean @default(false)
-  IOWA Boolean @default(false)
-  KANSAS Boolean @default(false)
-  KENTUCKY Boolean @default(false)
-  LOUISIANA Boolean @default(false)
-  MAINE Boolean @default(false)
-  MARYLAND Boolean @default(false)
-  MASSACHUSETTS Boolean @default(false)
-  MICHIGAN Boolean @default(false)
-  MINNESOTA Boolean @default(false)
-  MISSISSIPPI Boolean @default(false)
-  MISSOURI Boolean @default(false)
-  MONTANA Boolean @default(false)
-  NEBRASKA Boolean @default(false)
-  NEVADA Boolean @default(false)
-  NEW_HAMPSHIRE Boolean @default(false)
-  NEW_JERSEY Boolean @default(false)
-  NEW_MEXICO Boolean @default(false)
-  NEW_YORK Boolean @default(false)
-  NORTH_CAROLINA Boolean @default(false)
-  NORTH_DAKOTA Boolean @default(false)
-  OHIO Boolean @default(false)
-  OKLAHOMA Boolean @default(false)
-  OREGON Boolean @default(false)
-  PENNSYLVANIA Boolean @default(false)
-  RHODE_ISLAND Boolean @default(false)
-  SOUTH_CAROLINA Boolean @default(false)
-  SOUTH_DAKOTA Boolean @default(false)
-  TENNESSEE Boolean @default(false)
-  TEXAS Boolean @default(false)
-  UTAH Boolean @default(false)
-  VERMONT Boolean @default(false)
-  VIRGINIA Boolean @default(false)
-  WASHINGTON Boolean @default(false)
-  WEST_VIRGINIA Boolean @default(false)
-  WISCONSIN Boolean @default(false)
-  WYOMING Boolean @default(false)
+model SubUsers {
+  SubUserID     Int       @id @default(autoincrement())
+  PrimaryUserID Int?
+  Email         String    @unique
+  CreatedAt     DateTime? @default(now()) @db.Timestamp(6)
+  User          User?     @relation(fields: [PrimaryUserID], references: [UserID], onDelete: Cascade, onUpdate: NoAction)
+}
 
-  // Service Line Columns
-  ALL_PROVIDER_TYPES_SERVICE_LINES Boolean @default(false)
-  AMBULANCE_MEDICAL_TRANSPORTATION Boolean @default(false)
-  AMBULATORY_SURGERY_CENTER Boolean @default(false)
-  ANESTHESIA Boolean @default(false)
-  APPLIED_BEHAVIORAL_ANALYSIS_EARLY_INTERVENTION Boolean @default(false)
-  BEHAVIORAL_HEALTH_AND_OR_SUBSTANCE_USE_DISORDER_TREATMENT Boolean @default(false)
-  BRAIN_INJURY Boolean @default(false)
-  COMMUNITY_HEALTH_WORKERS Boolean @default(false)
-  DENTAL Boolean @default(false)
-  DIAGNOSTIC_IMAGING Boolean @default(false)
-  DURABLE_MEDICAL_EQUIPMENT_DME Boolean @default(false)
-  FAMILY_PLANNINGS Boolean @default(false)
-  FQHC_RHC Boolean @default(false)
-  HOME_AND_COMMUNITY_BASED_SERVICES Boolean @default(false)
-  HOME_HEALTH Boolean @default(false)
-  HOSPICE Boolean @default(false)
-  HOSPITAL Boolean @default(false)
-  INTELLECTUAL_AND_DEVELOPMENTAL_DISABILITY_IDD_SERVICES Boolean @default(false)
-  LABORATORY Boolean @default(false)
-  MANAGED_CARE Boolean @default(false)
-  MATERNAL_HEALTH Boolean @default(false)
-  MEDICAL_SUPPLIES Boolean @default(false)
-  NURSE Boolean @default(false)
-  NURSING_FACILITY Boolean @default(false)
-  NUTRITION Boolean @default(false)
-  PHARMACY Boolean @default(false)
-  PHYSICIAN Boolean @default(false)
-  PHYSICIAN_ADMINISTERED_DRUGS Boolean @default(false)
-  PRESCRIBED_PEDIATRIC_EXTENDED_CARE_PPEC Boolean @default(false)
-  PRESCRIPTION_DRUGS Boolean @default(false)
-  PRIVATE_DUTY_NURSING Boolean @default(false)
-  SOCIAL_SERVICES Boolean @default(false)
-  TELEMEDICINE_REMOTE_PATIENT_MONITORING_RPM Boolean @default(false)
-  THERAPY_OT_PT_ST Boolean @default(false)
-  VISION Boolean @default(false)
-  GENERAL_MEDICAID Boolean @default(false)
-  PROGRAM_340B Boolean @default(false)
-} 
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model Subscription {
+  SubscriptionID String    @id(map: "subscription_pkey")
+  UserID         Int?
+  PlanID         String?
+  Status         String?
+  CreatedAt      DateTime? @default(now()) @db.Timestamp(6)
+  UpdatedAt      DateTime? @default(now()) @db.Timestamp(6)
+  Payment        Payment[]
+  User           User?     @relation(fields: [UserID], references: [UserID], onDelete: Cascade, onUpdate: NoAction, map: "subscription_userid_fkey")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model admin_logs {
+  id         BigInt    @id @default(autoincrement())
+  timestamp  DateTime  @default(now()) @db.Timestamptz(6)
+  level      String    @db.VarChar(10)
+  phase      String    @db.VarChar(50)
+  message    String
+  operation  String?   @db.VarChar(100)
+  user_email String?   @db.VarChar(255)
+  metadata   Json?
+  created_at DateTime? @default(now()) @db.Timestamptz(6)
+
+  @@index([level], map: "idx_admin_logs_level")
+  @@index([operation], map: "idx_admin_logs_operation")
+  @@index([phase], map: "idx_admin_logs_phase")
+  @@index([timestamp(sort: Desc)], map: "idx_admin_logs_timestamp")
+  @@index([user_email], map: "idx_admin_logs_user_email")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model admin_users {
+  id          Int       @id @default(autoincrement())
+  email       String    @unique @db.VarChar(255)
+  role        String?   @default("admin") @db.VarChar(100)
+  permissions Json?     @default("{}")
+  is_active   Boolean?  @default(true)
+  created_at  DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime? @default(now()) @db.Timestamptz(6)
+
+  @@index([is_active], map: "idx_admin_users_active")
+  @@index([email], map: "idx_admin_users_email")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model bill_track_50 {
+  url                      String  @id
+  state                    String?
+  bill_number              String?
+  service_lines_impacted   String?
+  service_lines_impacted_1 String?
+  service_lines_impacted_2 String?
+  service_lines_impacted_3 String?
+  name                     String?
+  ai_summary               String?
+  bill_progress            String?
+  last_action              String?
+  created                  String?
+  action_date              String?
+  sponsor_list             String?
+  date_extracted           String?
+  is_new                   String?
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model code_definitions {
+  hcpcs_code_cpt_code String?
+  service_code        String?
+  service_description String?
+
+  @@ignore
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model email_verification_ip_throttle {
+  ip           String   @id
+  window_start DateTime @db.Timestamptz(6)
+  count        Int      @default(0)
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model email_verifications {
+  email       String    @id
+  code_hash   String
+  expires_at  DateTime  @db.Timestamptz(6)
+  verified_at DateTime? @db.Timestamptz(6)
+  created_at  DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime  @default(now()) @db.Timestamptz(6)
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model marketing_email_list {
+  email        String  @id
+  firstname    String?
+  lastname     String?
+  company_name String?
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model master_data {
+  id                    String?
+  service_category      String?
+  service_sub_category  String?
+  state_id_pk           String?
+  state_name            String?
+  state_code            String?
+  filename              String?
+  page_number           String?
+  service_id_pk         String?
+  service_code          String?
+  service_description   String?
+  rate                  String?
+  rate_last_updated     String?
+  rate_effective_date   DateTime? @db.Date
+  duration_unit         String?
+  minutes               String?
+  program               String?
+  modifier_1            String?
+  modifier_1_details    String?
+  modifier_2            String?
+  modifier_2_details    String?
+  modifier_3            String?
+  modifier_3_details    String?
+  modifier_4            String?
+  modifier_4_details    String?
+  fee                   String?
+  max_fee               String?
+  modifier_id_pk        String?
+  service_id_fk         String?
+  prior_auth_required   String?
+  comments              String?
+  location_region       String?
+  update_id_pk          String?
+  times_rate_updated    String?
+  percentage_change     String?
+  last_database_refresh String?
+  requires_pa           String?
+  rate_per_hour         String?
+  provider_type         String?
+  age                   String?
+
+  @@ignore
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model provider_alerts {
+  id                       String  @id
+  link                     String?
+  state                    String?
+  service_lines_impacted   String?
+  service_lines_impacted_1 String?
+  service_lines_impacted_2 String?
+  service_lines_impacted_3 String?
+  subject                  String?
+  announcement_date        String?
+  is_new                   String?
+  summary                  String?
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model registrationform {
+  id            Int       @id @default(autoincrement())
+  email         String    @unique
+  firstname     String?
+  lastname      String?
+  companyname   String?
+  companytype   String?
+  providertype  String?
+  howdidyouhear String?
+  interest      String?
+  demorequest   String?
+  created_at    DateTime? @default(now()) @db.Timestamp(6)
+  updated_at    DateTime? @default(now()) @db.Timestamp(6)
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model service_category_list {
+  id         Int     @id @default(autoincrement())
+  categories String?
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model subscription_users {
+  primary_user String @id
+  sub_users    Json?
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model test_email_list {
+  email     String  @id
+  firstname String?
+  lastname  String?
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model user_email_preferences {
+  id          Int       @id @default(autoincrement())
+  user_email  String    @unique
+  preferences Json
+  created_at  DateTime? @default(now()) @db.Timestamp(6)
+}
