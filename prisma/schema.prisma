@@ -184,10 +184,10 @@ model marketing_email_list {
   company_name String?
 }
 
-/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
-model master_data {
-  id                    String?
+model master_data_sept_2 {
+  id                    Int       @id @default(autoincrement())
+  new_field             String?
   service_category      String?
   service_sub_category  String?
   state_id_pk           String?
@@ -227,8 +227,10 @@ model master_data {
   rate_per_hour         String?
   provider_type         String?
   age                   String?
-
-  @@ignore
+  unnamed_40            String?
+  unnamed_41            String?
+  created_at            DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime? @default(now()) @db.Timestamptz(6)
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
