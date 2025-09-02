@@ -29,38 +29,38 @@ async function fetchAndSyncUsers(nextToken?: string) {
       const { id, email, first_name, last_name, created_on, is_suspended, last_signed_in, total_sign_ins, failed_sign_ins } = user;
 
       const existingUser = await prisma.user.findUnique({
-        where: { kindeId: id },
+        where: { KindeUserID: id },
       });
 
       if (existingUser) {
         // Update the existing user
         await prisma.user.update({
-          where: { kindeId: id },
+          where: { KindeUserID: id },
           data: {
-            email,
-            firstName: first_name,
-            lastName: last_name,
-            updatedAt: new Date(),
-            isSuspended: is_suspended,
-            lastSignedIn: last_signed_in ? new Date(last_signed_in) : null,
-            totalSignIns: total_sign_ins,
-            failedSignIns: failed_sign_ins,
+            Email: email,
+            FirstName: first_name,
+            LastName: last_name,
+            UpdatedAt: new Date(),
+            IsSuspended: is_suspended,
+            LastSignedIn: last_signed_in ? new Date(last_signed_in) : null,
+            TotalSignIns: total_sign_ins,
+            FailedSignIns: failed_sign_ins,
           },
         });
       } else {
         // Create a new user
         await prisma.user.create({
           data: {
-            kindeId: id,
-            email,
-            firstName: first_name,
-            lastName: last_name,
-            createdAt: created_on ? new Date(created_on) : new Date(),
-            updatedAt: new Date(),
-            isSuspended: is_suspended,
-            lastSignedIn: last_signed_in ? new Date(last_signed_in) : null,
-            totalSignIns: total_sign_ins,
-            failedSignIns: failed_sign_ins,
+            KindeUserID: id,
+            Email: email,
+            FirstName: first_name,
+            LastName: last_name,
+            CreatedAt: created_on ? new Date(created_on) : new Date(),
+            UpdatedAt: new Date(),
+            IsSuspended: is_suspended,
+            LastSignedIn: last_signed_in ? new Date(last_signed_in) : null,
+            TotalSignIns: total_sign_ins,
+            FailedSignIns: failed_sign_ins,
           },
         });
       }
