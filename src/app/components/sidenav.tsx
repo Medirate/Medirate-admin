@@ -19,6 +19,7 @@ import {
   Pencil,
   Database,
   Mail,
+  Home,
 } from "lucide-react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
@@ -97,6 +98,7 @@ const SideNav = ({
   // Update the tab mapping
   useEffect(() => {
     const tabMapping: { [key: string]: string } = {
+      "/home": "home",
       "/dashboard": "dashboard",
       "/rate-developments": "rateDevelopments",
       "/state-rate-comparison": "stateRateComparison",
@@ -171,6 +173,27 @@ const SideNav = ({
           {/* Navigation Links */}
           <nav className="mt-6 pb-20">
             <ul className="space-y-2">
+              <li className="group">
+                <Link
+                  href="/home"
+                  onClick={() => setActiveTab("home")}
+                  className={`flex items-center p-4 hover:bg-gray-200/20 transition-colors cursor-pointer ${
+                    activeTab === "home" ? "bg-gray-200/20" : ""
+                  }`}
+                >
+                  <div className="flex items-center justify-center w-6 h-6">
+                    <Home size={20} />
+                  </div>
+                  <span
+                    className={`ml-4 font-semibold transition-opacity duration-300 ease-in-out flex-grow pr-2 ${
+                      isSidebarCollapsed ? "opacity-0 invisible" : "opacity-100 visible"
+                    }`}
+                    style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+                  >
+                    Home
+                  </span>
+                </Link>
+              </li>
               <li className="group">
                 <Link
                   href="/dashboard"
