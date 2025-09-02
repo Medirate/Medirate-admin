@@ -250,11 +250,11 @@ const Navbar = () => {
             {/* Only show Home and Dashboard if user has subscription access */}
             {(auth.isPrimaryUser || auth.isSubUser || auth.hasActiveSubscription) ? (
               <>
-                <Link href="/home" className="flex items-center border border-transparent px-4 py-2 rounded-md text-white transition-colors hover:border-white hover:bg-transparent pointer-events-auto">
-                  Home
-                </Link>
-                <Link href="/dashboard" className="flex items-center border border-white bg-white px-4 py-2 rounded-md text-[#000000] font-semibold transition-colors hover:bg-transparent hover:text-white pointer-events-auto">
+                <Link href="/dashboard" className="flex items-center border border-transparent px-4 py-2 rounded-md text-white transition-colors hover:border-white hover:bg-transparent pointer-events-auto">
                   Dashboard
+                </Link>
+                <Link href="/home" className="flex items-center border border-white bg-white px-4 py-2 rounded-md text-[#000000] font-semibold transition-colors hover:bg-transparent hover:text-white pointer-events-auto">
+                  Home
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </>
@@ -303,11 +303,11 @@ const Navbar = () => {
             // Only show Home and Dashboard if user has subscription access
             (auth.isPrimaryUser || auth.isSubUser || auth.hasActiveSubscription) ? (
               <>
-                <Link href="/home" className="flex items-center border border-transparent px-4 py-2 rounded-md text-white transition-colors hover:border-white hover:bg-transparent">
-                  Home
-                </Link>
-                <Link href="/dashboard" className="flex items-center border border-white bg-white px-4 py-2 rounded-md text-[#000000] font-semibold transition-colors hover:bg-transparent hover:text-white">
+                <Link href="/dashboard" className="flex items-center border border-transparent px-4 py-2 rounded-md text-white transition-colors hover:border-white hover:bg-transparent">
                   Dashboard
+                </Link>
+                <Link href="/home" className="flex items-center border border-white bg-white px-4 py-2 rounded-md text-[#000000] font-semibold transition-colors hover:bg-transparent hover:text-white">
+                  Home
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </>
