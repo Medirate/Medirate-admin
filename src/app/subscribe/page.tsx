@@ -72,9 +72,9 @@ const StripePricingTableWithFooter = () => {
     };
   }, []);
 
-  // Proper purchase restrictions based on authentication and form completion
-  const canProceedToPurchase = auth.isAuthenticated && (formFilled || isEmailVerified);
-  const disablePurchase = !canProceedToPurchase;
+  // Remove purchase restrictions - allow all users to access Stripe table
+  const canProceedToPurchase = true;
+  const disablePurchase = false;
 
 
 
@@ -1041,26 +1041,17 @@ const StripePricingTableWithFooter = () => {
           </div>
         )}
 
-        {/* Stripe Pricing Table - Conditional access based on requirements */}
+        {/* Stripe Pricing Table - Always accessible */}
         <div 
           id="pricing-table" 
-          className={`w-full max-w-4xl transform scale-110 relative ${disablePurchase ? 'opacity-50 pointer-events-none' : ''}`}
+          className="w-full max-w-4xl transform scale-110 relative"
           style={{ 
             transformOrigin: "center", 
             zIndex: 1,
-            pointerEvents: disablePurchase ? "none" : "auto",
-            userSelect: disablePurchase ? "none" : "auto",
             position: "relative"
           }}
         >
-          <div 
-            style={{ 
-              pointerEvents: disablePurchase ? "none" : "auto",
-              userSelect: disablePurchase ? "none" : "auto",
-              WebkitUserSelect: disablePurchase ? "none" : "auto",
-              MozUserSelect: disablePurchase ? "none" : "auto"
-            } as React.CSSProperties}
-          >
+          <div>
           {React.createElement("stripe-pricing-table", {
             "pricing-table-id": "prctbl_1RBMKo2NeWrBDfGslMwYkTKz",
             "publishable-key": "pk_live_51QXT6G2NeWrBDfGsjthMPwaWhPV7UIzSJjZ3fpmANYKT58UCVSnoHaHKyozK9EptYNbV3Y1y5SX1QQcuI9dK5pZW00VQH9T3Hh",
@@ -1070,23 +1061,7 @@ const StripePricingTableWithFooter = () => {
 
 
 
-        {/* Warning message for users who can't proceed with purchase */}
-        {disablePurchase && (
-          <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg shadow-md">
-            <div className="flex items-center space-x-2">
-              <Shield className="w-5 h-5 text-amber-600" />
-              <span className="text-amber-800 font-semibold">Action Required</span>
-            </div>
-            <p className="text-amber-700 mt-2">
-              {!auth.isAuthenticated 
-                ? "Please verify your email and complete the form to proceed with subscription."
-                : !formFilled && !isEmailVerified
-                ? "Please complete the registration form to proceed with subscription."
-                : "Please complete the required steps above to proceed with subscription."
-              }
-            </p>
-          </div>
-        )}
+
 
         {/* Accepted Payment Methods - Always visible */}
         <div className="mt-6 p-4 bg-gray-100 rounded-lg shadow-md flex items-center space-x-2">
@@ -1102,25 +1077,7 @@ const StripePricingTableWithFooter = () => {
           </button>
         </div>
 
-        {/* Message for users who want to verify email - removed authentication restriction */}
-        {verificationStep === 'email' && (
-          <div className="w-full max-w-4xl mb-8 p-8 bg-white rounded-xl shadow-2xl border border-gray-100 text-center">
-            <h2 className="text-2xl font-bold mb-4 text-[#012C61] font-lemonMilkRegular">Ready to Subscribe?</h2>
-            <p className="text-lg mb-6 text-gray-600">
-              You can verify your email address above for a better experience, or proceed directly to subscription.
-            </p>
-          </div>
-        )}
 
-        {/* Message for users about form completion - removed restrictions */}
-        {auth.isAuthenticated && !formFilled && (
-          <div className="w-full max-w-4xl mb-8 p-8 bg-white rounded-xl shadow-2xl border border-gray-100 text-center">
-            <h2 className="text-2xl font-bold mb-4 text-[#012C61] font-lemonMilkRegular">Optional Registration</h2>
-            <p className="text-lg mb-6 text-gray-600">
-              You can complete the registration form above for a personalized experience, or proceed directly to subscription.
-            </p>
-          </div>
-        )}
       </main>
 
       {/* Subscription Terms and Conditions Modal */}
