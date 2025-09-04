@@ -99,6 +99,7 @@ const SideNav = ({
   useEffect(() => {
     const tabMapping: { [key: string]: string } = {
       "/home": "home",
+      "/recent-rate-changes": "home",
       "/dashboard": "dashboard",
       "/rate-developments": "rateDevelopments",
       "/state-rate-comparison": "stateRateComparison",
@@ -173,6 +174,7 @@ const SideNav = ({
           {/* Navigation Links */}
           <nav className="mt-6 pb-20">
             <ul className="space-y-2">
+              {/* Home */}
               <li className="group">
                 <Link
                   href="/home"

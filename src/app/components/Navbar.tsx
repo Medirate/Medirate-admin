@@ -123,6 +123,8 @@ const Navbar = () => {
 
   const authenticatedPages = [
     "/dashboard",
+    "/home",
+    "/recent-rate-changes",
     "/profile",
     "/settings",
     "/provider-alerts",
@@ -247,17 +249,12 @@ const Navbar = () => {
               Subscribe
             </Link>
 
-            {/* Only show Home and Dashboard if user has subscription access */}
+            {/* Only show Home if user has subscription access */}
             {(auth.isPrimaryUser || auth.isSubUser || auth.hasActiveSubscription) ? (
-              <>
-                <Link href="/dashboard" className="flex items-center border border-transparent px-4 py-2 rounded-md text-white transition-colors hover:border-white hover:bg-transparent pointer-events-auto">
-                  Dashboard
-                </Link>
-                <Link href="/home" className="flex items-center border border-white bg-white px-4 py-2 rounded-md text-[#000000] font-semibold transition-colors hover:bg-transparent hover:text-white pointer-events-auto">
-                  Home
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </>
+              <Link href="/home" className="flex items-center border border-white bg-white px-4 py-2 rounded-md text-[#000000] font-semibold transition-colors hover:bg-transparent hover:text-white pointer-events-auto">
+                Home
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
             ) : (
               <Link href="/subscribe" className="flex items-center border border-white bg-white px-4 py-2 rounded-md text-[#000000] font-semibold transition-colors hover:bg-transparent hover:text-white pointer-events-auto">
                 Subscribe
