@@ -415,6 +415,46 @@ const StripePricingTableWithFooter = () => {
         z-index: 1 !important;
       }
       
+      /* Ensure Stripe table is always clickable */
+      #pricing-table,
+      #pricing-table *,
+      stripe-pricing-table,
+      stripe-pricing-table * {
+        pointer-events: auto !important;
+        user-select: auto !important;
+        -webkit-user-select: auto !important;
+        -moz-user-select: auto !important;
+        -ms-user-select: auto !important;
+        cursor: pointer !important;
+        z-index: 9999 !important;
+      }
+      
+      /* Override any global CSS that might block Stripe table */
+      stripe-pricing-table {
+        all: unset !important;
+        display: block !important;
+        pointer-events: auto !important;
+        user-select: auto !important;
+        -webkit-user-select: auto !important;
+        -moz-user-select: auto !important;
+        -ms-user-select: auto !important;
+        cursor: pointer !important;
+        z-index: 9999 !important;
+        position: relative !important;
+      }
+      
+      /* Ensure Stripe table buttons and links are clickable */
+      stripe-pricing-table button,
+      stripe-pricing-table a,
+      stripe-pricing-table [role="button"] {
+        pointer-events: auto !important;
+        cursor: pointer !important;
+        user-select: auto !important;
+        -webkit-user-select: auto !important;
+        -moz-user-select: auto !important;
+        -ms-user-select: auto !important;
+      }
+      
       /* Fix React Hot Toast toaster blocking clicks */
       #_rht_toaster {
         pointer-events: none !important;
@@ -1047,11 +1087,18 @@ const StripePricingTableWithFooter = () => {
           className="w-full max-w-4xl transform scale-110 relative"
           style={{ 
             transformOrigin: "center", 
-            zIndex: 1,
-            position: "relative"
+            zIndex: 9999,
+            position: "relative",
+            pointerEvents: "auto",
+            userSelect: "auto"
           }}
         >
-          <div>
+          <div style={{
+            pointerEvents: "auto",
+            userSelect: "auto",
+            WebkitUserSelect: "auto",
+            MozUserSelect: "auto"
+          }}>
           {React.createElement("stripe-pricing-table", {
             "pricing-table-id": "prctbl_1RBMKo2NeWrBDfGslMwYkTKz",
             "publishable-key": "pk_live_51QXT6G2NeWrBDfGsjthMPwaWhPV7UIzSJjZ3fpmANYKT58UCVSnoHaHKyozK9EptYNbV3Y1y5SX1QQcuI9dK5pZW00VQH9T3Hh",
