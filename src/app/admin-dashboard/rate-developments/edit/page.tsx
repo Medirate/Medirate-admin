@@ -970,6 +970,11 @@ export default function RateDevelopments() {
   const [editingBillUrl, setEditingBillUrl] = useState<string | null>(null);
   const [editingBillValues, setEditingBillValues] = useState<Partial<Bill>>({});
   const [sponsorListEdit, setSponsorListEdit] = useState<string>("");
+  
+  // Add delete confirmation states
+  const [deleteProviderId, setDeleteProviderId] = useState<string | null>(null);
+  const [deleteBillUrl, setDeleteBillUrl] = useState<string | null>(null);
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
 
   // Update the save functions to handle multiple service lines with protection
   const handleSaveProviderEdit = async () => {
@@ -1208,6 +1213,70 @@ export default function RateDevelopments() {
         console.error('Error deleting service category:', error);
       }
     setServiceCategories(cats => cats.filter(cat => cat.id !== id));
+  };
+
+  // Add delete functions for provider alerts and bills
+  const handleDeleteProvider = async () => {
+    if (!deleteProviderId) return;
+    
+    try {
+      const response = await fetch('/api/admin/delete-provider-alert', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: deleteProviderId })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Failed to delete provider alert:', errorData);
+        alert(`❌ Failed to delete provider alert: ${errorData.error || 'Unknown error'}`);
+      } else {
+        console.log('✅ Provider alert deleted successfully');
+        setAlerts(alerts => alerts.filter(alert => alert.id !== deleteProviderId));
+      }
+    } catch (error) {
+      console.error('Error deleting provider alert:', error);
+      alert('❌ Error deleting provider alert');
+    } finally {
+      setDeleteProviderId(null);
+      setShowDeleteConfirmation(false);
+    }
+  };
+
+  const handleDeleteBill = async () => {
+    if (!deleteBillUrl) return;
+    
+    try {
+      const response = await fetch('/api/admin/delete-bill', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: deleteBillUrl })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Failed to delete bill:', errorData);
+        alert(`❌ Failed to delete bill: ${errorData.error || 'Unknown error'}`);
+      } else {
+        console.log('✅ Bill deleted successfully');
+        setBills(bills => bills.filter(bill => bill.url !== deleteBillUrl));
+      }
+    } catch (error) {
+      console.error('Error deleting bill:', error);
+      alert('❌ Error deleting bill');
+    } finally {
+      setDeleteBillUrl(null);
+      setShowDeleteConfirmation(false);
+    }
+  };
+
+  const confirmDelete = (type: 'provider' | 'bill', id: string) => {
+    if (type === 'provider') {
+      setDeleteProviderId(id);
+    } else {
+      setDeleteBillUrl(id);
+    }
+    setShowDeleteConfirmation(true);
   };
 
   // Function to handle click on alert subject
@@ -1543,30 +1612,35 @@ export default function RateDevelopments() {
                         <td className="p-3 align-middle">{getAlertServiceLines(alert)}</td>
                         <td className="p-3 align-middle text-center">{String(alert.is_new).trim()}</td>
                         <td className="p-3 align-middle">
-                          <button onClick={() => { 
-                            setEditingProviderId(alert.id); 
-                            setEditingProviderValues({ ...alert }); 
-                            // Robust deduplication for service lines
-                            const lines = [
-                              alert.service_lines_impacted,
-                              alert.service_lines_impacted_1,
-                              alert.service_lines_impacted_2,
-                              alert.service_lines_impacted_3
-                            ].filter(line => line && line.toUpperCase().trim() !== 'NULL');
-                            const seen = new Set();
-                            const uniqueLines = [];
-                            for (const line of lines) {
-                              const norm = line.trim().toLowerCase();
-                              if (!seen.has(norm)) {
-                                seen.add(norm);
-                                uniqueLines.push(line.trim());
+                          <div className="flex gap-2">
+                            <button onClick={() => { 
+                              setEditingProviderId(alert.id); 
+                              setEditingProviderValues({ ...alert }); 
+                              // Robust deduplication for service lines
+                              const lines = [
+                                alert.service_lines_impacted,
+                                alert.service_lines_impacted_1,
+                                alert.service_lines_impacted_2,
+                                alert.service_lines_impacted_3
+                              ].filter(line => line && line.toUpperCase().trim() !== 'NULL');
+                              const seen = new Set();
+                              const uniqueLines = [];
+                              for (const line of lines) {
+                                const norm = line.trim().toLowerCase();
+                                if (!seen.has(norm)) {
+                                  seen.add(norm);
+                                  uniqueLines.push(line.trim());
+                                }
                               }
-                            }
-                            setEditingProviderServiceLines(uniqueLines);
-                          }} className="text-blue-600 hover:bg-blue-100 p-2 rounded transition" title="Edit">
-                            <svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' fill='none' viewBox='0 0 24 24' stroke='currentColor'><path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828a4 4 0 01-1.414.828l-4.243 1.414 1.414-4.243a4 4 0 01.828-1.414z' /></svg>
-                          </button>
-                          </td>
+                              setEditingProviderServiceLines(uniqueLines);
+                            }} className="text-blue-600 hover:bg-blue-100 p-2 rounded transition" title="Edit">
+                              <svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' fill='none' viewBox='0 0 24 24' stroke='currentColor'><path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828a4 4 0 01-1.414.828l-4.243 1.414 1.414-4.243a4 4 0 01.828-1.414z' /></svg>
+                            </button>
+                            <button onClick={() => confirmDelete('provider', alert.id)} className="text-red-600 hover:bg-red-100 p-2 rounded transition" title="Delete">
+                              <svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' fill='none' viewBox='0 0 24 24' stroke='currentColor'><path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M10 3h4a1 1 0 011 1v2H9V4a1 1 0 011-1z' /></svg>
+                            </button>
+                          </div>
+                        </td>
                     </tr>
                     )
                   )}
@@ -1668,30 +1742,35 @@ export default function RateDevelopments() {
                         <td>{getServiceLines(bill)}</td>
                         <td className="p-3 align-middle text-center">{String(bill.is_new).trim()}</td>
                         <td>
-                          <button onClick={() => { 
-                            setEditingBillUrl(bill.url); 
-                            setEditingBillValues({ ...bill }); 
-                            setSponsorListEdit(Array.isArray(bill.sponsor_list) ? bill.sponsor_list.join(", ") : bill.sponsor_list ?? ""); 
-                            // Robust deduplication for service lines
-                            const lines = [
-                              bill.service_lines_impacted,
-                              bill.service_lines_impacted_1,
-                              bill.service_lines_impacted_2,
-                              bill.service_lines_impacted_3
-                            ].filter(line => line && line.toUpperCase().trim() !== 'NULL');
-                            const seen = new Set();
-                            const uniqueLines = [];
-                            for (const line of lines) {
-                              const norm = line.trim().toLowerCase();
-                              if (!seen.has(norm)) {
-                                seen.add(norm);
-                                uniqueLines.push(line.trim());
+                          <div className="flex gap-2">
+                            <button onClick={() => { 
+                              setEditingBillUrl(bill.url); 
+                              setEditingBillValues({ ...bill }); 
+                              setSponsorListEdit(Array.isArray(bill.sponsor_list) ? bill.sponsor_list.join(", ") : bill.sponsor_list ?? ""); 
+                              // Robust deduplication for service lines
+                              const lines = [
+                                bill.service_lines_impacted,
+                                bill.service_lines_impacted_1,
+                                bill.service_lines_impacted_2,
+                                bill.service_lines_impacted_3
+                              ].filter(line => line && line.toUpperCase().trim() !== 'NULL');
+                              const seen = new Set();
+                              const uniqueLines = [];
+                              for (const line of lines) {
+                                const norm = line.trim().toLowerCase();
+                                if (!seen.has(norm)) {
+                                  seen.add(norm);
+                                  uniqueLines.push(line.trim());
+                                }
                               }
-                            }
-                            setEditingBillServiceLines(uniqueLines);
-                          }} className="text-blue-600 hover:bg-blue-100 p-2 rounded transition" title="Edit">
-                            <svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' fill='none' viewBox='0 0 24 24' stroke='currentColor'><path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828a4 4 0 01-1.414.828l-4.243 1.414 1.414-4.243a4 4 0 01.828-1.414z' /></svg>
-                          </button>
+                              setEditingBillServiceLines(uniqueLines);
+                            }} className="text-blue-600 hover:bg-blue-100 p-2 rounded transition" title="Edit">
+                              <svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' fill='none' viewBox='0 0 24 24' stroke='currentColor'><path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828a4 4 0 01-1.414.828l-4.243 1.414 1.414-4.243a4 4 0 01.828-1.414z' /></svg>
+                            </button>
+                            <button onClick={() => confirmDelete('bill', bill.url)} className="text-red-600 hover:bg-red-100 p-2 rounded transition" title="Delete">
+                              <svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' fill='none' viewBox='0 0 24 24' stroke='currentColor'><path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M10 3h4a1 1 0 011 1v2H9V4a1 1 0 011-1z' /></svg>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     )
@@ -1796,29 +1875,34 @@ export default function RateDevelopments() {
                         <td className="p-3 align-middle">{getAlertServiceLines(alert)}</td>
                         <td className="p-3 align-middle text-center">{String(alert.is_new).trim()}</td>
                         <td className="p-3 align-middle">
-                          <button onClick={() => { 
-                            setEditingProviderId(alert.id); 
-                            setEditingProviderValues({ ...alert }); 
-                            // Robust deduplication for service lines
-                            const lines = [
-                              alert.service_lines_impacted,
-                              alert.service_lines_impacted_1,
-                              alert.service_lines_impacted_2,
-                              alert.service_lines_impacted_3
-                            ].filter(line => line && line.toUpperCase().trim() !== 'NULL');
-                            const seen = new Set();
-                            const uniqueLines = [];
-                            for (const line of lines) {
-                              const norm = line.trim().toLowerCase();
-                              if (!seen.has(norm)) {
-                                seen.add(norm);
-                                uniqueLines.push(line.trim());
+                          <div className="flex gap-2">
+                            <button onClick={() => { 
+                              setEditingProviderId(alert.id); 
+                              setEditingProviderValues({ ...alert }); 
+                              // Robust deduplication for service lines
+                              const lines = [
+                                alert.service_lines_impacted,
+                                alert.service_lines_impacted_1,
+                                alert.service_lines_impacted_2,
+                                alert.service_lines_impacted_3
+                              ].filter(line => line && line.toUpperCase().trim() !== 'NULL');
+                              const seen = new Set();
+                              const uniqueLines = [];
+                              for (const line of lines) {
+                                const norm = line.trim().toLowerCase();
+                                if (!seen.has(norm)) {
+                                  seen.add(norm);
+                                  uniqueLines.push(line.trim());
+                                }
                               }
-                            }
-                            setEditingProviderServiceLines(uniqueLines);
-                          }} className="text-blue-600 hover:bg-blue-100 p-2 rounded transition" title="Edit">
-                            <svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' fill='none' viewBox='0 0 24 24' stroke='currentColor'><path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828a4 4 0 01-1.414.828l-4.243 1.414 1.414-4.243a4 4 0 01.828-1.414z' /></svg>
-                          </button>
+                              setEditingProviderServiceLines(uniqueLines);
+                            }} className="text-blue-600 hover:bg-blue-100 p-2 rounded transition" title="Edit">
+                              <svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' fill='none' viewBox='0 0 24 24' stroke='currentColor'><path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828a4 4 0 01-1.414.828l-4.243 1.414 1.414-4.243a4 4 0 01.828-1.414z' /></svg>
+                            </button>
+                            <button onClick={() => confirmDelete('provider', alert.id)} className="text-red-600 hover:bg-red-100 p-2 rounded transition" title="Delete">
+                              <svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' fill='none' viewBox='0 0 24 24' stroke='currentColor'><path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M10 3h4a1 1 0 011 1v2H9V4a1 1 0 011-1z' /></svg>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     )
@@ -1912,30 +1996,35 @@ export default function RateDevelopments() {
                         <td className="p-3 align-middle">{getServiceLines(bill)}</td>
                         <td className="p-3 align-middle text-center">{String(bill.is_new).trim()}</td>
                         <td className="p-3 align-middle">
-                          <button onClick={() => { 
-                            setEditingBillUrl(bill.url); 
-                            setEditingBillValues({ ...bill }); 
-                            setSponsorListEdit(Array.isArray(bill.sponsor_list) ? bill.sponsor_list.join(", ") : bill.sponsor_list ?? ""); 
-                            // Robust deduplication for service lines
-                            const lines = [
-                              bill.service_lines_impacted,
-                              bill.service_lines_impacted_1,
-                              bill.service_lines_impacted_2,
-                              bill.service_lines_impacted_3
-                            ].filter(line => line && line.toUpperCase().trim() !== 'NULL');
-                            const seen = new Set();
-                            const uniqueLines = [];
-                            for (const line of lines) {
-                              const norm = line.trim().toLowerCase();
-                              if (!seen.has(norm)) {
-                                seen.add(norm);
-                                uniqueLines.push(line.trim());
+                          <div className="flex gap-2">
+                            <button onClick={() => { 
+                              setEditingBillUrl(bill.url); 
+                              setEditingBillValues({ ...bill }); 
+                              setSponsorListEdit(Array.isArray(bill.sponsor_list) ? bill.sponsor_list.join(", ") : bill.sponsor_list ?? ""); 
+                              // Robust deduplication for service lines
+                              const lines = [
+                                bill.service_lines_impacted,
+                                bill.service_lines_impacted_1,
+                                bill.service_lines_impacted_2,
+                                bill.service_lines_impacted_3
+                              ].filter(line => line && line.toUpperCase().trim() !== 'NULL');
+                              const seen = new Set();
+                              const uniqueLines = [];
+                              for (const line of lines) {
+                                const norm = line.trim().toLowerCase();
+                                if (!seen.has(norm)) {
+                                  seen.add(norm);
+                                  uniqueLines.push(line.trim());
+                                }
                               }
-                            }
-                            setEditingBillServiceLines(uniqueLines);
-                          }} className="text-blue-600 hover:bg-blue-100 p-2 rounded transition" title="Edit">
-                            <svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' fill='none' viewBox='0 0 24 24' stroke='currentColor'><path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828a4 4 0 01-1.414.828l-4.243 1.414 1.414-4.243a4 4 0 01.828-1.414z' /></svg>
-                          </button>
+                              setEditingBillServiceLines(uniqueLines);
+                            }} className="text-blue-600 hover:bg-blue-100 p-2 rounded transition" title="Edit">
+                              <svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' fill='none' viewBox='0 0 24 24' stroke='currentColor'><path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828a4 4 0 01-1.414.828l-4.243 1.414 1.414-4.243a4 4 0 01.828-1.414z' /></svg>
+                            </button>
+                            <button onClick={() => confirmDelete('bill', bill.url)} className="text-red-600 hover:bg-red-100 p-2 rounded transition" title="Delete">
+                              <svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' fill='none' viewBox='0 0 24 24' stroke='currentColor'><path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M10 3h4a1 1 0 011 1v2H9V4a1 1 0 011-1z' /></svg>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     )
@@ -1949,7 +2038,7 @@ export default function RateDevelopments() {
 
       {/* Popup for AI Summary */}
       {showPopup && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
           <div className="bg-white p-4 rounded-lg max-w-lg w-full">
             <h3 className="text-lg font-bold">
               {popupTitle || "Summary"}
@@ -1961,6 +2050,41 @@ export default function RateDevelopments() {
             >
               Close
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirmation && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+          <div className="bg-white p-6 rounded-lg max-w-md w-full">
+            <div className="flex items-center mb-4">
+              <svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='none' viewBox='0 0 24 24' stroke='currentColor' className="text-red-600 mr-3">
+                <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z' />
+              </svg>
+              <h3 className="text-lg font-bold text-gray-900">Confirm Delete</h3>
+            </div>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to delete this {deleteProviderId ? 'provider alert' : 'legislative bill'}? This action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowDeleteConfirmation(false);
+                  setDeleteProviderId(null);
+                  setDeleteBillUrl(null);
+                }}
+                className="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={deleteProviderId ? handleDeleteProvider : handleDeleteBill}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
+              >
+                Delete
+              </button>
+            </div>
           </div>
         </div>
       )}
