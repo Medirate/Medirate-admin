@@ -131,6 +131,7 @@ const Navbar = () => {
     "/subscription",
     "/legislative-updates",
     "/rate-developments",
+    "/community-board",
     "/email-preferences",
     "/state-rate-comparison",
     "/state-rate-comparison/all",
