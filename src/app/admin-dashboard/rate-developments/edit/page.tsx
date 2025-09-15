@@ -1492,98 +1492,132 @@ export default function RateDevelopments() {
         {/* Search Bars and Filters Container */}
         <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
           <div className="flex flex-col gap-4">
-            {/* Search Bars Row - Make it responsive */}
-            <div className="flex flex-col md:flex-row gap-4">
-              {/* Provider Search */}
-              <div className="flex-1 min-w-0">
-                <SearchBar
-                  value={providerSearch}
-                  onChange={setProviderSearch}
-                  placeholder="Search Provider Alerts by subject"
-                />
+
+            {/* Advanced Multi-Select Filters - EXACT SAME AS MAIN PAGE */}
+            <div className="flex flex-col md:flex-row gap-10">
+              {/* Left Column: Provider Alerts Filters */}
+              <div className="flex-1 flex flex-col gap-5">
+                <span className="text-xs uppercase tracking-wider text-[#012C61] font-lemonMilkRegular mb-1 ml-1">Provider Alerts Filters</span>
+                <div className="relative">
+                  <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400" />
+                  <input
+                    type="text"
+                    value={providerSearch}
+                    onChange={e => setProviderSearch(e.target.value)}
+                    placeholder="Search Provider Alerts by subject or summary"
+                    className="w-full pl-10 pr-4 py-3 bg-white border border-blue-300 rounded-xl text-gray-800 focus:ring-2 focus:ring-blue-300 focus:border-blue-400 transition-all placeholder-gray-500 text-base shadow-sm"
+                  />
+                </div>
+                <div className="relative pl-10">
+                  <FaFilter className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400" />
+                  <ReactSelectMultiDropdown
+                    values={selectedProviderStates}
+                    onChange={setSelectedProviderStates}
+                    options={Object.entries(stateMap).map(([name, code]) => ({
+                      value: code,
+                      label: `${name} [${code}]`
+                    }))}
+                    placeholder="All States"
+                  />
+                </div>
+                <div className="relative pl-10">
+                  <FaChartLine className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400" />
+                  <ReactSelectMultiDropdown
+                    values={selectedProviderServiceLines}
+                    onChange={setSelectedProviderServiceLines}
+                    options={availableProviderServiceLines.map(line => ({ value: line, label: line }))}
+                    placeholder="All Service Lines"
+                  />
+                </div>
               </div>
 
-              {/* Legislative Search */}
-              <div className="flex-1 min-w-0">
-                <SearchBar
-                  value={legislativeSearch}
-                  onChange={setLegislativeSearch}
-                  placeholder="Search Legislative Updates by Bill Name or Bill Number"
-                />
+              {/* Divider for md+ screens */}
+              <div className="hidden md:block w-px bg-blue-100 mx-4 my-2 rounded-full" />
+
+              {/* Right Column: Legislative Updates Filters */}
+              <div className="flex-1 flex flex-col gap-5">
+                <span className="text-xs uppercase tracking-wider text-[#012C61] font-lemonMilkRegular mb-1 ml-1">Legislative Updates Filters</span>
+                <div className="relative">
+                  <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400" />
+                  <input
+                    type="text"
+                    value={legislativeSearch}
+                    onChange={e => setLegislativeSearch(e.target.value)}
+                    placeholder="Search Legislative Updates by Bill Name or Bill Number"
+                    className="w-full pl-10 pr-4 py-3 bg-white border border-blue-300 rounded-xl text-gray-800 focus:ring-2 focus:ring-blue-300 focus:border-blue-400 transition-all placeholder-gray-500 text-base shadow-sm"
+                  />
+                </div>
+                <div className="relative pl-10">
+                  <FaFilter className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400" />
+                  <ReactSelectMultiDropdown
+                    values={selectedLegislativeStates}
+                    onChange={setSelectedLegislativeStates}
+                    options={Object.entries(stateMap).map(([name, code]) => ({
+                      value: code,
+                      label: `${name} [${code}]`
+                    }))}
+                    placeholder="All States"
+                  />
+                </div>
+                <div className="relative pl-10">
+                  <FaChartLine className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400" />
+                  <ReactSelectMultiDropdown
+                    values={selectedLegislativeServiceLines}
+                    onChange={setSelectedLegislativeServiceLines}
+                    options={availableLegislativeServiceLines.map(line => ({ value: line, label: line }))}
+                    placeholder="All Service Lines"
+                  />
+                </div>
+                <div className="relative pl-10">
+                  <LayoutList className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400" />
+                  <Select
+                    isSearchable={true}
+                    value={selectedBillProgress ? { value: selectedBillProgress, label: selectedBillProgress } : null}
+                    onChange={(option) => setSelectedBillProgress(option ? option.value : "")}
+                    options={[
+                      { value: "", label: "All Bill Progress" },
+                      { value: "Introduced", label: "Introduced" },
+                      { value: "In Committee", label: "In Committee" },
+                      { value: "Passed", label: "Passed" },
+                      { value: "Failed", label: "Failed" },
+                      { value: "Vetoed", label: "Vetoed" },
+                      { value: "Enacted", label: "Enacted" }
+                    ]}
+                    placeholder="All Bill Progress"
+                    className="w-full"
+                    classNamePrefix="react-select"
+                    styles={{
+                      control: (provided, state) => ({
+                        ...provided,
+                        backgroundColor: 'white',
+                        borderColor: state.isFocused ? '#3b82f6' : '#93c5fd',
+                        borderRadius: '0.5rem',
+                        minHeight: '48px',
+                        boxShadow: state.isFocused ? '0 0 0 1px #3b82f6' : 'none',
+                        '&:hover': {
+                          borderColor: '#3b82f6'
+                        }
+                      }),
+                      menu: (provided) => ({
+                        ...provided,
+                        backgroundColor: 'white',
+                        border: '1px solid #93c5fd',
+                        borderRadius: '0.5rem',
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                        zIndex: 9999
+                      }),
+                      option: (provided, state) => ({
+                        ...provided,
+                        backgroundColor: state.isSelected ? '#3b82f6' : state.isFocused ? '#dbeafe' : 'white',
+                        color: state.isSelected ? 'white' : '#1f2937',
+                        '&:hover': {
+                          backgroundColor: state.isSelected ? '#3b82f6' : '#dbeafe'
+                        }
+                      })
+                    }}
+                  />
+                </div>
               </div>
-            </div>
-
-            {/* Advanced Multi-Select Filters Row */}
-            <div className="flex flex-col gap-4">
-              {/* Provider Alerts Filters */}
-              {activeTable === "provider" && (
-                <div className="flex flex-col md:flex-row gap-4">
-                  <div className="relative pl-10">
-                    <FaFilter className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400" />
-                    <ReactSelectMultiDropdown
-                      values={selectedProviderStates}
-                      onChange={setSelectedProviderStates}
-                      options={Object.entries(stateMap).map(([name, code]) => ({
-                        value: code,
-                        label: `${name} [${code}]`
-                      }))}
-                      placeholder="All States"
-                    />
-                  </div>
-                  <div className="relative pl-10">
-                    <FaChartLine className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400" />
-                    <ReactSelectMultiDropdown
-                      values={selectedProviderServiceLines}
-                      onChange={setSelectedProviderServiceLines}
-                      options={availableProviderServiceLines.map(line => ({ value: line, label: line }))}
-                      placeholder="All Service Lines"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Legislative Updates Filters */}
-              {activeTable === "legislative" && (
-                <div className="flex flex-col md:flex-row gap-4">
-                  <div className="relative pl-10">
-                    <FaFilter className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400" />
-                    <ReactSelectMultiDropdown
-                      values={selectedLegislativeStates}
-                      onChange={setSelectedLegislativeStates}
-                      options={Object.entries(stateMap).map(([name, code]) => ({
-                        value: code,
-                        label: `${name} [${code}]`
-                      }))}
-                      placeholder="All States"
-                    />
-                  </div>
-                  <div className="relative pl-10">
-                    <FaChartLine className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400" />
-                    <ReactSelectMultiDropdown
-                      values={selectedLegislativeServiceLines}
-                      onChange={setSelectedLegislativeServiceLines}
-                      options={availableLegislativeServiceLines.map(line => ({ value: line, label: line }))}
-                      placeholder="All Service Lines"
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CustomDropdown
-                      value={selectedBillProgress}
-                      onChange={setSelectedBillProgress}
-                      options={[
-                        { value: "", label: "All Bill Progress" },
-                        { value: "Introduced", label: "Introduced" },
-                        { value: "In Committee", label: "In Committee" },
-                        { value: "Passed", label: "Passed" },
-                        { value: "Failed", label: "Failed" },
-                        { value: "Vetoed", label: "Vetoed" },
-                        { value: "Enacted", label: "Enacted" }
-                      ]}
-                      placeholder="All Bill Progress"
-                    />
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Special Filters Row */}
