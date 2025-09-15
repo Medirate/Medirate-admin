@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import AppLayout from "@/app/components/applayout";
 import { FaSpinner, FaExclamationCircle, FaChevronLeft, FaChevronRight, FaFilter, FaChartLine } from 'react-icons/fa';
 import Select from "react-select";
@@ -614,6 +614,7 @@ const hasBlankEntriesForFilter = (filterKey: keyof Selections, selections: Selec
   });
 };
 
+
 // Add Selections type and state for unified filter management
 // --- NEW: Types for client-side filtering ---
 interface Combination {
@@ -737,6 +738,11 @@ export default function HistoricalRates() {
     modifier_1: null,
   });
 
+  // Lazy loading state for duration unit options with counts
+  const [durationUnitOptionsWithCounts, setDurationUnitOptionsWithCounts] = useState<{ value: string; label: string }[]>([]);
+  const [durationUnitCalculated, setDurationUnitCalculated] = useState(false);
+  const [durationUnitCalculationKey, setDurationUnitCalculationKey] = useState('');
+
   // Update areFiltersApplied to use selections state
   const areFiltersApplied = selections.service_category && selections.state_name && (selections.service_code || selections.service_description);
 
@@ -763,6 +769,7 @@ export default function HistoricalRates() {
     setHasSearched(false);
     setData([]);
   };
+
 
   const filteredData = useMemo(() => {
     // Only show data after a search has been performed
@@ -1371,6 +1378,7 @@ export default function HistoricalRates() {
     loadUltraFilterOptions();
   }, []);
 
+
   // Add available options variables like dashboard
   const availableServiceCategories = getAvailableOptionsForFilter('service_category', selections, filterOptionsData) as string[];
   const availableStates = getAvailableOptionsForFilter('state_name', selections, filterOptionsData) as string[];
@@ -1415,6 +1423,76 @@ export default function HistoricalRates() {
     
     return Array.from(modifierSet).sort();
   }, [filterOptionsData, selections]);
+
+  // Create a key to track when we need to recalculate duration unit counts
+  const getCurrentCalculationKey = useMemo(() => {
+    return JSON.stringify({
+      service_category: selections.service_category,
+      state_name: selections.state_name,
+      service_code: selections.service_code,
+      service_description: selections.service_description,
+      program: selections.program,
+      location_region: selections.location_region,
+      provider_type: selections.provider_type,
+      modifier_1: selections.modifier_1,
+      availableDurationUnitsLength: availableDurationUnits.length
+    });
+  }, [selections, availableDurationUnits.length]);
+
+  // Function to calculate duration unit options with counts (only called when needed)
+  const calculateDurationUnitOptionsWithCounts = useCallback(() => {
+    if (!filterOptionsData || !filterOptionsData.combinations || !availableDurationUnits.length) {
+      setDurationUnitOptionsWithCounts(availableDurationUnits.map(unit => ({ value: unit, label: unit })));
+      setDurationUnitCalculated(true);
+      setDurationUnitCalculationKey(getCurrentCalculationKey);
+      return;
+    }
+    
+    const optionsWithCounts = availableDurationUnits.map(durationUnit => {
+      // Count unique states for this duration unit based on current selections
+      const stateCount = new Set(
+        filterOptionsData.combinations
+          .filter((combo: any) => {
+            // Apply current filter conditions (same logic as getAvailableOptionsForFilter)
+            if (selections.service_category && combo.service_category !== selections.service_category) return false;
+            if (selections.state_name && combo.state_name !== selections.state_name) return false;
+            if (selections.service_code && combo.service_code !== selections.service_code) return false;
+            if (selections.service_description && combo.service_description !== selections.service_description) return false;
+            if (selections.program && selections.program !== "-" && combo.program !== selections.program) return false;
+            if (selections.location_region && selections.location_region !== "-" && combo.location_region !== selections.location_region) return false;
+            if (selections.provider_type && selections.provider_type !== "-" && combo.provider_type !== selections.provider_type) return false;
+            if (selections.modifier_1 && selections.modifier_1 !== "-" && combo.modifier_1 !== selections.modifier_1) return false;
+            
+            return combo.duration_unit === durationUnit;
+          })
+          .map((combo: any) => combo.state_name)
+          .filter(Boolean)
+      ).size;
+      
+      return {
+        value: durationUnit,
+        label: `${durationUnit} (${stateCount})`
+      };
+    });
+    
+    setDurationUnitOptionsWithCounts(optionsWithCounts);
+    setDurationUnitCalculated(true);
+    setDurationUnitCalculationKey(getCurrentCalculationKey);
+  }, [filterOptionsData, availableDurationUnits, selections, getCurrentCalculationKey]);
+
+  // Reset calculation flag when dependencies change
+  useEffect(() => {
+    if (getCurrentCalculationKey !== durationUnitCalculationKey) {
+      setDurationUnitCalculated(false);
+    }
+  }, [getCurrentCalculationKey, durationUnitCalculationKey]);
+
+  // Handler for when duration unit dropdown is opened
+  const handleDurationUnitMenuOpen = useCallback(() => {
+    if (!durationUnitCalculated || getCurrentCalculationKey !== durationUnitCalculationKey) {
+      calculateDurationUnitOptionsWithCounts();
+    }
+  }, [durationUnitCalculated, getCurrentCalculationKey, durationUnitCalculationKey, calculateDurationUnitOptionsWithCounts]);
 
   // Don't render anything until the subscription check is complete
   if (auth.isLoading || auth.shouldRedirect) {
@@ -1625,9 +1703,17 @@ export default function HistoricalRates() {
                       <label className="text-sm font-medium text-gray-700">Duration Unit</label>
                       <Select
                         instanceId="duration_unit_select"
-                        options={getDropdownOptions(availableDurationUnits, false)}
-                        value={selections.duration_unit ? selections.duration_unit.split(',').map(d => ({ value: d.trim(), label: d.trim() })) : null}
+                        options={durationUnitCalculated 
+                          ? durationUnitOptionsWithCounts 
+                          : getDropdownOptions(availableDurationUnits, false)
+                        }
+                        value={selections.duration_unit ? selections.duration_unit.split(',').map(d => {
+                          const trimmedValue = d.trim();
+                          const optionWithCount = durationUnitOptionsWithCounts.find(opt => opt.value === trimmedValue);
+                          return optionWithCount || { value: trimmedValue, label: trimmedValue };
+                        }) : null}
                         onChange={(options) => handleSelectionChange('duration_unit', options ? options.map(opt => opt.value).join(',') : null)}
+                        onMenuOpen={handleDurationUnitMenuOpen}
                         placeholder="Select Duration Unit"
                         isMulti
                         isClearable
