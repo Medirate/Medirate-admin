@@ -742,24 +742,6 @@ export default function RateDevelopments() {
   // 1. Add a state to track highlighted cells
   const [highlightedCells, setHighlightedCells] = useState<{ [rowKey: string]: string[] }>({});
 
-  useEffect(() => {
-    const fetchServiceCategories = async () => {
-      try {
-        const response = await fetch('/api/admin/service-categories');
-        if (response.ok) {
-          const result = await response.json();
-          if (result.data) {
-            setServiceCategories(result.data);
-          }
-        } else {
-          console.error('Failed to fetch service categories');
-        }
-      } catch (error) {
-        console.error('Error fetching service categories:', error);
-      }
-    };
-    fetchServiceCategories();
-  }, []);
 
 
   // Deduplicate and normalize serviceCategories for dropdown options
@@ -919,18 +901,18 @@ export default function RateDevelopments() {
     }
   };
 
-  // Service lines logic
+  // Service lines logic - using the same approach as main page
   useEffect(() => {
     const fetchServiceCategories = async () => {
       try {
         const response = await fetch('/api/admin/service-categories');
         if (response.ok) {
-          const data = await response.json();
-          if (data.success && data.categories) {
-            setServiceCategories(data.categories);
-            // Extract all service lines from all categories
+          const result = await response.json();
+          if (result.data) {
+            setServiceCategories(result.data);
+            // Extract all service lines from all categories - same as main page
             const allServiceLines = new Set<string>();
-            data.categories.forEach((cat: any) => {
+            result.data.forEach((cat: any) => {
               if (cat.categories) {
                 const lines = cat.categories.split(',').map((line: string) => line.trim()).filter((line: string) => line);
                 lines.forEach((line: string) => allServiceLines.add(line));
