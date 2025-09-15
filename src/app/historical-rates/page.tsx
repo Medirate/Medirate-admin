@@ -511,9 +511,10 @@ function getAvailableOptionsForFilter(filterKey: keyof Selections, selections: S
           // Handle multi-select values (arrays) vs single values (strings)
           if (Array.isArray(value)) {
             return value.includes(combo[key]);
-          } else if (typeof value === 'string' && value.includes(',')) {
-            // Handle comma-separated values (multi-select)
-            const selectedValues = value.split(',').map(v => v.trim());
+          } else if (typeof value === 'string' && (value.includes(',') || value.includes('|'))) {
+            // Handle comma-separated or pipe-separated values (multi-select)
+            const separator = value.includes('|') ? '|' : ',';
+            const selectedValues = value.split(separator).map(v => v.trim());
             return selectedValues.includes(combo[key]);
           } else {
             return combo[key] === value;
@@ -960,9 +961,9 @@ export default function HistoricalRates() {
       }
       if (selections.service_description && item.service_description !== selections.service_description) return false;
       if (selections.program && selections.program !== "-") {
-        // Handle comma-separated programs
+        // Handle pipe-separated programs (to avoid splitting on commas within program names)
         const selectedPrograms = typeof selections.program === 'string' 
-          ? selections.program.split(',').map(program => program.trim())
+          ? selections.program.split('|').map(program => program.trim())
           : [];
         if (!selectedPrograms.includes(item.program?.trim() || '')) return false;
       }
@@ -974,9 +975,9 @@ export default function HistoricalRates() {
         if (!selectedRegions.includes(item.location_region?.trim() || '')) return false;
       }
       if (selections.modifier_1 && selections.modifier_1 !== "-") {
-        // Handle comma-separated modifiers
+        // Handle pipe-separated modifiers (to avoid splitting on commas within modifier names)
         const selectedModifiers = typeof selections.modifier_1 === 'string' 
-          ? selections.modifier_1.split(',').map(mod => mod.trim())
+          ? selections.modifier_1.split('|').map(mod => mod.trim())
           : [];
         const hasModifier = selectedModifiers.some(selectedModifier => {
           const selectedModifierCode = selectedModifier.split(' - ')[0];
@@ -1951,8 +1952,8 @@ export default function HistoricalRates() {
                       <Select
                         instanceId="program_select"
                         options={getDropdownOptions(availablePrograms, false)}
-                        value={selections.program ? selections.program.split(',').map(p => ({ value: p.trim(), label: p.trim() })) : null}
-                        onChange={(options) => handleSelectionChange('program', options ? options.map(opt => opt.value).join(',') : null)}
+                        value={selections.program ? selections.program.split('|').map(p => ({ value: p.trim(), label: p.trim() })) : null}
+                        onChange={(options) => handleSelectionChange('program', options ? options.map(opt => opt.value).join('|') : null)}
                         placeholder="Select Program"
                         isMulti
                         isClearable
@@ -2048,7 +2049,7 @@ export default function HistoricalRates() {
                             filterOptionsData?.combinations?.find((c: any) => c.modifier_4 === o)?.modifier_4_details;
                           return { value: o, label: def ? `${o} - ${def}` : o };
                         })]}
-                        value={selections.modifier_1 ? selections.modifier_1.split(',').map(m => {
+                        value={selections.modifier_1 ? selections.modifier_1.split('|').map(m => {
                           const mod = availableModifiers.find(opt => opt === m.trim());
                           if (mod) {
                             const def =
@@ -2060,7 +2061,7 @@ export default function HistoricalRates() {
                           }
                           return { value: m.trim(), label: m.trim() };
                         }) : null}
-                        onChange={(options) => handleSelectionChange('modifier_1', options ? options.map(opt => opt.value).join(',') : null)}
+                        onChange={(options) => handleSelectionChange('modifier_1', options ? options.map(opt => opt.value).join('|') : null)}
                         placeholder="Select Modifier"
                         isMulti
                         isClearable
