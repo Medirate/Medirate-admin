@@ -689,7 +689,7 @@ export default function HistoricalRates() {
         if (value) params.append(key, value);
       });
       const url = `/api/state-payment-comparison?${params.toString()}`;
-      const response = await fetch(url, { credentials: 'include' });
+      const response = await fetch(url);
       const result = await response.json();
       if (result && Array.isArray(result.data)) {
         setData(result.data);

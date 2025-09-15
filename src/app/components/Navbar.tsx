@@ -311,20 +311,13 @@ const Navbar = () => {
               </Link>
             )
           ) : (
-            <button
-              onClick={() => {
-                const mustVerify = !sessionStorage.getItem('mr_form_complete');
-                if (mustVerify) {
-                  window.location.href = '/subscribe?must_complete_form=1';
-                  return;
-                }
-                window.location.href = '/api/auth/login';
-              }}
-              className="flex items-center border border-white bg-white px-4 py-2 rounded-md text-[#000000] font-semibold transition-colors hover:bg-transparent hover:text-white"
+            <Link
+              href="/api/auth/login"
+              className="flex items-center border border-white bg-white px-4 py-2 rounded-md text-[#000000] font-semibold transition-colors hover:bg-transparent hover:text-white pointer-events-auto"
             >
               Sign In
               <ArrowRight className="ml-2 h-4 w-4" />
-            </button>
+            </Link>
           )}
         </div>
 
