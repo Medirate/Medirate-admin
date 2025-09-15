@@ -1125,6 +1125,48 @@ export default function Dashboard() {
   const availableProviderTypes = getAvailableOptionsForFilter('provider_type');
   const availableDurationUnits = getAvailableOptionsForFilter('duration_unit');
   const availableFeeScheduleDates = getAvailableOptionsForFilter('fee_schedule_date');
+
+  // Create duration unit options with state counts
+  const durationUnitOptionsWithCounts = useMemo(() => {
+    if (!filterOptionsData || !filterOptionsData.combinations || !availableDurationUnits.length) return [];
+    
+    return availableDurationUnits.map(durationUnit => {
+      // Count unique states for this duration unit based on current selections
+      const stateCount = new Set(
+        filterOptionsData.combinations
+          .filter(combo => {
+            // Apply current filter conditions (same logic as getAvailableOptionsForFilter)
+            if (selections.fee_schedule_date) {
+              if (Array.isArray(combo.rate_effective_date)) {
+                if (!combo.rate_effective_date.includes(selections.fee_schedule_date)) return false;
+              } else {
+                if (combo.rate_effective_date !== selections.fee_schedule_date) return false;
+              }
+            }
+            
+            // Check all current selections except duration_unit
+            const matches = Object.entries(selections).every(([key, value]) => {
+              if (key === 'duration_unit' || key === 'fee_schedule_date') return true; // skip current filter
+              if (!value) return true; // skip unset selections
+              
+              if (Array.isArray(value)) {
+                return value.includes(combo[key]);
+              }
+              return combo[key] === value;
+            });
+            
+            return matches && combo.duration_unit === durationUnit;
+          })
+          .map(combo => combo.state_name)
+          .filter(Boolean)
+      ).size;
+      
+      return {
+        value: durationUnit,
+        label: `${durationUnit} (${stateCount})`
+      };
+    });
+  }, [filterOptionsData, availableDurationUnits, selections]);
   
   // Get modifiers from ALL modifier columns (modifier_1, modifier_2, modifier_3, modifier_4)
   const availableModifiers = useMemo(() => {
@@ -1610,8 +1652,12 @@ export default function Dashboard() {
                   </label>
                   <Select
                     instanceId="duration_unit_select"
-                    options={getDropdownOptions(availableDurationUnits, false)}
-                    value={selections.duration_unit ? selections.duration_unit.split(',').map(d => ({ value: d.trim(), label: d.trim() })) : null}
+                    options={getDropdownOptions(durationUnitOptionsWithCounts, false)}
+                    value={selections.duration_unit ? selections.duration_unit.split(',').map(d => {
+                      const trimmedValue = d.trim();
+                      const optionWithCount = durationUnitOptionsWithCounts.find(opt => opt.value === trimmedValue);
+                      return optionWithCount || { value: trimmedValue, label: trimmedValue };
+                    }) : null}
                     onChange={(options) => handleSelectionChange('duration_unit', options ? options.map(opt => opt.value).join(',') : null)}
                     placeholder="Select Duration Unit"
                     isMulti
