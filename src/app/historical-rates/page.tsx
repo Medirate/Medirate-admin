@@ -2204,10 +2204,10 @@ export default function HistoricalRates() {
                           name: seriesItem.name,
                             type: 'line',
                             smooth: false,
-                            itemStyle: {
+                          itemStyle: {
                             color: (params: any) => {
                               // Use different color for extended points
-                              return params.data.isExtended ? seriesItem.color + '80' : seriesItem.color; // 80 = 50% opacity
+                              return params.data?.isExtended ? seriesItem.color + '80' : seriesItem.color; // 80 = 50% opacity
                             }
                           },
                           lineStyle: {
@@ -2221,21 +2221,21 @@ export default function HistoricalRates() {
                           symbol: 'circle',
                           symbolSize: (params: any) => {
                             // Smaller symbol for extended points
-                            return params.data.isExtended ? 4 : 6;
-                            },
-                            label: {
-                              show: true,
-                              position: 'top',
-                              formatter: (params: any) => {
-                                if (params.data.displayValue) {
-                                  return params.data.displayValue;
-                                }
-                              const prefix = params.data.isExtended ? '→ ' : '';
+                            return params.data?.isExtended ? 4 : 6;
+                          },
+                          label: {
+                            show: true,
+                            position: 'top',
+                            formatter: (params: any) => {
+                              if (params.data?.displayValue) {
+                                return params.data.displayValue;
+                              }
+                              const prefix = params.data?.isExtended ? '→ ' : '';
                               return `${prefix}$${params.value.toFixed(2)}`;
-                              },
-                              fontSize: 12,
-                              color: '#374151'
-                            }
+                            },
+                            fontSize: 12,
+                            color: '#374151'
+                          }
                         })),
                         graphic: getGraphData.series.some((seriesItem: any) => seriesItem.data.some((data: any) => data.displayValue)) ? [
                           {
