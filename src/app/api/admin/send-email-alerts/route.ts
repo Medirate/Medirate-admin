@@ -501,46 +501,11 @@ export async function POST(req: NextRequest) {
       }
     }
     
-    // After sending all emails, reset the is_new flags to prevent duplicate sends
-    logs.push("🔄 Resetting is_new flags after sending emails...");
-    
-    try {
-      if (bills.length > 0) {
-        const billIds = bills.map(bill => bill.id).filter(Boolean);
-        if (billIds.length > 0) {
-          const { error: billResetError } = await supabase
-            .from("bill_track_50")
-            .update({ is_new: 'no' })
-            .in('id', billIds);
-          
-          if (billResetError) {
-            logs.push(`⚠️ Warning: Could not reset is_new flags for bills: ${billResetError.message}`);
-          } else {
-            logs.push(`✅ Reset is_new flags for ${billIds.length} bills`);
-          }
-        }
-      }
-      
-      if (alerts.length > 0) {
-        const alertIds = alerts.map(alert => alert.id).filter(Boolean);
-        if (alertIds.length > 0) {
-          const { error: alertResetError } = await supabase
-            .from("provider_alerts")
-            .update({ is_new: 'no' })
-            .in('id', alertIds);
-          
-          if (alertResetError) {
-            logs.push(`⚠️ Warning: Could not reset is_new flags for provider alerts: ${alertResetError.message}`);
-          } else {
-            logs.push(`✅ Reset is_new flags for ${alertIds.length} provider alerts`);
-          }
-        }
-      }
-    } catch (resetError: unknown) {
-      const errorMsg = resetError instanceof Error ? resetError.message : String(resetError);
-      logs.push(`⚠️ Warning: Error resetting is_new flags: ${errorMsg}`);
-      // Don't fail the entire process for this
-    }
+    // Note: is_new flags are NOT reset after sending emails
+    // They should only be reset during the database update process
+    // This allows the same new/updated entries to be sent multiple times if needed
+    // until the next database update cycle
+    logs.push("ℹ️ is_new flags preserved - they will only be reset during next database update");
     
     // Summary
     logs.push(`📊 Email Summary:`);
