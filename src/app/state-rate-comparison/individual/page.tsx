@@ -360,6 +360,11 @@ export default function StatePaymentComparison() {
   // Add pending filters state (like dashboard)
   const [pendingFilters, setPendingFilters] = useState<Set<keyof Selections>>(new Set());
 
+  // Lazy loading state for duration unit options with counts
+  const [durationUnitOptionsWithCounts, setDurationUnitOptionsWithCounts] = useState<{ [key: string]: { value: string; label: string }[] }>({});
+  const [durationUnitCalculated, setDurationUnitCalculated] = useState<{ [key: string]: boolean }>({});
+  const [durationUnitCalculationKey, setDurationUnitCalculationKey] = useState<{ [key: string]: string }>({});
+
   // Add state for authentication errors
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -1623,6 +1628,110 @@ export default function StatePaymentComparison() {
     
     return options;
   };
+
+  // Create a key to track when we need to recalculate duration unit counts for a specific filter set
+  const getCurrentCalculationKey = useCallback((filterSetIndex: number) => {
+    const filterSet = filterSets[filterSetIndex];
+    if (!filterSet) return '';
+    
+    return JSON.stringify({
+      serviceCategory: filterSet.serviceCategory,
+      states: filterSet.states,
+      serviceCode: filterSet.serviceCode,
+      serviceDescription: filterSet.serviceDescription,
+      program: filterSet.program,
+      locationRegion: filterSet.locationRegion,
+      providerType: filterSet.providerType,
+      modifier: filterSet.modifier,
+      filterSetIndex
+    });
+  }, [filterSets]);
+
+  // Function to calculate duration unit options with counts for a specific filter set
+  const calculateDurationUnitOptionsWithCounts = useCallback((filterSetIndex: number) => {
+    if (!filterOptionsData || !filterOptionsData.combinations) {
+      setDurationUnitOptionsWithCounts(prev => ({
+        ...prev,
+        [filterSetIndex]: []
+      }));
+      setDurationUnitCalculated(prev => ({
+        ...prev,
+        [filterSetIndex]: true
+      }));
+      return;
+    }
+    
+    const filterSet = filterSets[filterSetIndex];
+    if (!filterSet) return;
+    
+    const availableDurationUnits = getAvailableOptionsForFilterSet('duration_unit', filterSetIndex);
+    if (!availableDurationUnits || availableDurationUnits.length === 0) {
+      setDurationUnitOptionsWithCounts(prev => ({
+        ...prev,
+        [filterSetIndex]: []
+      }));
+      setDurationUnitCalculated(prev => ({
+        ...prev,
+        [filterSetIndex]: true
+      }));
+      return;
+    }
+    
+    const optionsWithCounts = availableDurationUnits.map(durationUnit => {
+      // Count unique states for this duration unit based on current filter set
+      const stateCount = new Set(
+        filterOptionsData.combinations
+          .filter(combo => {
+            // Apply current filter set conditions
+            if (filterSet.serviceCategory && combo.service_category !== filterSet.serviceCategory) return false;
+            
+            // Handle state filtering
+            if (filterSet.states.length > 0) {
+              if (!filterSet.states.includes(combo.state_name)) return false;
+            }
+            
+            if (filterSet.serviceCode && combo.service_code !== filterSet.serviceCode) return false;
+            if (filterSet.serviceDescription && combo.service_description !== filterSet.serviceDescription) return false;
+            if (filterSet.program && filterSet.program !== "-" && combo.program !== filterSet.program) return false;
+            if (filterSet.locationRegion && filterSet.locationRegion !== "-" && combo.location_region !== filterSet.locationRegion) return false;
+            if (filterSet.providerType && filterSet.providerType !== "-" && combo.provider_type !== filterSet.providerType) return false;
+            if (filterSet.modifier && filterSet.modifier !== "-" && combo.modifier_1 !== filterSet.modifier) return false;
+            
+            return combo.duration_unit === durationUnit;
+          })
+          .map(combo => combo.state_name)
+          .filter(Boolean)
+      ).size;
+      
+      return {
+        value: durationUnit,
+        label: `${durationUnit} (${stateCount})`
+      };
+    });
+    
+    setDurationUnitOptionsWithCounts(prev => ({
+      ...prev,
+      [filterSetIndex]: optionsWithCounts
+    }));
+    setDurationUnitCalculated(prev => ({
+      ...prev,
+      [filterSetIndex]: true
+    }));
+    setDurationUnitCalculationKey(prev => ({
+      ...prev,
+      [filterSetIndex]: getCurrentCalculationKey(filterSetIndex)
+    }));
+  }, [filterOptionsData, filterSets, getCurrentCalculationKey]);
+
+  // Handler for when duration unit dropdown is opened for a specific filter set
+  const handleDurationUnitMenuOpen = useCallback((filterSetIndex: number) => {
+    const currentKey = getCurrentCalculationKey(filterSetIndex);
+    const cachedKey = durationUnitCalculationKey[filterSetIndex];
+    
+    if (!durationUnitCalculated[filterSetIndex] || currentKey !== cachedKey) {
+      calculateDurationUnitOptionsWithCounts(filterSetIndex);
+    }
+  }, [durationUnitCalculated, durationUnitCalculationKey, getCurrentCalculationKey, calculateDurationUnitOptionsWithCounts]);
 
   // Add dynamic filter options computed from filterOptionsData (like dashboard)
   const availableServiceCategories = getAvailableOptionsForFilter('service_category');
@@ -3012,21 +3121,27 @@ export default function StatePaymentComparison() {
                         <Select
                           instanceId={`duration-unit-select-${index}`}
                           options={
-                            (() => {
-                              const availableDurationUnits = getAvailableOptionsForFilterSet('duration_unit', index);
-                              return availableDurationUnits && availableDurationUnits.length > 0
-                                ? availableDurationUnits.map((unit: any) => ({ value: unit, label: unit }))
-                                : [];
-                            })()
+                            durationUnitCalculated[index] 
+                              ? durationUnitOptionsWithCounts[index] || []
+                              : (() => {
+                                  const availableDurationUnits = getAvailableOptionsForFilterSet('duration_unit', index);
+                                  return availableDurationUnits && availableDurationUnits.length > 0
+                                    ? availableDurationUnits.map((unit: any) => ({ value: unit, label: unit }))
+                                    : [];
+                                })()
                           }
                           value={filterSet.durationUnits && filterSet.durationUnits.length > 0 
-                            ? filterSet.durationUnits.map(unit => ({ value: unit, label: unit }))
+                            ? filterSet.durationUnits.map(unit => {
+                                const optionWithCount = durationUnitOptionsWithCounts[index]?.find(opt => opt.value === unit);
+                                return optionWithCount || { value: unit, label: unit };
+                              })
                             : []
                           }
                           onChange={(options) => {
                             const selectedValues = options ? options.map(opt => opt.value) : [];
                             wrappedHandleDurationUnitChange(index, selectedValues);
                           }}
+                          onMenuOpen={() => handleDurationUnitMenuOpen(index)}
                           placeholder="Select Duration Unit(s)"
                           isSearchable
                           isMulti
