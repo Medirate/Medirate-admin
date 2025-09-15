@@ -689,7 +689,7 @@ export default function HistoricalRates() {
         if (value) params.append(key, value);
       });
       const url = `/api/state-payment-comparison?${params.toString()}`;
-      const response = await fetch(url);
+      const response = await fetch(url, { credentials: 'include' });
       const result = await response.json();
       if (result && Array.isArray(result.data)) {
         setData(result.data);
@@ -727,7 +727,7 @@ export default function HistoricalRates() {
         params.append('state_name', state);
         
         const url = `/api/state-payment-comparison?${params.toString()}`;
-        const response = await fetch(url);
+        const response = await fetch(url, { credentials: 'include' });
         const result = await response.json();
         
         if (result && Array.isArray(result.data)) {
