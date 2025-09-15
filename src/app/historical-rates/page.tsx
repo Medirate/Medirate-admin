@@ -511,6 +511,10 @@ function getAvailableOptionsForFilter(filterKey: keyof Selections, selections: S
           // Handle multi-select values (arrays) vs single values (strings)
           if (Array.isArray(value)) {
             return value.includes(combo[key]);
+          } else if (typeof value === 'string' && value.includes(',')) {
+            // Handle comma-separated values (multi-select)
+            const selectedValues = value.split(',').map(v => v.trim());
+            return selectedValues.includes(combo[key]);
           } else {
             return combo[key] === value;
           }
@@ -955,19 +959,41 @@ export default function HistoricalRates() {
         if (item.service_code && item.service_code.trim() !== '') return false;
       }
       if (selections.service_description && item.service_description !== selections.service_description) return false;
-      if (selections.program && selections.program !== "-" && item.program !== selections.program) return false;
-      if (selections.location_region && selections.location_region !== "-" && item.location_region !== selections.location_region) return false;
+      if (selections.program && selections.program !== "-") {
+        // Handle comma-separated programs
+        const selectedPrograms = typeof selections.program === 'string' 
+          ? selections.program.split(',').map(program => program.trim())
+          : [];
+        if (!selectedPrograms.includes(item.program?.trim() || '')) return false;
+      }
+      if (selections.location_region && selections.location_region !== "-") {
+        // Handle comma-separated location regions
+        const selectedRegions = typeof selections.location_region === 'string' 
+          ? selections.location_region.split(',').map(region => region.trim())
+          : [];
+        if (!selectedRegions.includes(item.location_region?.trim() || '')) return false;
+      }
       if (selections.modifier_1 && selections.modifier_1 !== "-") {
-        const selectedModifierCode = selections.modifier_1.split(' - ')[0];
-        const hasModifier = 
-          (item.modifier_1 && item.modifier_1.split(' - ')[0] === selectedModifierCode) ||
-          (item.modifier_2 && item.modifier_2.split(' - ')[0] === selectedModifierCode) ||
-          (item.modifier_3 && item.modifier_3.split(' - ')[0] === selectedModifierCode) ||
-          (item.modifier_4 && item.modifier_4.split(' - ')[0] === selectedModifierCode);
+        // Handle comma-separated modifiers
+        const selectedModifiers = typeof selections.modifier_1 === 'string' 
+          ? selections.modifier_1.split(',').map(mod => mod.trim())
+          : [];
+        const hasModifier = selectedModifiers.some(selectedModifier => {
+          const selectedModifierCode = selectedModifier.split(' - ')[0];
+          return 
+            (item.modifier_1?.split(' - ')[0] === selectedModifierCode) ||
+            (item.modifier_2?.split(' - ')[0] === selectedModifierCode) ||
+            (item.modifier_3?.split(' - ')[0] === selectedModifierCode) ||
+            (item.modifier_4?.split(' - ')[0] === selectedModifierCode);
+        });
         if (!hasModifier) return false;
       }
       if (selections.provider_type && selections.provider_type !== "-") {
-        if (item.provider_type !== selections.provider_type) return false;
+        // Handle comma-separated provider types
+        const selectedProviderTypes = typeof selections.provider_type === 'string' 
+          ? selections.provider_type.split(',').map(type => type.trim())
+          : [];
+        if (!selectedProviderTypes.includes(item.provider_type?.trim() || '')) return false;
       }
       if (selections.duration_unit && selections.duration_unit !== "-") {
         // Handle comma-separated duration units
