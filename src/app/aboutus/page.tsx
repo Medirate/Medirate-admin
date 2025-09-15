@@ -108,6 +108,31 @@ export default function AboutUs() {
               </div>
             </div>
 
+          {/* Tim McDonald Advisor Card */}
+          <div className="flex flex-col md:flex-row items-center md:space-x-12 mb-16 bg-gray-100 p-8 rounded-lg">
+            <div className="flex-shrink-0">
+              <Image
+                src="/images/Mcdonald.jpg"
+                alt="Tim McDonald"
+                width={350}
+                height={650}
+                className="rounded-lg shadow-lg"
+              />
+            </div>
+            <div className="text-lg text-left flex-grow">
+              <h4 className="text-xl font-semibold text-[#002F6C] mb-4">Tim McDonald</h4>
+              <p className="text-gray-700 leading-relaxed mb-8">
+                Tim McDonald has led marketing strategy for a number of high-growth, health care services companies. From 2009 to 2013, Tim spearheaded strategic initiatives that strengthened Amerigroup's core Medicaid business prior to the Company's sale to Anthem. He co-led a senior team that made strategic choices on entering new states, enrolling new populations and expanding the company's scope of services.
+              </p>
+              <p className="text-gray-700 leading-relaxed mb-8">
+                Other health care services where he led marketing strategy and played a senior business development role include UnitedHealthcare, MetraHealth, Value Health, and two private equity backed companies that were later acquired. In addition to his corporate roles, he's been an independent investor and advisor to high-growth health care and IT services organizations.
+              </p>
+              <p className="text-gray-700 leading-relaxed">
+                A graduate of Princeton University and The Wharton Business School, Tim is on the Executive Advisory Board of the University of Pennsylvania's Leonard Davis Institute of Health Economics.
+              </p>
+            </div>
+          </div>
+
           {/* Other Advisors */}
           <div className="flex justify-between md:justify-around gap-12">
             
