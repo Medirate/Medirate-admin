@@ -624,6 +624,13 @@ interface Combination {
 type Selections = {
   [key: string]: string | null;
 };
+
+// Add type for multi-state selection
+type StateData = {
+  state: string;
+  data: ServiceData[];
+  totalCount: number;
+};
 // --- END NEW ---
 
 // Add this helper near the top (after imports)
@@ -705,6 +712,41 @@ export default function HistoricalRates() {
     // This can be implemented later if needed for filter options
   };
 
+  // Function to fetch data for multiple states
+  const fetchDataForStates = async (states: string[], filters: Record<string, string> = {}): Promise<StateData[]> => {
+    const stateDataResults: StateData[] = [];
+    
+    for (const state of states) {
+      setLoading(true);
+      setError(null);
+      try {
+        const params = new URLSearchParams();
+        Object.entries(filters).forEach(([key, value]) => {
+          if (value) params.append(key, value);
+        });
+        params.append('state_name', state);
+        
+        const url = `/api/state-payment-comparison?${params.toString()}`;
+        const response = await fetch(url);
+        const result = await response.json();
+        
+        if (result && Array.isArray(result.data)) {
+          stateDataResults.push({
+            state: state,
+            data: result.data,
+            totalCount: result.count || result.data.length
+          });
+        }
+      } catch (err) {
+        console.error(`Failed to fetch data for state ${state}:`, err);
+        // Continue with other states even if one fails
+      }
+    }
+    
+    setLoading(false);
+    return stateDataResults;
+  };
+
   const [authError, setAuthError] = useState<string | null>(null);
 
   // Authentication is now handled by useRequireSubscription hook
@@ -753,13 +795,17 @@ export default function HistoricalRates() {
     modifier_1: null,
   });
 
+  // Multi-state selection
+  const [selectedStates, setSelectedStates] = useState<string[]>([]);
+  const [stateData, setStateData] = useState<StateData[]>([]);
+
   // Lazy loading state for duration unit options with counts
   const [durationUnitOptionsWithCounts, setDurationUnitOptionsWithCounts] = useState<{ value: string; label: string }[]>([]);
   const [durationUnitCalculated, setDurationUnitCalculated] = useState(false);
   const [durationUnitCalculationKey, setDurationUnitCalculationKey] = useState('');
 
   // Update areFiltersApplied to use selections state
-  const areFiltersApplied = selections.service_category && selections.state_name && (selections.service_code || selections.service_description);
+  const areFiltersApplied = selections.service_category && selectedStates.length > 0 && (selections.service_code || selections.service_description);
 
   // Generic handler to update selections state
   const handleSelectionChange = (field: keyof Selections, value: string | null) => {
@@ -888,14 +934,14 @@ export default function HistoricalRates() {
 
   const filteredData = useMemo(() => {
     // Only show data after a search has been performed
-    if (!hasSearched || !selections.service_category || !selections.state_name || (!selections.service_code && !selections.service_description)) return [];
+    if (!hasSearched || !selections.service_category || selectedStates.length === 0 || (!selections.service_code && !selections.service_description)) return [];
 
     console.log('🏁 TABLE DATA SOURCE (filteredData) - Starting with raw data:', data.length, 'entries');
 
     // First get all matching entries
     const allMatchingEntries = data.filter(item => {
       if (selections.service_category && item.service_category !== selections.service_category) return false;
-      if (selections.state_name && item.state_name?.trim().toUpperCase() !== selections.state_name.trim().toUpperCase()) return false;
+      if (selectedStates.length > 0 && !selectedStates.some(state => item.state_name?.trim().toUpperCase() === state.trim().toUpperCase())) return false;
       if (selections.service_code && selections.service_code !== '-') {
         // Handle comma-separated service codes
         const selectedCodes = typeof selections.service_code === 'string' 
@@ -1018,7 +1064,7 @@ export default function HistoricalRates() {
     hasSearched,
     data,
     selections.service_category,
-    selections.state_name,
+    selectedStates,
     selections.service_code,
     selections.service_description,
     selections.program,
@@ -1754,22 +1800,45 @@ export default function HistoricalRates() {
                     </div>
                     {/* State */}
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">State</label>
+                      <label className="text-sm font-medium text-gray-700">State(s)</label>
                       <Select
                         instanceId="state_name_select"
                         options={availableStates.map((o: string) => ({ value: o, label: o }))}
-                        value={selections.state_name ? { value: selections.state_name, label: selections.state_name } : null}
-                        onChange={option => handleSelectionChange('state_name', option?.value || null)}
-                        placeholder="Select State"
+                        value={selectedStates.map(state => ({ value: state, label: state }))}
+                        onChange={options => {
+                          const newStates = options ? options.map(opt => opt.value) : [];
+                          setSelectedStates(newStates);
+                          // Update the legacy state_name for backward compatibility
+                          handleSelectionChange('state_name', newStates.length === 1 ? newStates[0] : null);
+                        }}
+                        placeholder="Select State(s)"
                         isClearable
+                        isMulti
                         isSearchable
                         filterOption={jumpToLetterFilterOption}
                         isDisabled={!selections.service_category || availableStates.length === 0}
                         className="react-select-container"
                         classNamePrefix="react-select"
                       />
-                      {selections.state_name && (
-                        <button onClick={() => handleSelectionChange('state_name', null)} className="text-xs text-blue-500 hover:underline mt-1">Clear</button>
+                      {selectedStates.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          <span className="text-xs text-gray-500">
+                            {selectedStates.length} state{selectedStates.length !== 1 ? 's' : ''} selected:
+                          </span>
+                          {selectedStates.map(state => (
+                            <button
+                              key={state}
+                              onClick={() => {
+                                const newStates = selectedStates.filter(s => s !== state);
+                                setSelectedStates(newStates);
+                                handleSelectionChange('state_name', newStates.length === 1 ? newStates[0] : null);
+                              }}
+                              className="text-xs text-blue-500 hover:text-red-500 hover:underline"
+                            >
+                              {state} ×
+                            </button>
+                          ))}
+                        </div>
                       )}
                     </div>
                     {/* Service Code */}
@@ -1783,7 +1852,7 @@ export default function HistoricalRates() {
                         placeholder="Select Service Code(s)"
                         isMulti
                         isClearable
-                        isDisabled={!selections.service_category || !selections.state_name || availableServiceCodes.length === 0}
+                        isDisabled={!selections.service_category || selectedStates.length === 0 || availableServiceCodes.length === 0}
                         className="react-select-container"
                         classNamePrefix="react-select"
                       />
@@ -1801,7 +1870,7 @@ export default function HistoricalRates() {
                         onChange={option => handleSelectionChange('service_description', option?.value || null)}
                         placeholder="Select Service Description"
                         isClearable
-                        isDisabled={!selections.service_category || !selections.state_name || availableServiceDescriptions.length === 0}
+                        isDisabled={!selections.service_category || selectedStates.length === 0 || availableServiceDescriptions.length === 0}
                         className="react-select-container"
                         classNamePrefix="react-select"
                       />
@@ -1822,7 +1891,7 @@ export default function HistoricalRates() {
                         isClearable
                         isSearchable
                         filterOption={jumpToLetterFilterOption}
-                        isDisabled={!selections.service_category || !selections.state_name || availablePrograms.length === 0}
+                        isDisabled={!selections.service_category || selectedStates.length === 0 || availablePrograms.length === 0}
                         className="react-select-container"
                         classNamePrefix="react-select"
                       />
@@ -1843,7 +1912,7 @@ export default function HistoricalRates() {
                         isClearable
                         isSearchable
                         filterOption={jumpToLetterFilterOption}
-                        isDisabled={!selections.service_category || !selections.state_name || availableLocationRegions.length === 0}
+                        isDisabled={!selections.service_category || selectedStates.length === 0 || availableLocationRegions.length === 0}
                         className="react-select-container"
                         classNamePrefix="react-select"
                       />
@@ -1864,7 +1933,7 @@ export default function HistoricalRates() {
                         isClearable
                         isSearchable
                         filterOption={jumpToLetterFilterOption}
-                        isDisabled={!selections.service_category || !selections.state_name || availableProviderTypes.length === 0}
+                        isDisabled={!selections.service_category || selectedStates.length === 0 || availableProviderTypes.length === 0}
                         className="react-select-container"
                         classNamePrefix="react-select"
                       />
@@ -1891,7 +1960,7 @@ export default function HistoricalRates() {
                         placeholder="Select Duration Unit"
                         isMulti
                         isClearable
-                        isDisabled={!selections.service_category || !selections.state_name || availableDurationUnits.length === 0}
+                        isDisabled={!selections.service_category || selectedStates.length === 0 || availableDurationUnits.length === 0}
                         className="react-select-container"
                         classNamePrefix="react-select"
                       />
@@ -1930,7 +1999,7 @@ export default function HistoricalRates() {
                         isClearable
                         isSearchable
                         filterOption={jumpToLetterFilterOption}
-                        isDisabled={!selections.service_category || !selections.state_name || availableModifiers.length === 0}
+                        isDisabled={!selections.service_category || selectedStates.length === 0 || availableModifiers.length === 0}
                         className="react-select-container"
                         classNamePrefix="react-select"
                       />
@@ -1943,11 +2012,10 @@ export default function HistoricalRates() {
                   <div className="mt-6 flex items-center justify-end space-x-4">
                     <button 
                       onClick={async () => {
-                        if (areFiltersApplied) {
+                        if (areFiltersApplied && selectedStates.length > 0) {
                           setHasSearched(true);
                           const filters: Record<string, string> = {};
                           if (selections.service_category) filters.service_category = selections.service_category;
-                          if (selections.state_name) filters.state_name = selections.state_name;
                           if (selections.service_code) filters.service_code = selections.service_code; // Already comma-separated from multi-select
                           if (selections.service_description) filters.service_description = selections.service_description;
                           if (selections.program) filters.program = selections.program;
@@ -1957,7 +2025,13 @@ export default function HistoricalRates() {
                           if (selections.modifier_1) filters.modifier_1 = selections.modifier_1;
                           filters.page = String(currentPage);
                           filters.itemsPerPage = String(itemsPerPage);
-                          await refreshData(filters);
+                          
+                          const results = await fetchDataForStates(selectedStates, filters);
+                          setStateData(results);
+                          
+                          // For backward compatibility, also update the main data state with combined data
+                          const combinedData = results.flatMap(result => result.data);
+                          setData(combinedData);
                         }
                       }}
                       disabled={!areFiltersApplied || loading} 
@@ -2158,16 +2232,26 @@ export default function HistoricalRates() {
               </div>
             )}
 
-            {areFiltersApplied && !loading && filteredData.length > 0 && (
-              <div className="overflow-hidden rounded-lg shadow-lg">
-                <div className="overflow-x-auto">
+            {/* Multi-State Tables */}
+            {areFiltersApplied && !loading && stateData.length > 0 && (
+              <div className="space-y-8">
+                {stateData.map((stateResult, stateIndex) => (
+                  <div key={stateResult.state} className="space-y-4">
+                    {/* State Header */}
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xl font-semibold text-gray-800 flex items-center">
+                        <span className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: colorPalette[stateIndex % colorPalette.length] }}></span>
+                        {stateResult.state} ({stateResult.totalCount} records)
+                      </h3>
+                    </div>
+                    
+                    {/* State Table */}
+                    <div className="overflow-hidden rounded-lg shadow-lg">
+                      <div className="overflow-x-auto">
                 <table className="min-w-full bg-white">
                   <thead className="bg-gray-50 sticky top-0">
                     <tr>
                       <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider"></th>
-                      {getVisibleColumns.state_name && (
-                        <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">State</th>
-                      )}
                       {getVisibleColumns.service_category && (
                         <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Service Category</th>
                       )}
@@ -2208,8 +2292,7 @@ export default function HistoricalRates() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                      {tableData.map((item, index) => {
-                        const entry = item as ServiceData;
+                      {stateResult.data.map((entry, index) => {
                         const isSelected = selectedEntries.some(selected => 
                           selected.state_name === entry.state_name &&
                           selected.service_category === entry.service_category &&
@@ -2256,7 +2339,7 @@ export default function HistoricalRates() {
 
                       return (
                         <tr 
-                          key={index} 
+                          key={`${stateResult.state}-${index}`} 
                           className={`group relative transition-all duration-200 ease-in-out cursor-pointer ${
                             isSelected 
                               ? 'shadow-[0_0_0_2px_rgba(0,0,0,0.1)] hover:scale-[1.01] hover:z-10' 
@@ -2376,11 +2459,6 @@ export default function HistoricalRates() {
                               )}
                             </div>
                           </td>
-                          {getVisibleColumns.state_name && (
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {STATE_ABBREVIATIONS[entry.state_name?.toUpperCase() || ""] || entry.state_name || '-'}
-                              </td>
-                          )}
                           {getVisibleColumns.service_category && (
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                 {SERVICE_CATEGORY_ABBREVIATIONS[entry.service_category?.trim().toUpperCase() || ""] || entry.service_category || '-'}
@@ -2445,19 +2523,14 @@ export default function HistoricalRates() {
                     })}
                   </tbody>
                 </table>
-                </div>
-                {totalCount > 0 && (
-                  <PaginationControls 
-                    currentPage={currentPage}
-                    setCurrentPage={setCurrentPage}
-                    totalCount={totalCount}
-                    itemsPerPage={itemsPerPage}
-                  />
-                )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
 
-            {areFiltersApplied && !selectedEntry && (
+            {areFiltersApplied && selectedEntries.length === 0 && (
               <div className="p-6 bg-white rounded-xl shadow-lg text-center">
                 <div className="flex justify-center items-center mb-4">
                   <FaChartLine className="h-8 w-8 text-blue-500" />
