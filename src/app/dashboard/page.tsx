@@ -1126,11 +1126,18 @@ export default function Dashboard() {
   const availableDurationUnits = getAvailableOptionsForFilter('duration_unit');
   const availableFeeScheduleDates = getAvailableOptionsForFilter('fee_schedule_date');
 
-  // Create duration unit options with state counts
-  const durationUnitOptionsWithCounts = useMemo(() => {
-    if (!filterOptionsData || !filterOptionsData.combinations || !availableDurationUnits.length) return [];
+  // Lazy loading for duration unit options with state counts
+  const [durationUnitOptionsWithCounts, setDurationUnitOptionsWithCounts] = useState<{ value: string; label: string }[]>([]);
+  const [durationUnitOptionsCalculated, setDurationUnitOptionsCalculated] = useState(false);
+
+  // Function to calculate duration unit options with state counts (only when needed)
+  const calculateDurationUnitOptionsWithCounts = useCallback(() => {
+    if (!filterOptionsData || !filterOptionsData.combinations || !availableDurationUnits.length) {
+      setDurationUnitOptionsWithCounts([]);
+      return;
+    }
     
-    return availableDurationUnits.map(durationUnit => {
+    const optionsWithCounts = availableDurationUnits.map(durationUnit => {
       // Count unique states for this duration unit based on current selections
       const stateCount = new Set(
         filterOptionsData.combinations
@@ -1166,7 +1173,22 @@ export default function Dashboard() {
         label: `${durationUnit} (${stateCount})`
       };
     });
+    
+    setDurationUnitOptionsWithCounts(optionsWithCounts);
+    setDurationUnitOptionsCalculated(true);
   }, [filterOptionsData, availableDurationUnits, selections]);
+
+  // Reset calculation flag when dependencies change
+  useEffect(() => {
+    setDurationUnitOptionsCalculated(false);
+  }, [filterOptionsData, availableDurationUnits, selections]);
+
+  // Handler for when duration unit dropdown is opened
+  const handleDurationUnitMenuOpen = useCallback(() => {
+    if (!durationUnitOptionsCalculated) {
+      calculateDurationUnitOptionsWithCounts();
+    }
+  }, [durationUnitOptionsCalculated, calculateDurationUnitOptionsWithCounts]);
   
   // Get modifiers from ALL modifier columns (modifier_1, modifier_2, modifier_3, modifier_4)
   const availableModifiers = useMemo(() => {
@@ -1652,13 +1674,17 @@ export default function Dashboard() {
                   </label>
                   <Select
                     instanceId="duration_unit_select"
-                    options={getDropdownOptions(durationUnitOptionsWithCounts, false)}
+                    options={getDropdownOptions(
+                      durationUnitOptionsCalculated ? durationUnitOptionsWithCounts : availableDurationUnits.map(unit => ({ value: unit, label: unit })),
+                      false
+                    )}
                     value={selections.duration_unit ? selections.duration_unit.split(',').map(d => {
                       const trimmedValue = d.trim();
                       const optionWithCount = durationUnitOptionsWithCounts.find(opt => opt.value === trimmedValue);
                       return optionWithCount || { value: trimmedValue, label: trimmedValue };
                     }) : null}
                     onChange={(options) => handleSelectionChange('duration_unit', options ? options.map(opt => opt.value).join(',') : null)}
+                    onMenuOpen={handleDurationUnitMenuOpen}
                     placeholder="Select Duration Unit"
                     isMulti
                     isClearable
