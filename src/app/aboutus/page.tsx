@@ -38,7 +38,7 @@ export default function AboutUs() {
           <div className="flex flex-col md:flex-row items-center md:space-x-12 mb-16 bg-gray-100 p-8 rounded-lg">
             <div className="flex-shrink-0">
               <Image
-                src="/images/greg.png"
+                src="/images/Greg Headshot.jpeg"
                 alt="Greg Nersessian"
                 width={350}
                 height={650}
