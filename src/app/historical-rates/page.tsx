@@ -798,6 +798,9 @@ export default function HistoricalRates() {
   // Multi-state selection
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [stateData, setStateData] = useState<StateData[]>([]);
+  
+  // Chart display options
+  const [showLabels, setShowLabels] = useState(false);
 
   // Lazy loading state for duration unit options with counts
   const [durationUnitOptionsWithCounts, setDurationUnitOptionsWithCounts] = useState<{ value: string; label: string }[]>([]);
@@ -2143,7 +2146,26 @@ export default function HistoricalRates() {
                       Each point represents a different effective date when the rate was updated.
                       <br />
                       <strong>📈 Extended Lines:</strong> Chart lines extend to today's date with dashed lines showing projected rates at the same level as the latest data point.
+                      <br />
+                      <strong>🔍 Overlap Handling:</strong> Use the legend to show/hide lines, hover for detailed tooltips, and zoom/pan for closer inspection of overlapping data.
                     </p>
+                  </div>
+                  
+                  {/* Chart Controls */}
+                  <div className="mb-4 flex flex-wrap gap-2 items-center">
+                    <button
+                      onClick={() => setShowLabels(!showLabels)}
+                      className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                        showLabels 
+                          ? 'bg-blue-500 text-white' 
+                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      }`}
+                    >
+                      {showLabels ? '🔢 Hide Labels' : '🔢 Show Labels'}
+                    </button>
+                    <span className="text-xs text-gray-500">
+                      💡 Tip: Use legend to toggle lines, zoom to inspect overlaps
+                    </span>
                   </div>
                   
                   <div className="w-full h-80">
@@ -2151,30 +2173,58 @@ export default function HistoricalRates() {
                       option={{
                         tooltip: {
                           trigger: 'axis',
-                          formatter: (params: any) => {
-                            const data = params[0].data;
-                            if (data.displayValue) {
-                              return data.displayValue;
+                          axisPointer: {
+                            type: 'cross',
+                            crossStyle: {
+                              color: '#999'
+                            },
+                            lineStyle: {
+                              color: '#999',
+                              width: 1,
+                              type: 'dashed'
                             }
-                            const rate = data.value ? `$${data.value.toFixed(2)}` : '-';
+                          },
+                          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                          borderColor: '#ccc',
+                          borderWidth: 1,
+                          textStyle: {
+                            color: '#fff'
+                          },
+                          formatter: (params: any) => {
+                            if (!params || params.length === 0) return '';
                             
-                            const modifiers = [
-                              data.modifier1 ? `${data.modifier1}${data.modifier1Details ? ` - ${data.modifier1Details}` : ''}` : null,
-                              data.modifier2 ? `${data.modifier2}${data.modifier2Details ? ` - ${data.modifier2Details}` : ''}` : null,
-                              data.modifier3 ? `${data.modifier3}${data.modifier3Details ? ` - ${data.modifier3Details}` : ''}` : null,
-                              data.modifier4 ? `${data.modifier4}${data.modifier4Details ? ` - ${data.modifier4Details}` : ''}` : null
-                            ].filter(Boolean).join('<br>');
+                            // Group by date to show all overlapping values
+                            const date = params[0].axisValue;
+                            let tooltipContent = `<div style="margin-bottom: 8px;"><b>📅 Date:</b> ${formatDate(date)}</div>`;
+                            
+                            params.forEach((param: any, index: number) => {
+                              const data = param.data;
+                              if (!data || data.value === null || data.value === undefined) return;
+                              
+                              const seriesName = param.seriesName;
+                              const rate = data.value ? `$${data.value.toFixed(2)}` : '-';
+                              const isExtended = data.isExtended ? ' (Projected)' : '';
+                              
+                              const modifiers = [
+                                data.modifier1 ? `${data.modifier1}${data.modifier1Details ? ` - ${data.modifier1Details}` : ''}` : null,
+                                data.modifier2 ? `${data.modifier2}${data.modifier2Details ? ` - ${data.modifier2Details}` : ''}` : null,
+                                data.modifier3 ? `${data.modifier3}${data.modifier3Details ? ` - ${data.modifier3Details}` : ''}` : null,
+                                data.modifier4 ? `${data.modifier4}${data.modifier4Details ? ` - ${data.modifier4Details}` : ''}` : null
+                              ].filter(Boolean).join('<br>');
 
-                            return `
-                              <b>State:</b> ${data.state || '-'}<br>
-                              <b>Service Code:</b> ${data.serviceCode || '-'}<br>
-                              <b>Program:</b> ${data.program || '-'}<br>
-                              <b>Location/Region:</b> ${data.locationRegion || '-'}<br>
-                              <b>${showRatePerHour ? 'Hourly Equivalent Rate' : 'Rate Per Base Unit'}:</b> ${rate}<br>
-                              <b>Duration Unit:</b> ${data.durationUnit || '-'}<br>
-                              <b>Effective Date:</b> ${formatDate(data.date) || '-'}<br>
-                              ${modifiers ? `<b>Modifiers:</b><br>${modifiers}` : ''}
-                            `;
+                              tooltipContent += `
+                                <div style="margin-bottom: 12px; padding: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; border-left: 3px solid ${param.color};">
+                                  <div style="color: ${param.color}; font-weight: bold; margin-bottom: 4px;">📊 ${seriesName}${isExtended}</div>
+                                  <div><b>Rate:</b> ${rate}</div>
+                                  <div><b>State:</b> ${data.state || '-'}</div>
+                                  <div><b>Service Code:</b> ${data.serviceCode || '-'}</div>
+                                  <div><b>Provider Type:</b> ${data.providerType || '-'}</div>
+                                  ${modifiers ? `<div><b>Modifiers:</b><br>${modifiers}</div>` : ''}
+                                </div>
+                              `;
+                            });
+                            
+                            return tooltipContent;
                           }
                         },
                         xAxis: {
@@ -2199,11 +2249,108 @@ export default function HistoricalRates() {
                             formatter: (value: number) => value.toFixed(2)
                           }
                         },
+                        legend: {
+                          show: true,
+                          top: 10,
+                          left: 'center',
+                          type: 'scroll',
+                          textStyle: {
+                            fontSize: 12,
+                            color: '#374151'
+                          },
+                          itemWidth: 25,
+                          itemHeight: 14,
+                          itemGap: 20,
+                          backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                          borderColor: '#ccc',
+                          borderWidth: 1,
+                          borderRadius: 5,
+                          padding: [10, 15],
+                          shadowBlur: 10,
+                          shadowColor: 'rgba(0, 0, 0, 0.1)',
+                          shadowOffsetX: 0,
+                          shadowOffsetY: 2,
+                          formatter: (name: string) => {
+                            // Truncate long names for better legend display
+                            return name.length > 30 ? name.substring(0, 30) + '...' : name;
+                          },
+                          selectedMode: 'single', // Allow selecting multiple series
+                          selector: [
+                            {
+                              type: 'all',
+                              title: 'All'
+                            },
+                            {
+                              type: 'inverse',
+                              title: 'Inverse'
+                            }
+                          ],
+                          selectorLabel: {
+                            color: '#374151',
+                            fontSize: 12
+                          },
+                          selectorPosition: 'end',
+                          selectorItemGap: 7,
+                          selectorButtonGap: 10
+                        },
+                        dataZoom: [
+                          {
+                            type: 'inside',
+                            start: 0,
+                            end: 100,
+                            zoomOnMouseWheel: true,
+                            moveOnMouseMove: true,
+                            moveOnMouseWheel: false
+                          },
+                          {
+                            type: 'slider',
+                            show: true,
+                            start: 0,
+                            end: 100,
+                            bottom: 30,
+                            height: 20,
+                            handleStyle: {
+                              color: '#3b82f6'
+                            },
+                            textStyle: {
+                              color: '#374151'
+                            }
+                          }
+                        ],
+                        brush: {
+                          toolbox: ['lineX', 'clear'],
+                          xAxisIndex: 0
+                        },
+                        toolbox: {
+                          show: true,
+                          right: 20,
+                          top: 20,
+                          feature: {
+                            dataZoom: {
+                              yAxisIndex: 'none',
+                              title: {
+                                zoom: 'Zoom',
+                                back: 'Reset Zoom'
+                              }
+                            },
+                            restore: {
+                              title: 'Reset'
+                            },
+                            saveAsImage: {
+                              title: 'Save as Image'
+                            }
+                          }
+                        },
                         series: getGraphData.series.map((seriesItem: any, index: number) => ({
                           data: seriesItem.data,
                           name: seriesItem.name,
-                            type: 'line',
-                            smooth: false,
+                          type: 'line',
+                          smooth: false,
+                          z: 10 - index, // Higher z-index for earlier series (they appear on top)
+                          emphasis: {
+                            focus: 'series',
+                            blurScope: 'coordinateSystem'
+                          },
                           itemStyle: {
                             color: (params: any) => {
                               // Use different color for extended points
@@ -2212,7 +2359,8 @@ export default function HistoricalRates() {
                           },
                           lineStyle: {
                             color: seriesItem.color,
-                            width: 2,
+                            width: 3, // Slightly thicker lines for better visibility
+                            opacity: 0.8,
                             type: (params: any) => {
                               // Use dashed line for extended portion
                               return params.dataIndex > 0 && seriesItem.data[params.dataIndex]?.isExtended ? 'dashed' : 'solid';
@@ -2220,11 +2368,14 @@ export default function HistoricalRates() {
                           },
                           symbol: 'circle',
                           symbolSize: (params: any) => {
-                            // Smaller symbol for extended points
-                            return params.data?.isExtended ? 4 : 6;
+                            // Smaller symbol for extended points, larger for better visibility
+                            return params.data?.isExtended ? 5 : 8;
                           },
+                          symbolKeepAspect: true,
+                          showSymbol: true,
+                          hoverAnimation: true,
                           label: {
-                            show: true,
+                            show: showLabels, // Toggle labels based on state
                             position: 'top',
                             formatter: (params: any) => {
                               if (params.data?.displayValue) {
@@ -2233,8 +2384,13 @@ export default function HistoricalRates() {
                               const prefix = params.data?.isExtended ? '→ ' : '';
                               return `${prefix}$${params.value.toFixed(2)}`;
                             },
-                            fontSize: 12,
-                            color: '#374151'
+                            fontSize: 10,
+                            color: '#374151',
+                            backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                            borderColor: '#ccc',
+                            borderWidth: 1,
+                            borderRadius: 3,
+                            padding: [2, 4]
                           }
                         })),
                         graphic: getGraphData.series.some((seriesItem: any) => seriesItem.data.some((data: any) => data.displayValue)) ? [
