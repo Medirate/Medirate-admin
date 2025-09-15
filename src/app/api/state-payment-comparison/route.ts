@@ -33,10 +33,8 @@ export async function GET(request: Request) {
     // Validate authentication
     const { getUser } = getKindeServerSession();
     const user = await getUser();
-    console.log('🔍 API - Auth debug - user object:', user ? 'exists' : 'null');
-    console.log('🔍 API - Auth debug - user email:', user?.email || 'no email');
     if (!user || !user.email) {
-      console.log('❌ API - Authentication failed - no user or email');
+      console.log('❌ API - Authentication failed');
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     console.log('✅ API - Authentication successful for user:', user.email);

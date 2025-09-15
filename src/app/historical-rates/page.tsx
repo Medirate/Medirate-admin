@@ -1320,30 +1320,30 @@ export default function HistoricalRates() {
 
     const filteredEntries = data.filter((item: ServiceData) => 
       selectedEntries.some(selectedEntry => 
-        item.state_name === selectedEntry.state_name &&
-        item.service_category === selectedEntry.service_category &&
-        (() => {
-          // Handle multiple service codes for chart filtering
-          if (selectedEntry.service_code && selectedEntry.service_code.includes(',')) {
-            const selectedCodes = selectedEntry.service_code.split(',').map(code => code.trim());
-            return selectedCodes.includes(item.service_code?.trim() || '');
-          } else {
-            return item.service_code === selectedEntry.service_code;
-          }
-        })() &&
-        item.service_description === selectedEntry.service_description &&
-        item.program === selectedEntry.program &&
-        item.location_region === selectedEntry.location_region &&
-        item.modifier_1 === selectedEntry.modifier_1 &&
-        item.modifier_1_details === selectedEntry.modifier_1_details &&
-        item.modifier_2 === selectedEntry.modifier_2 &&
-        item.modifier_2_details === selectedEntry.modifier_2_details &&
-        item.modifier_3 === selectedEntry.modifier_3 &&
-        item.modifier_3_details === selectedEntry.modifier_3_details &&
-        item.modifier_4 === selectedEntry.modifier_4 &&
-        item.modifier_4_details === selectedEntry.modifier_4_details &&
-        item.duration_unit === selectedEntry.duration_unit &&
-        item.provider_type === selectedEntry.provider_type
+      item.state_name === selectedEntry.state_name &&
+      item.service_category === selectedEntry.service_category &&
+      (() => {
+        // Handle multiple service codes for chart filtering
+        if (selectedEntry.service_code && selectedEntry.service_code.includes(',')) {
+          const selectedCodes = selectedEntry.service_code.split(',').map(code => code.trim());
+          return selectedCodes.includes(item.service_code?.trim() || '');
+        } else {
+          return item.service_code === selectedEntry.service_code;
+        }
+      })() &&
+      item.service_description === selectedEntry.service_description &&
+      item.program === selectedEntry.program &&
+      item.location_region === selectedEntry.location_region &&
+      item.modifier_1 === selectedEntry.modifier_1 &&
+      item.modifier_1_details === selectedEntry.modifier_1_details &&
+      item.modifier_2 === selectedEntry.modifier_2 &&
+      item.modifier_2_details === selectedEntry.modifier_2_details &&
+      item.modifier_3 === selectedEntry.modifier_3 &&
+      item.modifier_3_details === selectedEntry.modifier_3_details &&
+      item.modifier_4 === selectedEntry.modifier_4 &&
+      item.modifier_4_details === selectedEntry.modifier_4_details &&
+      item.duration_unit === selectedEntry.duration_unit &&
+      item.provider_type === selectedEntry.provider_type
       )
     );
     
@@ -1500,31 +1500,31 @@ export default function HistoricalRates() {
         
         allDates.add(date);
         
-        const rateValue = parseRate(entry.rate);
-        const durationUnit = entry.duration_unit?.toUpperCase();
-        let value = rateValue;
-        let displayValue: string | null = null;
+      const rateValue = parseRate(entry.rate);
+      const durationUnit = entry.duration_unit?.toUpperCase();
+      let value = rateValue;
+      let displayValue: string | null = null;
 
-        return {
-          value: displayValue ? null : value,
-          displayValue,
-          state: entry.state_name,
-          serviceCode: entry.service_code,
-          program: entry.program,
-          locationRegion: entry.location_region,
-          durationUnit: entry.duration_unit,
-          date: entry.rate_effective_date,
-          modifier1: entry.modifier_1,
-          modifier1Details: entry.modifier_1_details,
-          modifier2: entry.modifier_2,
-          modifier2Details: entry.modifier_2_details,
-          modifier3: entry.modifier_3,
-          modifier3Details: entry.modifier_3_details,
-          modifier4: entry.modifier_4,
-          modifier4Details: entry.modifier_4_details
-        };
-      });
-      
+      return {
+        value: displayValue ? null : value,
+        displayValue,
+        state: entry.state_name,
+        serviceCode: entry.service_code,
+        program: entry.program,
+        locationRegion: entry.location_region,
+        durationUnit: entry.duration_unit,
+        date: entry.rate_effective_date,
+        modifier1: entry.modifier_1,
+        modifier1Details: entry.modifier_1_details,
+        modifier2: entry.modifier_2,
+        modifier2Details: entry.modifier_2_details,
+        modifier3: entry.modifier_3,
+        modifier3Details: entry.modifier_3_details,
+        modifier4: entry.modifier_4,
+        modifier4Details: entry.modifier_4_details
+      };
+    });
+
       // Add extension to current date if there are data points
       if (seriesPoints.length > 0) {
         // Get the latest data point
@@ -2202,9 +2202,9 @@ export default function HistoricalRates() {
                         series: getGraphData.series.map((seriesItem: any, index: number) => ({
                           data: seriesItem.data,
                           name: seriesItem.name,
-                          type: 'line',
-                          smooth: false,
-                          itemStyle: {
+                            type: 'line',
+                            smooth: false,
+                            itemStyle: {
                             color: (params: any) => {
                               // Use different color for extended points
                               return params.data.isExtended ? seriesItem.color + '80' : seriesItem.color; // 80 = 50% opacity
@@ -2222,20 +2222,20 @@ export default function HistoricalRates() {
                           symbolSize: (params: any) => {
                             // Smaller symbol for extended points
                             return params.data.isExtended ? 4 : 6;
-                          },
-                          label: {
-                            show: true,
-                            position: 'top',
-                            formatter: (params: any) => {
-                              if (params.data.displayValue) {
-                                return params.data.displayValue;
-                              }
+                            },
+                            label: {
+                              show: true,
+                              position: 'top',
+                              formatter: (params: any) => {
+                                if (params.data.displayValue) {
+                                  return params.data.displayValue;
+                                }
                               const prefix = params.data.isExtended ? '→ ' : '';
                               return `${prefix}$${params.value.toFixed(2)}`;
-                            },
-                            fontSize: 12,
-                            color: '#374151'
-                          }
+                              },
+                              fontSize: 12,
+                              color: '#374151'
+                            }
                         })),
                         graphic: getGraphData.series.some((seriesItem: any) => seriesItem.data.some((data: any) => data.displayValue)) ? [
                           {
@@ -2303,8 +2303,8 @@ export default function HistoricalRates() {
                     </div>
                     
                     {/* State Table */}
-                    <div className="overflow-hidden rounded-lg shadow-lg">
-                      <div className="overflow-x-auto">
+              <div className="overflow-hidden rounded-lg shadow-lg">
+                <div className="overflow-x-auto">
                 <table className="min-w-full bg-white">
                   <thead className="bg-gray-50 sticky top-0">
                     <tr>
@@ -2457,9 +2457,9 @@ export default function HistoricalRates() {
                             <div className="flex items-center">
                               <div 
                                 className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${
-                                  isSelected 
+                                isSelected 
                                     ? 'shadow-[0_0_0_3px_rgba(0,0,0,0.2)]' 
-                                    : 'border-gray-300 group-hover:border-blue-300 group-hover:shadow-[0_0_0_2px_rgba(59,130,246,0.1)]'
+                                  : 'border-gray-300 group-hover:border-blue-300 group-hover:shadow-[0_0_0_2px_rgba(59,130,246,0.1)]'
                                 }`}
                                 style={isSelected && selectionColor ? { 
                                   backgroundColor: selectionColor, 
@@ -2580,7 +2580,7 @@ export default function HistoricalRates() {
                     })}
                   </tbody>
                 </table>
-                      </div>
+                </div>
                     </div>
                   </div>
                 ))}
