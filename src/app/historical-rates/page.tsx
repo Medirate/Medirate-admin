@@ -716,7 +716,22 @@ export default function HistoricalRates() {
 
   // Keep only the states that are still needed
   const [selectedEntry, setSelectedEntry] = useState<ServiceData | null>(null);
+  const [selectedEntries, setSelectedEntries] = useState<ServiceData[]>([]);
   const [showRatePerHour, setShowRatePerHour] = useState(false);
+
+  // Color palette for multi-selection
+  const colorPalette = [
+    '#3b82f6', // Blue
+    '#ef4444', // Red
+    '#10b981', // Green
+    '#f59e0b', // Yellow
+    '#8b5cf6', // Purple
+    '#06b6d4', // Cyan
+    '#f97316', // Orange
+    '#84cc16', // Lime
+    '#ec4899', // Pink
+    '#6b7280', // Gray
+  ];
   const [comment, setComment] = useState<string | null>(null);
   const [filterStep, setFilterStep] = useState(1);
   const [shouldExtractFilters, setShouldExtractFilters] = useState(false);
@@ -770,6 +785,106 @@ export default function HistoricalRates() {
     setData([]);
   };
 
+  // Function to add entry to multi-selection
+  const addToSelection = useCallback((entry: ServiceData) => {
+    setSelectedEntries(prev => {
+      // Check if entry already exists
+      const exists = prev.some(selected => 
+        selected.state_name === entry.state_name &&
+        selected.service_category === entry.service_category &&
+        selected.service_code === entry.service_code &&
+        selected.service_description === entry.service_description &&
+        selected.program === entry.program &&
+        selected.location_region === entry.location_region &&
+        selected.modifier_1 === entry.modifier_1 &&
+        selected.modifier_1_details === entry.modifier_1_details &&
+        selected.modifier_2 === entry.modifier_2 &&
+        selected.modifier_2_details === entry.modifier_2_details &&
+        selected.modifier_3 === entry.modifier_3 &&
+        selected.modifier_3_details === entry.modifier_3_details &&
+        selected.modifier_4 === entry.modifier_4 &&
+        selected.modifier_4_details === entry.modifier_4_details &&
+        selected.duration_unit === entry.duration_unit &&
+        selected.provider_type === entry.provider_type &&
+        selected.rate_effective_date === entry.rate_effective_date
+      );
+      
+      if (!exists && prev.length < colorPalette.length) {
+        return [...prev, entry];
+      }
+      return prev;
+    });
+  }, [colorPalette.length]);
+
+  // Function to remove entry from multi-selection
+  const removeFromSelection = useCallback((entry: ServiceData) => {
+    setSelectedEntries(prev => prev.filter(selected => 
+      !(selected.state_name === entry.state_name &&
+        selected.service_category === entry.service_category &&
+        selected.service_code === entry.service_code &&
+        selected.service_description === entry.service_description &&
+        selected.program === entry.program &&
+        selected.location_region === entry.location_region &&
+        selected.modifier_1 === entry.modifier_1 &&
+        selected.modifier_1_details === entry.modifier_1_details &&
+        selected.modifier_2 === entry.modifier_2 &&
+        selected.modifier_2_details === entry.modifier_2_details &&
+        selected.modifier_3 === entry.modifier_3 &&
+        selected.modifier_3_details === entry.modifier_3_details &&
+        selected.modifier_4 === entry.modifier_4 &&
+        selected.modifier_4_details === entry.modifier_4_details &&
+        selected.duration_unit === entry.duration_unit &&
+        selected.provider_type === entry.provider_type &&
+        selected.rate_effective_date === entry.rate_effective_date)
+    ));
+  }, []);
+
+  // Function to check if entry is in selection
+  const isInSelection = useCallback((entry: ServiceData) => {
+    return selectedEntries.some(selected => 
+      selected.state_name === entry.state_name &&
+      selected.service_category === entry.service_category &&
+      selected.service_code === entry.service_code &&
+      selected.service_description === entry.service_description &&
+      selected.program === entry.program &&
+      selected.location_region === entry.location_region &&
+      selected.modifier_1 === entry.modifier_1 &&
+      selected.modifier_1_details === entry.modifier_1_details &&
+      selected.modifier_2 === entry.modifier_2 &&
+      selected.modifier_2_details === entry.modifier_2_details &&
+      selected.modifier_3 === entry.modifier_3 &&
+      selected.modifier_3_details === entry.modifier_3_details &&
+      selected.modifier_4 === entry.modifier_4 &&
+      selected.modifier_4_details === entry.modifier_4_details &&
+      selected.duration_unit === entry.duration_unit &&
+      selected.provider_type === entry.provider_type &&
+      selected.rate_effective_date === entry.rate_effective_date
+    );
+  }, [selectedEntries]);
+
+  // Function to get color for an entry in selection
+  const getSelectionColor = useCallback((entry: ServiceData) => {
+    const index = selectedEntries.findIndex(selected => 
+      selected.state_name === entry.state_name &&
+      selected.service_category === entry.service_category &&
+      selected.service_code === entry.service_code &&
+      selected.service_description === entry.service_description &&
+      selected.program === entry.program &&
+      selected.location_region === entry.location_region &&
+      selected.modifier_1 === entry.modifier_1 &&
+      selected.modifier_1_details === entry.modifier_1_details &&
+      selected.modifier_2 === entry.modifier_2 &&
+      selected.modifier_2_details === entry.modifier_2_details &&
+      selected.modifier_3 === entry.modifier_3 &&
+      selected.modifier_3_details === entry.modifier_3_details &&
+      selected.modifier_4 === entry.modifier_4 &&
+      selected.modifier_4_details === entry.modifier_4_details &&
+      selected.duration_unit === entry.duration_unit &&
+      selected.provider_type === entry.provider_type &&
+      selected.rate_effective_date === entry.rate_effective_date
+    );
+    return index >= 0 ? colorPalette[index] : null;
+  }, [selectedEntries, colorPalette]);
 
   const filteredData = useMemo(() => {
     // Only show data after a search has been performed
@@ -1153,35 +1268,37 @@ export default function HistoricalRates() {
   };
 
   const getGraphData = useMemo(() => {
-    if (!selectedEntry) return { xAxis: [], series: [] };
+    if (selectedEntries.length === 0) return { xAxis: [], series: [] };
 
-    console.log('📊 CHART - Generating chart for:', selectedEntry.service_description, 'Rate:', selectedEntry.rate);
+    console.log('📊 CHART - Generating chart for', selectedEntries.length, 'selected entries');
 
     const filteredEntries = data.filter((item: ServiceData) => 
-      item.state_name === selectedEntry.state_name &&
-      item.service_category === selectedEntry.service_category &&
-      (() => {
-        // Handle multiple service codes for chart filtering
-        if (selectedEntry.service_code && selectedEntry.service_code.includes(',')) {
-          const selectedCodes = selectedEntry.service_code.split(',').map(code => code.trim());
-          return selectedCodes.includes(item.service_code?.trim() || '');
-        } else {
-          return item.service_code === selectedEntry.service_code;
-        }
-      })() &&
-      item.service_description === selectedEntry.service_description &&
-      item.program === selectedEntry.program &&
-      item.location_region === selectedEntry.location_region &&
-      item.modifier_1 === selectedEntry.modifier_1 &&
-      item.modifier_1_details === selectedEntry.modifier_1_details &&
-      item.modifier_2 === selectedEntry.modifier_2 &&
-      item.modifier_2_details === selectedEntry.modifier_2_details &&
-      item.modifier_3 === selectedEntry.modifier_3 &&
-      item.modifier_3_details === selectedEntry.modifier_3_details &&
-      item.modifier_4 === selectedEntry.modifier_4 &&
-      item.modifier_4_details === selectedEntry.modifier_4_details &&
-      item.duration_unit === selectedEntry.duration_unit &&
-      item.provider_type === selectedEntry.provider_type
+      selectedEntries.some(selectedEntry => 
+        item.state_name === selectedEntry.state_name &&
+        item.service_category === selectedEntry.service_category &&
+        (() => {
+          // Handle multiple service codes for chart filtering
+          if (selectedEntry.service_code && selectedEntry.service_code.includes(',')) {
+            const selectedCodes = selectedEntry.service_code.split(',').map(code => code.trim());
+            return selectedCodes.includes(item.service_code?.trim() || '');
+          } else {
+            return item.service_code === selectedEntry.service_code;
+          }
+        })() &&
+        item.service_description === selectedEntry.service_description &&
+        item.program === selectedEntry.program &&
+        item.location_region === selectedEntry.location_region &&
+        item.modifier_1 === selectedEntry.modifier_1 &&
+        item.modifier_1_details === selectedEntry.modifier_1_details &&
+        item.modifier_2 === selectedEntry.modifier_2 &&
+        item.modifier_2_details === selectedEntry.modifier_2_details &&
+        item.modifier_3 === selectedEntry.modifier_3 &&
+        item.modifier_3_details === selectedEntry.modifier_3_details &&
+        item.modifier_4 === selectedEntry.modifier_4 &&
+        item.modifier_4_details === selectedEntry.modifier_4_details &&
+        item.duration_unit === selectedEntry.duration_unit &&
+        item.provider_type === selectedEntry.provider_type
+      )
     );
     
     console.log('📊 CHART - Before initial sort, filtered entries:', filteredEntries.map(e => ({ 
@@ -1198,16 +1315,16 @@ export default function HistoricalRates() {
       return result;
     });
 
-    console.log('📊 CHART - Selected Entry for filtering:', {
-      service_description: selectedEntry.service_description,
-      rate: selectedEntry.rate,
-      date: selectedEntry.rate_effective_date,
-      program: selectedEntry.program,
-      location_region: selectedEntry.location_region,
-      modifier_1: selectedEntry.modifier_1,
-      provider_type: selectedEntry.provider_type,
-      duration_unit: selectedEntry.duration_unit
-    });
+    console.log('📊 CHART - Selected Entries for filtering:', selectedEntries.map(entry => ({
+      service_description: entry.service_description,
+      rate: entry.rate,
+      date: entry.rate_effective_date,
+      program: entry.program,
+      location_region: entry.location_region,
+      modifier_1: entry.modifier_1,
+      provider_type: entry.provider_type,
+      duration_unit: entry.duration_unit
+    })));
 
     console.log('📊 CHART - Found', entries.length, 'matching entries (before deduplication)');
     console.log('📊 CHART - All entries:', entries.map(e => ({ 
@@ -1276,51 +1393,108 @@ export default function HistoricalRates() {
       setDataQualityWarning(null);
     }
 
-    let xAxis = finalEntries.map(entry => entry.rate_effective_date);
-    let series = finalEntries.map(entry => {
-      const rateValue = parseRate(entry.rate);
-      const durationUnit = entry.duration_unit?.toUpperCase();
-      let value = rateValue;
-      let displayValue: string | null = null;
+    // Generate multiple series for each selected entry
+    const allDates = new Set<string>();
+    const seriesData: any[] = [];
+    
+    selectedEntries.forEach((selectedEntry, index) => {
+      const color = colorPalette[index % colorPalette.length];
+      
+      // Filter entries for this specific selected entry
+      const entriesForThisSelection = filteredEntries.filter((item: ServiceData) => 
+        item.state_name === selectedEntry.state_name &&
+        item.service_category === selectedEntry.service_category &&
+        (() => {
+          // Handle multiple service codes for chart filtering
+          if (selectedEntry.service_code && selectedEntry.service_code.includes(',')) {
+            const selectedCodes = selectedEntry.service_code.split(',').map(code => code.trim());
+            return selectedCodes.includes(item.service_code?.trim() || '');
+          } else {
+            return item.service_code === selectedEntry.service_code;
+          }
+        })() &&
+        item.service_description === selectedEntry.service_description &&
+        item.program === selectedEntry.program &&
+        item.location_region === selectedEntry.location_region &&
+        item.modifier_1 === selectedEntry.modifier_1 &&
+        item.modifier_1_details === selectedEntry.modifier_1_details &&
+        item.modifier_2 === selectedEntry.modifier_2 &&
+        item.modifier_2_details === selectedEntry.modifier_2_details &&
+        item.modifier_3 === selectedEntry.modifier_3 &&
+        item.modifier_3_details === selectedEntry.modifier_3_details &&
+        item.modifier_4 === selectedEntry.modifier_4 &&
+        item.modifier_4_details === selectedEntry.modifier_4_details &&
+        item.duration_unit === selectedEntry.duration_unit &&
+        item.provider_type === selectedEntry.provider_type
+      );
+      
+      // Sort entries by date
+      const sortedEntries = entriesForThisSelection.sort((a, b) => {
+        const dateA = parseDateString(a.rate_effective_date);
+        const dateB = parseDateString(b.rate_effective_date);
+        return dateA.getTime() - dateB.getTime();
+      });
+      
+      // Group by date and handle duplicates
+      const entriesByDate = sortedEntries.reduce((acc, entry) => {
+        const date = entry.rate_effective_date;
+        if (!acc[date]) {
+          acc[date] = [];
+        }
+        acc[date].push(entry);
+        return acc;
+      }, {} as Record<string, ServiceData[]>);
+      
+      // Create series data for this selection
+      const seriesPoints = Object.entries(entriesByDate).map(([date, entries]) => {
+        // Use the entry with the highest rate if there are duplicates
+        const entry = entries.reduce((max, current) => 
+          parseRate(current.rate) > parseRate(max.rate) ? current : max
+        );
+        
+        allDates.add(date);
+        
+        const rateValue = parseRate(entry.rate);
+        const durationUnit = entry.duration_unit?.toUpperCase();
+        let value = rateValue;
+        let displayValue: string | null = null;
 
-      // Use actual rate value without any conversion
-
-      return {
-        value: displayValue ? null : value,
-        displayValue,
-        state: entry.state_name,
-        serviceCode: entry.service_code,
-        program: entry.program,
-        locationRegion: entry.location_region,
-        durationUnit: entry.duration_unit,
-        date: entry.rate_effective_date,
-        modifier1: entry.modifier_1,
-        modifier1Details: entry.modifier_1_details,
-        modifier2: entry.modifier_2,
-        modifier2Details: entry.modifier_2_details,
-        modifier3: entry.modifier_3,
-        modifier3Details: entry.modifier_3_details,
-        modifier4: entry.modifier_4,
-        modifier4Details: entry.modifier_4_details
-      };
+        return {
+          value: displayValue ? null : value,
+          displayValue,
+          state: entry.state_name,
+          serviceCode: entry.service_code,
+          program: entry.program,
+          locationRegion: entry.location_region,
+          durationUnit: entry.duration_unit,
+          date: entry.rate_effective_date,
+          modifier1: entry.modifier_1,
+          modifier1Details: entry.modifier_1_details,
+          modifier2: entry.modifier_2,
+          modifier2Details: entry.modifier_2_details,
+          modifier3: entry.modifier_3,
+          modifier3Details: entry.modifier_3_details,
+          modifier4: entry.modifier_4,
+          modifier4Details: entry.modifier_4_details
+        };
+      });
+      
+      seriesData.push({
+        data: seriesPoints,
+        color: color,
+        name: `${selectedEntry.state_name} - ${selectedEntry.service_description || selectedEntry.service_code}`
+      });
+    });
+    
+    // Create xAxis from all unique dates
+    const xAxis = Array.from(allDates).sort((a, b) => {
+      const dateA = parseDateString(a);
+      const dateB = parseDateString(b);
+      return dateA.getTime() - dateB.getTime();
     });
 
-    // Add a point for today if latest date is not today (ignore time)
-    if (series.length > 0) {
-      const latestDate = parseDateString(xAxis[xAxis.length - 1]);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const todayStr = `${today.getMonth() + 1}/${today.getDate()}/${today.getFullYear()}`;
-      // Only add if the latest date string is not today's string (MM/DD/YYYY)
-      if (formatDate(xAxis[xAxis.length - 1]) !== todayStr) {
-        xAxis = [...xAxis, todayStr];
-        const last = series[series.length - 1];
-        series = [...series, { ...last, date: todayStr }];
-      }
-    }
-
-    return { xAxis, series };
-  }, [selectedEntry, data, showRatePerHour]);
+    return { xAxis, series: seriesData };
+  }, [selectedEntries, data, showRatePerHour, colorPalette]);
 
   // Derived loading state for service code options
   const serviceCodeOptionsLoading =
@@ -1810,8 +1984,35 @@ export default function HistoricalRates() {
               </div>
             )}
 
-            {selectedEntry && (
+             {selectedEntries.length > 0 && (
               <>
+                <div className="mb-4 flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm text-gray-600">
+                      {selectedEntries.length} item{selectedEntries.length !== 1 ? 's' : ''} selected
+                    </span>
+                    {selectedEntries.map((entry, index) => {
+                      const color = colorPalette[index % colorPalette.length];
+                      return (
+                        <div key={index} className="flex items-center space-x-1">
+                          <div 
+                            className="w-3 h-3 rounded-full border"
+                            style={{ backgroundColor: color, borderColor: color }}
+                          ></div>
+                          <span className="text-xs text-gray-500">
+                            {entry.state_name} - {entry.service_description || entry.service_code}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <button
+                    onClick={() => setSelectedEntries([])}
+                    className="px-3 py-1 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
+                  >
+                    Clear All
+                  </button>
+                </div>
                 {comment && (
                   <div className="bg-blue-50 p-4 rounded-lg mb-4 border border-blue-200">
                     <p className="text-sm text-blue-700">
@@ -1826,7 +2027,7 @@ export default function HistoricalRates() {
                   {/* Helpful explanation */}
                   <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                     <p className="text-sm text-blue-700">
-                      <strong>📊 Chart Explanation:</strong> This chart shows how the rate for <strong>"{selectedEntry.service_description}"</strong> has changed over time. 
+                      <strong>📊 Chart Explanation:</strong> This chart shows how the rates for the selected items have changed over time. 
                       Each point represents a different effective date when the rate was updated.
                     </p>
                   </div>
@@ -1884,35 +2085,34 @@ export default function HistoricalRates() {
                             formatter: (value: number) => value.toFixed(2)
                           }
                         },
-                        series: [
-                          {
-                            data: getGraphData.series,
-                            type: 'line',
-                            smooth: false,
-                            itemStyle: {
-                              color: showRatePerHour ? '#ef4444' : '#3b82f6'
+                        series: getGraphData.series.map((seriesItem: any, index: number) => ({
+                          data: seriesItem.data,
+                          name: seriesItem.name,
+                          type: 'line',
+                          smooth: false,
+                          itemStyle: {
+                            color: seriesItem.color
+                          },
+                          label: {
+                            show: true,
+                            position: 'top',
+                            formatter: (params: any) => {
+                              if (params.data.displayValue) {
+                                return params.data.displayValue;
+                              }
+                              return `$${params.value.toFixed(2)}`;
                             },
-                            label: {
-                              show: true,
-                              position: 'top',
-                              formatter: (params: any) => {
-                                if (params.data.displayValue) {
-                                  return params.data.displayValue;
-                                }
-                                return `$${params.value.toFixed(2)}`;
-                              },
-                              fontSize: 12,
-                              color: '#374151'
-                            }
+                            fontSize: 12,
+                            color: '#374151'
                           }
-                        ],
-                        graphic: getGraphData.series.some(data => data.displayValue) ? [
+                        })),
+                        graphic: getGraphData.series.some((seriesItem: any) => seriesItem.data.some((data: any) => data.displayValue)) ? [
                           {
                             type: 'text',
                             left: 'center',
                             top: 'middle',
                             style: {
-                              text: `Hourly equivalent rates not available as the duration unit is "${getGraphData.series.find(data => data.displayValue)?.durationUnit || 'Unknown'}"`,
+                              text: `Hourly equivalent rates not available as the duration unit is "${getGraphData.series.find((seriesItem: any) => seriesItem.data.some((data: any) => data.displayValue))?.data.find((data: any) => data.displayValue)?.durationUnit || 'Unknown'}"`,
                               fontSize: 16,
                               fontWeight: 'bold',
                               fill: '#666'
@@ -2010,25 +2210,8 @@ export default function HistoricalRates() {
                   <tbody className="divide-y divide-gray-200">
                       {tableData.map((item, index) => {
                         const entry = item as ServiceData;
-                        const isSelected =
-                          selectedEntry &&
-                          selectedEntry.state_name === entry.state_name &&
-                          selectedEntry.service_category === entry.service_category &&
-                          selectedEntry.service_code === entry.service_code &&
-                          selectedEntry.service_description === entry.service_description &&
-                          selectedEntry.program === entry.program &&
-                          selectedEntry.location_region === entry.location_region &&
-                          selectedEntry.modifier_1 === entry.modifier_1 &&
-                          selectedEntry.modifier_1_details === entry.modifier_1_details &&
-                          selectedEntry.modifier_2 === entry.modifier_2 &&
-                          selectedEntry.modifier_2_details === entry.modifier_2_details &&
-                          selectedEntry.modifier_3 === entry.modifier_3 &&
-                          selectedEntry.modifier_3_details === entry.modifier_3_details &&
-                          selectedEntry.modifier_4 === entry.modifier_4 &&
-                          selectedEntry.modifier_4_details === entry.modifier_4_details &&
-                          selectedEntry.duration_unit === entry.duration_unit &&
-                          selectedEntry.provider_type === entry.provider_type &&
-                          selectedEntry.rate_effective_date === entry.rate_effective_date;
+                        const isSelected = isInSelection(entry);
+                        const selectionColor = getSelectionColor(entry);
 
                         const rateValue = parseRate(entry.rate);
                         const durationUnit = entry.duration_unit?.toUpperCase();
@@ -2039,18 +2222,31 @@ export default function HistoricalRates() {
                           key={index} 
                           className={`group relative transition-all duration-200 ease-in-out cursor-pointer ${
                             isSelected 
-                              ? 'bg-blue-50 shadow-[0_0_0_1px_rgba(59,130,246,0.2)]' 
+                              ? 'shadow-[0_0_0_2px_rgba(0,0,0,0.1)] hover:scale-[1.01] hover:z-10' 
                               : 'hover:bg-gray-50 hover:shadow-[0_2px_4px_rgba(0,0,0,0.05)] hover:scale-[1.01] hover:z-10'
                           }`}
-                          onClick={() => setSelectedEntry(entry)}
+                          style={isSelected && selectionColor ? { backgroundColor: `${selectionColor}20`, borderLeft: `4px solid ${selectionColor}` } : {}}
+                          onClick={() => {
+                            if (isInSelection(entry)) {
+                              removeFromSelection(entry);
+                            } else {
+                              addToSelection(entry);
+                            }
+                          }}
                         >
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">
-                              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${
-                                isSelected 
-                                  ? 'border-blue-500 bg-blue-500 shadow-[0_0_0_3px_rgba(59,130,246,0.2)]' 
-                                  : 'border-gray-300 group-hover:border-blue-300 group-hover:shadow-[0_0_0_2px_rgba(59,130,246,0.1)]'
-                              }`}>
+                              <div 
+                                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${
+                                  isSelected 
+                                    ? 'shadow-[0_0_0_3px_rgba(0,0,0,0.2)]' 
+                                    : 'border-gray-300 group-hover:border-blue-300 group-hover:shadow-[0_0_0_2px_rgba(59,130,246,0.1)]'
+                                }`}
+                                style={isSelected && selectionColor ? { 
+                                  backgroundColor: selectionColor, 
+                                  borderColor: selectionColor 
+                                } : {}}
+                              >
                                 {isSelected && (
                                   <svg 
                                     className="w-3 h-3 text-white transition-transform duration-200" 
@@ -2069,7 +2265,7 @@ export default function HistoricalRates() {
                               </div>
                               {isSelected && (
                                 <button
-                                  onClick={e => { e.stopPropagation(); setSelectedEntry(null); }}
+                                  onClick={e => { e.stopPropagation(); removeFromSelection(entry); }}
                                   className="ml-2 text-gray-400 hover:text-red-500 transition-colors duration-200"
                                   title="Deselect"
                                 >
