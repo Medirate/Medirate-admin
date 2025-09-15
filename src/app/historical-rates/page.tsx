@@ -719,8 +719,8 @@ export default function HistoricalRates() {
   const [selectedEntries, setSelectedEntries] = useState<ServiceData[]>([]);
   const [showRatePerHour, setShowRatePerHour] = useState(false);
 
-  // Color palette for multi-selection
-  const colorPalette = [
+  // Color palette for multi-selection - memoized to prevent re-renders
+  const colorPalette = useMemo(() => [
     '#3b82f6', // Blue
     '#ef4444', // Red
     '#10b981', // Green
@@ -731,7 +731,7 @@ export default function HistoricalRates() {
     '#84cc16', // Lime
     '#ec4899', // Pink
     '#6b7280', // Gray
-  ];
+  ], []);
   const [comment, setComment] = useState<string | null>(null);
   const [filterStep, setFilterStep] = useState(1);
   const [shouldExtractFilters, setShouldExtractFilters] = useState(false);
@@ -2210,8 +2210,45 @@ export default function HistoricalRates() {
                   <tbody className="divide-y divide-gray-200">
                       {tableData.map((item, index) => {
                         const entry = item as ServiceData;
-                        const isSelected = isInSelection(entry);
-                        const selectionColor = getSelectionColor(entry);
+                        const isSelected = selectedEntries.some(selected => 
+                          selected.state_name === entry.state_name &&
+                          selected.service_category === entry.service_category &&
+                          selected.service_code === entry.service_code &&
+                          selected.service_description === entry.service_description &&
+                          selected.program === entry.program &&
+                          selected.location_region === entry.location_region &&
+                          selected.modifier_1 === entry.modifier_1 &&
+                          selected.modifier_1_details === entry.modifier_1_details &&
+                          selected.modifier_2 === entry.modifier_2 &&
+                          selected.modifier_2_details === entry.modifier_2_details &&
+                          selected.modifier_3 === entry.modifier_3 &&
+                          selected.modifier_3_details === entry.modifier_3_details &&
+                          selected.modifier_4 === entry.modifier_4 &&
+                          selected.modifier_4_details === entry.modifier_4_details &&
+                          selected.duration_unit === entry.duration_unit &&
+                          selected.provider_type === entry.provider_type &&
+                          selected.rate_effective_date === entry.rate_effective_date
+                        );
+                        const selectionIndex = selectedEntries.findIndex(selected => 
+                          selected.state_name === entry.state_name &&
+                          selected.service_category === entry.service_category &&
+                          selected.service_code === entry.service_code &&
+                          selected.service_description === entry.service_description &&
+                          selected.program === entry.program &&
+                          selected.location_region === entry.location_region &&
+                          selected.modifier_1 === entry.modifier_1 &&
+                          selected.modifier_1_details === entry.modifier_1_details &&
+                          selected.modifier_2 === entry.modifier_2 &&
+                          selected.modifier_2_details === entry.modifier_2_details &&
+                          selected.modifier_3 === entry.modifier_3 &&
+                          selected.modifier_3_details === entry.modifier_3_details &&
+                          selected.modifier_4 === entry.modifier_4 &&
+                          selected.modifier_4_details === entry.modifier_4_details &&
+                          selected.duration_unit === entry.duration_unit &&
+                          selected.provider_type === entry.provider_type &&
+                          selected.rate_effective_date === entry.rate_effective_date
+                        );
+                        const selectionColor = selectionIndex >= 0 ? colorPalette[selectionIndex] : null;
 
                         const rateValue = parseRate(entry.rate);
                         const durationUnit = entry.duration_unit?.toUpperCase();
@@ -2227,10 +2264,52 @@ export default function HistoricalRates() {
                           }`}
                           style={isSelected && selectionColor ? { backgroundColor: `${selectionColor}20`, borderLeft: `4px solid ${selectionColor}` } : {}}
                           onClick={() => {
-                            if (isInSelection(entry)) {
-                              removeFromSelection(entry);
+                            if (isSelected) {
+                              setSelectedEntries(prev => prev.filter(selected => 
+                                !(selected.state_name === entry.state_name &&
+                                  selected.service_category === entry.service_category &&
+                                  selected.service_code === entry.service_code &&
+                                  selected.service_description === entry.service_description &&
+                                  selected.program === entry.program &&
+                                  selected.location_region === entry.location_region &&
+                                  selected.modifier_1 === entry.modifier_1 &&
+                                  selected.modifier_1_details === entry.modifier_1_details &&
+                                  selected.modifier_2 === entry.modifier_2 &&
+                                  selected.modifier_2_details === entry.modifier_2_details &&
+                                  selected.modifier_3 === entry.modifier_3 &&
+                                  selected.modifier_3_details === entry.modifier_3_details &&
+                                  selected.modifier_4 === entry.modifier_4 &&
+                                  selected.modifier_4_details === entry.modifier_4_details &&
+                                  selected.duration_unit === entry.duration_unit &&
+                                  selected.provider_type === entry.provider_type &&
+                                  selected.rate_effective_date === entry.rate_effective_date)
+                              ));
                             } else {
-                              addToSelection(entry);
+                              setSelectedEntries(prev => {
+                                const exists = prev.some(selected => 
+                                  selected.state_name === entry.state_name &&
+                                  selected.service_category === entry.service_category &&
+                                  selected.service_code === entry.service_code &&
+                                  selected.service_description === entry.service_description &&
+                                  selected.program === entry.program &&
+                                  selected.location_region === entry.location_region &&
+                                  selected.modifier_1 === entry.modifier_1 &&
+                                  selected.modifier_1_details === entry.modifier_1_details &&
+                                  selected.modifier_2 === entry.modifier_2 &&
+                                  selected.modifier_2_details === entry.modifier_2_details &&
+                                  selected.modifier_3 === entry.modifier_3 &&
+                                  selected.modifier_3_details === entry.modifier_3_details &&
+                                  selected.modifier_4 === entry.modifier_4 &&
+                                  selected.modifier_4_details === entry.modifier_4_details &&
+                                  selected.duration_unit === entry.duration_unit &&
+                                  selected.provider_type === entry.provider_type &&
+                                  selected.rate_effective_date === entry.rate_effective_date
+                                );
+                                if (!exists && prev.length < colorPalette.length) {
+                                  return [...prev, entry];
+                                }
+                                return prev;
+                              });
                             }
                           }}
                         >
@@ -2265,7 +2344,28 @@ export default function HistoricalRates() {
                               </div>
                               {isSelected && (
                                 <button
-                                  onClick={e => { e.stopPropagation(); removeFromSelection(entry); }}
+                                  onClick={e => { 
+                                    e.stopPropagation(); 
+                                    setSelectedEntries(prev => prev.filter(selected => 
+                                      !(selected.state_name === entry.state_name &&
+                                        selected.service_category === entry.service_category &&
+                                        selected.service_code === entry.service_code &&
+                                        selected.service_description === entry.service_description &&
+                                        selected.program === entry.program &&
+                                        selected.location_region === entry.location_region &&
+                                        selected.modifier_1 === entry.modifier_1 &&
+                                        selected.modifier_1_details === entry.modifier_1_details &&
+                                        selected.modifier_2 === entry.modifier_2 &&
+                                        selected.modifier_2_details === entry.modifier_2_details &&
+                                        selected.modifier_3 === entry.modifier_3 &&
+                                        selected.modifier_3_details === entry.modifier_3_details &&
+                                        selected.modifier_4 === entry.modifier_4 &&
+                                        selected.modifier_4_details === entry.modifier_4_details &&
+                                        selected.duration_unit === entry.duration_unit &&
+                                        selected.provider_type === entry.provider_type &&
+                                        selected.rate_effective_date === entry.rate_effective_date)
+                                    )); 
+                                  }}
                                   className="ml-2 text-gray-400 hover:text-red-500 transition-colors duration-200"
                                   title="Deselect"
                                 >
