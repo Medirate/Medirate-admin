@@ -1525,6 +1525,44 @@ export default function HistoricalRates() {
         };
       });
       
+      // Add extension to current date if there are data points
+      if (seriesPoints.length > 0) {
+        // Get the latest data point
+        const latestPoint = seriesPoints[seriesPoints.length - 1];
+        const latestDate = parseDateString(latestPoint.date);
+        const currentDate = new Date();
+        
+        // Only extend if the latest date is not today
+        if (latestDate.toDateString() !== currentDate.toDateString()) {
+          // Format current date to match the data format
+          const currentDateStr = currentDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+          
+          // Add extension point to current date with same rate as latest point
+          seriesPoints.push({
+            value: latestPoint.value,
+            displayValue: latestPoint.displayValue,
+            state: latestPoint.state,
+            serviceCode: latestPoint.serviceCode,
+            program: latestPoint.program,
+            locationRegion: latestPoint.locationRegion,
+            durationUnit: latestPoint.durationUnit,
+            date: currentDateStr,
+            modifier1: latestPoint.modifier1,
+            modifier1Details: latestPoint.modifier1Details,
+            modifier2: latestPoint.modifier2,
+            modifier2Details: latestPoint.modifier2Details,
+            modifier3: latestPoint.modifier3,
+            modifier3Details: latestPoint.modifier3Details,
+            modifier4: latestPoint.modifier4,
+            modifier4Details: latestPoint.modifier4Details,
+            isExtended: true // Mark this as an extended point
+          } as any);
+          
+          // Add current date to all dates set
+          allDates.add(currentDateStr);
+        }
+      }
+
       seriesData.push({
         data: seriesPoints,
         color: color,
@@ -2103,6 +2141,8 @@ export default function HistoricalRates() {
                     <p className="text-sm text-blue-700">
                       <strong>📊 Chart Explanation:</strong> This chart shows how the rates for the selected items have changed over time. 
                       Each point represents a different effective date when the rate was updated.
+                      <br />
+                      <strong>📈 Extended Lines:</strong> Chart lines extend to today's date with dashed lines showing projected rates at the same level as the latest data point.
                     </p>
                   </div>
                   
@@ -2165,7 +2205,23 @@ export default function HistoricalRates() {
                           type: 'line',
                           smooth: false,
                           itemStyle: {
-                            color: seriesItem.color
+                            color: (params: any) => {
+                              // Use different color for extended points
+                              return params.data.isExtended ? seriesItem.color + '80' : seriesItem.color; // 80 = 50% opacity
+                            }
+                          },
+                          lineStyle: {
+                            color: seriesItem.color,
+                            width: 2,
+                            type: (params: any) => {
+                              // Use dashed line for extended portion
+                              return params.dataIndex > 0 && seriesItem.data[params.dataIndex]?.isExtended ? 'dashed' : 'solid';
+                            }
+                          },
+                          symbol: 'circle',
+                          symbolSize: (params: any) => {
+                            // Smaller symbol for extended points
+                            return params.data.isExtended ? 4 : 6;
                           },
                           label: {
                             show: true,
@@ -2174,7 +2230,8 @@ export default function HistoricalRates() {
                               if (params.data.displayValue) {
                                 return params.data.displayValue;
                               }
-                              return `$${params.value.toFixed(2)}`;
+                              const prefix = params.data.isExtended ? '→ ' : '';
+                              return `${prefix}$${params.value.toFixed(2)}`;
                             },
                             fontSize: 12,
                             color: '#374151'
