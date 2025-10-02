@@ -1,21 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import Navbar from "./components/Navbar";
-import RightClickProtection from "./components/RightClickProtection";
-import DebugMode from "./components/DebugMode";
-import { AuthProvider } from "@/context/AuthContext";
 import "./globals.css";
 import { cn } from "./lib/utils";
-
-// Suppress all console output in production
-if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'development') {
-  for (const method of ['log', 'warn', 'error', 'info', 'debug']) {
-    // @ts-ignore
-    console[method] = () => {};
-  }
-}
-
-
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Medirate",
-  description: "Healthcare rate developments and legislative updates",
+  title: "MediRate Admin",
+  description: "MediRate Administration Dashboard",
 };
 
 export const viewport: Viewport = {
@@ -52,12 +38,7 @@ export default function RootLayout({
           geistMono.variable
         )}
       >
-        <AuthProvider>
-          {/* <RightClickProtection /> - Disabled to allow all clicks */}
-          <DebugMode />
-          <Navbar />
-          {children}
-        </AuthProvider>
+        {children}
       </body>
     </html>
   );
