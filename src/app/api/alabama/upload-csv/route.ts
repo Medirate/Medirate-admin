@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServiceRole } from '../../../../lib/supabase';
 
+// Import the shared progress tracker
+import { progressMap } from '../../../../lib/progress-tracker';
+
 // Helper function to update progress
 async function updateProgress(uploadId: string, progress: number, message: string, status: 'uploading' | 'completed' | 'error') {
   try {
-    await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/alabama/upload-progress`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uploadId, progress, message, status })
-    });
+    // Directly update the progress map instead of making HTTP request
+    progressMap.set(uploadId, { progress, message, status });
+    console.log(`📊 Progress updated: ${progress}% - ${message}`);
   } catch (error) {
     console.error('Failed to update progress:', error);
   }

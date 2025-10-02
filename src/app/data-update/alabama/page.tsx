@@ -53,8 +53,9 @@ export default function StateDataUpdatePage() {
             const progressResponse = await fetch(`/api/alabama/upload-progress?id=${result.uploadId}`);
             const progressData = await progressResponse.json();
             
-            setUploadProgress(progressData.progress);
-            setUploadStatus(progressData.message);
+            console.log('📊 Progress data received:', progressData);
+            setUploadProgress(progressData.progress || 0);
+            setUploadStatus(progressData.message || 'Processing...');
             
             if (progressData.status === 'completed') {
               setUploadMessage(`✅ Successfully uploaded ${result.recordCount} records to development table`);
@@ -258,12 +259,12 @@ export default function StateDataUpdatePage() {
                 <div className="mb-6 space-y-2">
                   <div className="flex justify-between text-sm text-gray-600">
                     <span className="font-medium">{uploadStatus}</span>
-                    <span className="font-semibold">{Math.round(uploadProgress)}%</span>
+                    <span className="font-semibold">{Math.round(uploadProgress || 0)}%</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-3">
                     <div 
                       className="bg-blue-600 h-3 rounded-full transition-all duration-300 ease-out"
-                      style={{ width: `${uploadProgress}%` }}
+                      style={{ width: `${uploadProgress || 0}%` }}
                     ></div>
                   </div>
                 </div>
