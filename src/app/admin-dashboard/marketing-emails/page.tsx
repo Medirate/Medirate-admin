@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
+// Removed Kinde authentication - admin-only site
 import AppLayout from "@/app/components/applayout";
 import EChartsWrapper from "@/components/EChartsWrapper";
 import type { EChartsOption } from "echarts";
@@ -46,7 +46,8 @@ interface EmailAnalytics {
 }
 
 export default function MarketingEmailsAdminPage() {
-  const { user } = useKindeBrowserClient();
+  // Admin-only site - no authentication needed
+  const user = { email: "admin@medirate.com", id: "admin" };
   const [testEmailList, setTestEmailList] = useState<EmailRow[]>([]);
   const [marketingEmailList, setMarketingEmailList] = useState<EmailRow[]>([]);
   const [emailTemplate, setEmailTemplate] = useState<string>("");

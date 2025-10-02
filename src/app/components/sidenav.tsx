@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
+// Removed Kinde authentication - admin-only site
 import {
   Menu,
   X,
@@ -47,7 +47,8 @@ const SideNav = ({
 }: SideNavProps) => {
   const pathname = usePathname();
   const [isClientSide, setIsClientSide] = useState(false);
-  const { user } = useKindeBrowserClient();
+  // Admin-only site - no authentication needed
+  const user = { email: "admin@medirate.com", id: "admin" };
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminCheckComplete, setAdminCheckComplete] = useState(false);
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);

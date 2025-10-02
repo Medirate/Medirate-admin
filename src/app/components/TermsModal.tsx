@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import Modal from './modal';
-import { useKindeBrowserClient } from '@kinde-oss/kinde-auth-nextjs';
+// Removed Kinde authentication - admin-only site
 
 export default function TermsModal() {
-  const { isAuthenticated, isLoading } = useKindeBrowserClient();
+  // Admin-only site - no authentication needed
+  const isAuthenticated = true;
+  const isLoading = false;
   const [isOpen, setIsOpen] = useState(false);
 
   // Show the modal once per session when the user logs in

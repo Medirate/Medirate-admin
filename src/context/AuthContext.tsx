@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
+// Removed Kinde authentication - admin-only site
 import { useRouter } from "next/navigation";
 
 interface AuthState {
@@ -21,7 +21,10 @@ interface AuthState {
 const AuthContext = createContext<AuthState | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading, user } = useKindeBrowserClient();
+  // Admin-only site - no authentication needed
+  const user = { email: "admin@medirate.com", id: "admin" };
+  const isAuthenticated = true;
+  const isLoading = false;
   const router = useRouter();
 
   const [authState, setAuthState] = useState<{

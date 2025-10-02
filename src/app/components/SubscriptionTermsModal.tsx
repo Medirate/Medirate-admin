@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Modal from './modal';
-import { useKindeBrowserClient } from '@kinde-oss/kinde-auth-nextjs';
+// Removed Kinde authentication - admin-only site
 
 interface SubscriptionTermsModalProps {
   isOpen: boolean;
@@ -10,7 +10,9 @@ interface SubscriptionTermsModalProps {
 }
 
 export default function SubscriptionTermsModal({ isOpen, onClose }: SubscriptionTermsModalProps) {
-  const { isAuthenticated, isLoading } = useKindeBrowserClient();
+  // Admin-only site - no authentication needed
+  const isAuthenticated = true;
+  const isLoading = false;
 
   const handleAccept = () => {
     sessionStorage.setItem('subscriptionTermsAccepted', 'true');

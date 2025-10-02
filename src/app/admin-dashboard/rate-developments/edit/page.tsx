@@ -5,7 +5,7 @@ import AppLayout from "@/app/components/applayout";
 import { Search, LayoutGrid, LayoutList, ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { FaSpinner, FaExclamationCircle, FaSearch, FaSort, FaSortUp, FaSortDown, FaFilter, FaChartLine } from 'react-icons/fa';
-import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
+// Removed Kinde authentication - admin-only site
 import Select from 'react-select';
 // Removed direct Supabase import - will use API endpoints instead
 
@@ -652,7 +652,10 @@ function formatExcelOrStringDate(val: any): string {
 }
 
 export default function RateDevelopments() {
-  const { isAuthenticated, isLoading, user } = useKindeBrowserClient();
+  // Admin-only site - no authentication needed
+  const isAuthenticated = true;
+  const isLoading = false;
+  const user = { email: "admin@medirate.com", id: "admin" };
   const router = useRouter();
 
   // Add CSS for table column widths

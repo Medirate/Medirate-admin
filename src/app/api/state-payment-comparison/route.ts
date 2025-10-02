@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase";
-import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
+// Removed Kinde authentication - admin-only site
 
 // Initialize Supabase Client
 const supabase = createServiceClient();
@@ -31,8 +31,8 @@ export async function GET(request: Request) {
   
   try {
     // Validate authentication
-    const { getUser } = getKindeServerSession();
-    const user = await getUser();
+  // Admin-only site - no authentication needed
+  const user = { email: "admin@medirate.com", id: "admin" };
     if (!user || !user.email) {
       console.log('❌ API - Authentication failed');
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

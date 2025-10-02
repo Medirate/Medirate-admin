@@ -1,16 +1,14 @@
-import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
 import { createServiceClient } from "@/lib/supabase";
 import { NextResponse } from "next/server";
 
 /**
- * Validates that the current user is authenticated and has admin privileges
+ * Validates admin access for admin-only site
  * @returns {Promise<{user: any, error: NextResponse | null}>}
  */
 export async function validateAdminAuth(): Promise<{ user: any; error: NextResponse | null }> {
   try {
-    // Check authentication
-    const { getUser } = getKindeServerSession();
-    const user = await getUser();
+    // Admin-only site - no authentication needed
+    const user = { email: "admin@medirate.com", id: "admin" };
 
     if (!user || !user.email) {
       return {
