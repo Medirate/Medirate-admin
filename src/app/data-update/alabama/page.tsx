@@ -53,8 +53,9 @@ export default function StateDataUpdatePage() {
             const progressResponse = await fetch(`/api/alabama/upload-progress?id=${result.uploadId}`);
             const progressData = await progressResponse.json();
             
-            console.log('📊 Progress data received:', progressData);
-            setUploadProgress(progressData.progress || 0);
+            // Ensure progress is a valid number
+            const progress = typeof progressData.progress === 'number' ? progressData.progress : 0;
+            setUploadProgress(progress);
             setUploadStatus(progressData.message || 'Processing...');
             
             if (progressData.status === 'completed') {
