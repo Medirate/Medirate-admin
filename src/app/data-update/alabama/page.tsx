@@ -353,27 +353,87 @@ export default function StateDataUpdatePage() {
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service Code</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rate</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Effective Date</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service Code</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sub Category</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rate</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Effective Date</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duration Unit</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Minutes</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Program</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Modifier 1</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Modifier 1 Details</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Modifier 2</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Modifier 2 Details</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Modifier 3</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Modifier 3 Details</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Modifier 4</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Modifier 4 Details</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fee</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Max Fee</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prior Auth Required</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Comments</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location Region</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Times Rate Updated</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Percentage Change</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Requires PA</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rate Per Hour</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Provider Type</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Age</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {data.map((record: any) => (
-                        <tr key={record.id}>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{record.service_code}</td>
-                          <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">{record.service_description}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{record.rate}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{record.rate_effective_date}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <button className="text-blue-600 hover:text-blue-900 mr-3">
-                              <FaEdit />
-                            </button>
-                            <button className="text-red-600 hover:text-red-900">
-                              <FaTrash />
-                            </button>
+                        <tr key={record.id} className="hover:bg-gray-50">
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">{record.id}</td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">{record.service_code}</td>
+                          <td className="px-3 py-4 text-sm text-gray-900 max-w-xs truncate" title={record.service_description}>{record.service_description}</td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">{record.service_category}</td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">{record.service_sub_category}</td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">${record.rate}</td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">{record.rate_effective_date}</td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">{record.duration_unit}</td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">{record.minutes}</td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">{record.program}</td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">{record.modifier_1}</td>
+                          <td className="px-3 py-4 text-sm text-gray-900 max-w-xs truncate" title={record.modifier_1_details}>{record.modifier_1_details}</td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">{record.modifier_2}</td>
+                          <td className="px-3 py-4 text-sm text-gray-900 max-w-xs truncate" title={record.modifier_2_details}>{record.modifier_2_details}</td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">{record.modifier_3}</td>
+                          <td className="px-3 py-4 text-sm text-gray-900 max-w-xs truncate" title={record.modifier_3_details}>{record.modifier_3_details}</td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">{record.modifier_4}</td>
+                          <td className="px-3 py-4 text-sm text-gray-900 max-w-xs truncate" title={record.modifier_4_details}>{record.modifier_4_details}</td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">{record.fee}</td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">{record.max_fee}</td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">{record.prior_auth_required}</td>
+                          <td className="px-3 py-4 text-sm text-gray-900 max-w-xs truncate" title={record.comments}>{record.comments}</td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">{record.location_region}</td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">{record.times_rate_updated}</td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">{record.percentage_change}</td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">{record.requires_pa}</td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">{record.rate_per_hour}</td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">{record.provider_type}</td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">{record.age}</td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(record.created_at).toLocaleDateString()}</td>
+                          <td className="px-3 py-4 whitespace-nowrap text-sm font-medium">
+                            <div className="flex space-x-2">
+                              <button 
+                                className="text-blue-600 hover:text-blue-900 p-1"
+                                title="Edit record"
+                              >
+                                <FaEdit />
+                              </button>
+                              <button 
+                                className="text-red-600 hover:text-red-900 p-1"
+                                title="Delete record"
+                              >
+                                <FaTrash />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
